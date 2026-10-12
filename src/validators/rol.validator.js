@@ -1,7 +1,11 @@
 const { z } = require('zod');
 
 const idParam = z.object({ id: z.coerce.number().int().positive() });
-const rol = z.object({ nombre_rol: z.string().trim().min(2).max(100).transform((s) => s.toUpperCase()) });
+const rol = z.object({
+  nombre_rol: z.string().trim().min(2).max(100).transform((s) => s.toUpperCase()),
+  descripcion: z.string().trim().max(500).optional(),
+  estado: z.enum(['ACTIVO', 'INACTIVO']).optional(),
+});
 
 // PUT /api/roles/:id/permisos  ->  { "permisos": [ { "modulo": "COMPRAS", "privilegios": ["VER","CREAR"] } ] }
 const permisos = z.object({

@@ -44,4 +44,16 @@ const me = async (id) => {
   return p;
 };
 
-module.exports = { registrar, login, me };
+const actualizarPerfil = async (id, d) => {
+  await Usuario.actualizarPerfil(id, d);
+  return me(id);
+};
+
+const cambiarContrasena = async (id, { actual, nueva }) => {
+  const hash = await Usuario.obtenerHash(id);
+  if (!hash || !(await bcrypt.compare(actual, hash))) throw AppError.badRequest('La contraseña actual es incorrecta');
+  if (actual === nueva) throw AppError.badRequest('La nueva contraseña debe ser diferente a la actual');
+  await Usuario.cambiarContrasena(id, await bcrypt.hash(nueva, 10));
+};
+
+module.exports = { registrar, login, me, actualizarPerfil, cambiarContrasena };

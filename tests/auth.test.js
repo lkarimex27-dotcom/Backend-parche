@@ -4,7 +4,9 @@ const app = require('../src/app');
 
 // Estas pruebas no necesitan base de datos: la seguridad responde antes de llegar a ella.
 describe('Seguridad', () => {
-  it.each(['/api/usuarios', '/api/roles', '/api/insumos', '/api/productos', '/api/proveedores', '/api/clientes'])(
+  it.each(['/api/usuarios', '/api/roles', '/api/insumos', '/api/productos', '/api/proveedores', '/api/clientes',
+    '/api/compras', '/api/perdidas-insumos', '/api/pedidos', '/api/pedidos/mios', '/api/ventas', '/api/devoluciones',
+    '/api/ordenes-produccion', '/api/productos-no-conformes'])(
     'GET %s sin token devuelve 401',
     async (ruta) => {
       const res = await request(app).get(ruta);

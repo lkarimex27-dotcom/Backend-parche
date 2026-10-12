@@ -5,4 +5,11 @@ const registro = asyncHandler(async (req, res) => res.status(201).json({ ok: tru
 const login = asyncHandler(async (req, res) => res.json({ ok: true, data: await service.login(req.body) }));
 const me = asyncHandler(async (req, res) => res.json({ ok: true, data: await service.me(req.user.id) }));
 
-module.exports = { registro, login, me };
+const actualizarPerfil = asyncHandler(async (req, res) =>
+  res.json({ ok: true, data: await service.actualizarPerfil(req.user.id, req.body) }));
+const cambiarContrasena = asyncHandler(async (req, res) => {
+  await service.cambiarContrasena(req.user.id, req.body);
+  res.status(204).send();
+});
+
+module.exports = { registro, login, me, actualizarPerfil, cambiarContrasena };

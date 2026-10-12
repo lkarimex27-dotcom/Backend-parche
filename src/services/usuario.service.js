@@ -28,7 +28,8 @@ const crear = async (d) => {
   return obtener(id);
 };
 
-const actualizar = async (id, d) => {
+const actualizar = async (id, d, idQuienEdita) => {
+  if (id === idQuienEdita && d.estado === 'INACTIVO') throw AppError.badRequest('No puedes desactivar tu propio usuario');
   await obtener(id); // 404 si no existe
   const hash = d.contrasena ? await bcrypt.hash(d.contrasena, ROUNDS) : null;
   await withTransaction(async (c) => {
