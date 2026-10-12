@@ -1,10 +1,11 @@
 const { z } = require('zod');
+const { correo } = require('./common.validator');
 
 const idParam = z.object({ id: z.coerce.number().int().positive() });
 
 const crearProveedor = z.object({
   nombre: z.string().trim().min(2).max(150),
-  correo: z.string().trim().email().max(255).optional(),
+  correo: correo.optional(),
   telefono: z.string().trim().max(30).optional(),
   contacto: z.string().trim().max(150).optional(),
   tipo: z.string().trim().max(50).optional(),

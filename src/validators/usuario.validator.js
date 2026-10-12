@@ -1,5 +1,6 @@
 const { z } = require('zod');
 const { contrasena } = require('./auth.validator');
+const { correo } = require('./common.validator');
 
 const idParam = z.object({ id: z.coerce.number().int().positive() });
 
@@ -9,7 +10,7 @@ const filtros = z.object({
 });
 
 const crearUsuario = z.object({
-  correo: z.string().trim().email().max(255),
+  correo,
   contrasena,
   nombre: z.string().trim().min(2).max(150),
   tipo_documento: z.string().trim().max(30).optional(),
@@ -21,7 +22,7 @@ const crearUsuario = z.object({
 
 const actualizarUsuario = z
   .object({
-    correo: z.string().trim().email().max(255),
+    correo,
     contrasena,
     nombre: z.string().trim().min(2).max(150),
     tipo_documento: z.string().trim().max(30),
