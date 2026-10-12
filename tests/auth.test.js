@@ -14,6 +14,11 @@ describe('Seguridad', () => {
     }
   );
 
+  it('POST /api/consumos-produccion sin token devuelve 401 (no descuenta stock)', async () => {
+    const res = await request(app).post('/api/consumos-produccion').send({ numero_orden: 'OP-1', insumos: [] });
+    expect(res.status).toBe(401);
+  });
+
   it('rechaza un token falso', async () => {
     const res = await request(app).get('/api/usuarios').set('Authorization', 'Bearer abc.def.ghi');
     expect(res.status).toBe(401);

@@ -456,3 +456,14 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_ficha_por_item ON fichas_tecnicas(id_insumo
 
 -- Direcciones guardadas del cliente (la primera también queda en personas.direccion)
 ALTER TABLE personas ADD COLUMN IF NOT EXISTS direcciones JSONB NOT NULL DEFAULT '[]';
+
+-- 28. CONSUMOS DE PRODUCCION: insumos que se descontaron al pasar una orden a "En cocina" (una vez por orden)
+CREATE TABLE IF NOT EXISTS consumos_produccion (
+    id_consumo    BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    numero_orden  VARCHAR(50) NOT NULL UNIQUE,
+    detalle       JSONB NOT NULL,   -- [{ insumo, cantidad }]
+    id_usuario    BIGINT,
+    creado_en     TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_consumo_usuario FOREIGN KEY (id_usuario) REFERENCES usuarios(id_usuario)
+);
