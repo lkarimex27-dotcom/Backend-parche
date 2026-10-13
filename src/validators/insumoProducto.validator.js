@@ -35,7 +35,7 @@ const ficha = z.object({
   ingredientes: z
     .array(z.object({ insumo: z.string().trim().min(1).max(150), cantidad: z.number().positive(), medida: texto(50) }))
     .max(100)
-    .default([]),
+    .optional(),   // sin enviar = se conserva la receta guardada
 });
 
 // Foto: imagen subida (data URL, la app la reduce) o URL externa

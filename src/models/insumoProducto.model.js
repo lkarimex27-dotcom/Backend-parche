@@ -78,6 +78,7 @@ const guardarFicha = async (c, id, d) => {
      RETURNING id_ficha_tecnica`,
     [id, d.nombre ?? null, d.version ?? null, d.insumos_principales ?? null, d.preparacion ?? null]
   )).rows[0];
+  if (!d.ingredientes) return null; // receta sin cambios
   await c.query('DELETE FROM ficha_tecnica_insumos WHERE id_ficha_tecnica = $1', [id_ficha_tecnica]);
   for (const ing of d.ingredientes) {
     const r = await c.query(
