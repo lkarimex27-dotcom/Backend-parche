@@ -5,6 +5,7 @@ const exec = (c) => c || pool; // permite usar un client de transacción
 const SELECT = `
   SELECT u.id_usuario, u.correo, u.estado,
          pe.id_persona, pe.nombre, pe.tipo_documento, pe.documento, pe.tipo AS tipo_persona,
+         pe.telefono, pe.direcciones,
          COALESCE((SELECT array_agg(r.nombre_rol ORDER BY r.nombre_rol)
                      FROM roles_usuario ru JOIN roles r ON r.id_rol = ru.id_rol
                     WHERE ru.id_usuario = u.id_usuario), '{}') AS roles
@@ -77,7 +78,27 @@ const reemplazarRoles = async (c, idUsuario, nombres) => {
   return r.rowCount === unicos.length;
 };
 
+// Datos que el usuario edita en su perfil (solo los enviados)
+const actualizarPerfil = async (id, d) => {
+  const campos = ['nombre', 'tipo_documento', 'documento', 'telefono'].filter((k) => d[k] !== undefined);
+  const valores = campos.map((k) => d[k]);
+  if (d.direcciones !== undefined) {
+    campos.push('direcciones', 'direccion');
+    valores.push(JSON.stringify(d.direcciones), d.direcciones[0] ?? null);
+  }
+  if (!campos.length) return;
+  await pool.query(
+    `UPDATE personas SET ${campos.map((k, i) => `${k} = $${i + 2}`).join(', ')} WHERE id_usuario = $1`,
+    [id, ...valores]
+  );
+};
+
+const cambiarContrasena = (id, hash) => pool.query('UPDATE usuarios SET contrasena = $2 WHERE id_usuario = $1', [id, hash]);
+const obtenerHash = async (id) =>
+  (await pool.query('SELECT contrasena FROM usuarios WHERE id_usuario = $1', [id])).rows[0]?.contrasena ?? null;
+
 module.exports = {
+  actualizarPerfil, cambiarContrasena, obtenerHash,
   listar, obtenerPorId, obtenerParaLogin, crearUsuario, crearPersona,
   actualizarUsuario, actualizarPersona, reemplazarRoles,
 };

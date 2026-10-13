@@ -6,7 +6,8 @@ API en Node.js + Express con PostgreSQL (Neon). Organizada por los módulos del 
 
 ```bash
 npm install
-# 1. Edita .env:
+# 1. Crea y edita .env:
+#    PowerShell: Copy-Item .env.example .env
 #    - DATABASE_URL  (cadena de Neon)
 #    - JWT_SECRET    (node -e "console.log(require('crypto').randomBytes(48).toString('hex'))")
 #    - ADMIN_EMAIL / ADMIN_PASSWORD (primer administrador)

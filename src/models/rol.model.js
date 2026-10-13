@@ -5,11 +5,18 @@ const listar = async () => (await pool.query('SELECT * FROM roles ORDER BY id_ro
 const obtenerPorId = async (id) =>
   (await pool.query('SELECT * FROM roles WHERE id_rol = $1', [id])).rows[0] || null;
 
-const crear = async ({ nombre_rol }) =>
-  (await pool.query('INSERT INTO roles (nombre_rol) VALUES ($1) RETURNING *', [nombre_rol])).rows[0];
+const crear = async ({ nombre_rol, descripcion, estado }) =>
+  (await pool.query(
+    "INSERT INTO roles (nombre_rol, descripcion, estado) VALUES ($1, $2, COALESCE($3, 'ACTIVO')) RETURNING *",
+    [nombre_rol, descripcion ?? null, estado ?? null]
+  )).rows[0];
 
-const actualizar = async (id, { nombre_rol }) =>
-  (await pool.query('UPDATE roles SET nombre_rol = $2 WHERE id_rol = $1 RETURNING *', [id, nombre_rol])).rows[0] || null;
+const actualizar = async (id, { nombre_rol, descripcion, estado }) =>
+  (await pool.query(
+    `UPDATE roles SET nombre_rol = $2, descripcion = COALESCE($3, descripcion), estado = COALESCE($4, estado)
+      WHERE id_rol = $1 RETURNING *`,
+    [id, nombre_rol, descripcion, estado]
+  )).rows[0] || null;
 
 const eliminar = async (id) =>
   (await pool.query('DELETE FROM roles WHERE id_rol = $1', [id])).rowCount > 0;
