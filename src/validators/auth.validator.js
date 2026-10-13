@@ -16,4 +16,18 @@ const registro = z.object({
   documento: z.string().trim().max(50).optional(),
 });
 
-module.exports = { login, registro, contrasena };
+// Perfil propio (cliente o personal)
+const perfil = z
+  .object({
+    nombre: z.string().trim().min(2).max(150),
+    tipo_documento: z.string().trim().max(30),
+    documento: z.string().trim().max(50),
+    telefono: z.string().trim().max(30),
+    direcciones: z.array(z.string().trim().min(1).max(200)).max(10),
+  })
+  .partial()
+  .refine((o) => Object.keys(o).length > 0, { message: 'Envía al menos un campo' });
+
+const cambioContrasena = z.object({ actual: z.string().min(1).max(72), nueva: contrasena });
+
+module.exports = { login, registro, contrasena, perfil, cambioContrasena };

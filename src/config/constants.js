@@ -52,4 +52,7 @@ const PERMISOS_INICIALES = {
   CLIENTE: {},
 };
 
-module.exports = { ROLES, PRIVILEGIOS, MODULOS, PERMISOS_INICIALES };
+// Pedidos de este total o más quedan "Por confirmar" hasta que el administrador los apruebe (igual que la app)
+const PEDIDO_MONTO_APROBACION = 150000;
+
+module.exports = { ROLES, PRIVILEGIOS, MODULOS, PERMISOS_INICIALES, PEDIDO_MONTO_APROBACION };

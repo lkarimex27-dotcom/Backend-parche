@@ -5,6 +5,7 @@ const tienePermiso = async (idUsuario, modulo, privilegio) => {
     `SELECT 1
        FROM usuarios u
        JOIN roles_usuario ru ON ru.id_usuario = u.id_usuario
+       JOIN roles r          ON r.id_rol = ru.id_rol AND r.estado = 'ACTIVO'  -- un rol inactivo no da permisos
        JOIN permisos p       ON p.id_rol = ru.id_rol
        JOIN modulos m        ON m.id_modulo = p.id_modulo
        JOIN privilegios pr   ON pr.id_privilegio = p.id_privilegio
@@ -22,6 +23,7 @@ const permisosDeUsuario = async (idUsuario) =>
     `SELECT m.nombre_modulo AS modulo,
             array_agg(DISTINCT pr.nombre_privilegio ORDER BY pr.nombre_privilegio) AS privilegios
        FROM roles_usuario ru
+       JOIN roles r        ON r.id_rol = ru.id_rol AND r.estado = 'ACTIVO'
        JOIN permisos p     ON p.id_rol = ru.id_rol
        JOIN modulos m      ON m.id_modulo = p.id_modulo
        JOIN privilegios pr ON pr.id_privilegio = p.id_privilegio
