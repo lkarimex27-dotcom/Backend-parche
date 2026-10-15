@@ -33,7 +33,10 @@ const guardarDetalles = async (c, idCompra, items, sumarStock) => {
       throw AppError.badRequest(`El insumo ${it.id_insumo_producto} no existe`);
     }
   }
-  if (sumarStock) await moverStock(c, items, 1);
+  if (sumarStock) {
+    await moverStock(c, items, 1);
+    for (const it of items) await Stock.fijarCosto(c, it.id_insumo_producto, it.costo_unitario);
+  }
 };
 
 const crear = async (datos) => {

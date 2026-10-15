@@ -467,3 +467,11 @@ CREATE TABLE IF NOT EXISTS consumos_produccion (
 
     CONSTRAINT fk_consumo_usuario FOREIGN KEY (id_usuario) REFERENCES usuarios(id_usuario)
 );
+
+-- Las hamburguesas se llaman "Hamburguesa <nombre>" (ej. "Hamburguesa Doble", no solo "Doble"); no repite si ya empieza así
+UPDATE insumos_productos ip
+   SET nombre = 'Hamburguesa ' || ip.nombre
+  FROM categorias c
+ WHERE c.id_categoria = ip.id_categoria
+   AND c.nombre_categoria = 'Hamburguesas'
+   AND ip.nombre NOT ILIKE 'hamburguesa %';
