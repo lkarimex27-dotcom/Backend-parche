@@ -13,6 +13,7 @@ const cambiarContrasena = asyncHandler(async (req, res) => {
   res.status(204).send();
 });
 
+
 const recuperar = asyncHandler(async (req, res) => {
   await recuperacion.solicitar(req.body);
   res.status(204).send();
@@ -23,3 +24,10 @@ const restablecer = asyncHandler(async (req, res) => {
 });
 
 module.exports = { registro, login, me, actualizarPerfil, cambiarContrasena, recuperar, restablecer };
+
+const cambiarContrasenaInicial = asyncHandler(async (req, res) =>
+  res.json({ ok: true, data: await service.cambiarContrasenaInicial(req.user.id, req.body) }));
+
+module.exports = { registro, login, me, actualizarPerfil, cambiarContrasena, cambiarContrasenaInicial };
+
+module.exports = { registro, login, me, actualizarPerfil, cambiarContrasena };
