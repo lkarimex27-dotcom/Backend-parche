@@ -19,6 +19,9 @@ const env = {
   adminEmail: process.env.ADMIN_EMAIL,
   adminPassword: process.env.ADMIN_PASSWORD,
   adminNombre: process.env.ADMIN_NOMBRE || 'Administrador',
+  defaultPasswords: Object.fromEntries(
+    Object.entries(process.env).filter(([key]) => key.startsWith('DEFAULT_PASSWORD_'))
+  ),
 };
 
 module.exports = env;

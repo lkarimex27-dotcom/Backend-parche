@@ -38,10 +38,16 @@ const darPermisos = (c, rol, modulo, privilegios) =>
         const existe = await c.query('SELECT id_usuario FROM usuarios WHERE lower(correo) = lower($1)', [env.adminEmail]);
         if (existe.rowCount === 0) {
           const hash = await bcrypt.hash(env.adminPassword, 10);
-          const u = await c.query('INSERT INTO usuarios (correo, contrasena) VALUES ($1, $2) RETURNING id_usuario', [
+          const u = await c.query(
+            `INSERT INTO usuarios (correo, contrasena, requiere_cambio_contrasena, es_administrador_principal)
+             VALUES ($1, $2, TRUE, NOT EXISTS (
+               SELECT 1 FROM usuarios WHERE es_administrador_principal = TRUE
+             )) RETURNING id_usuario`,
+            [
             env.adminEmail,
             hash,
-          ]);
+            ]
+          );
           const id = u.rows[0].id_usuario;
           await c.query('INSERT INTO personas (id_usuario, nombre, tipo) VALUES ($1, $2, $3)', [id, env.adminNombre, 'EMPLEADO']);
           await c.query(
