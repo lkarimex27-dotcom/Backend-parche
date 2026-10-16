@@ -20,7 +20,7 @@ const crear = async (d) => {
   const provisional = contrasenaProvisional();
   const hash = await bcrypt.hash(provisional, 10);
   const id = await withTransaction(async (c) => {
-    const u = await Usuario.crearUsuario(c, { correo: d.correo, hash, estado: d.estado, debeCambiar: true });
+    const u = await Usuario.crearUsuario(c, { correo: d.correo, hash, estado: d.estado, requiereCambioContrasena: true });
     if (!(await Usuario.reemplazarRoles(c, u.id_usuario, ['CLIENTE']))) {
       throw AppError.badRequest('El rol CLIENTE no existe. Ejecuta npm run db:seed');
     }

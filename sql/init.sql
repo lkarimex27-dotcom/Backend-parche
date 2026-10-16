@@ -501,6 +501,3 @@ CREATE TABLE IF NOT EXISTS recuperaciones_contrasena (
 
     CONSTRAINT fk_recuperacion_usuario FOREIGN KEY (id_usuario) REFERENCES usuarios(id_usuario) ON DELETE CASCADE
 );
-
--- Cuenta creada con contraseña provisional (enviada al correo): debe cambiarla al entrar
-ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS debe_cambiar_contrasena BOOLEAN NOT NULL DEFAULT false;
