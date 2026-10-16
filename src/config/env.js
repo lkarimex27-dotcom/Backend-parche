@@ -19,6 +19,9 @@ const env = {
   adminEmail: process.env.ADMIN_EMAIL,
   adminPassword: process.env.ADMIN_PASSWORD,
   adminNombre: process.env.ADMIN_NOMBRE || 'Administrador',
+  // Correo que envía los códigos de recuperación (Gmail + contraseña de aplicación)
+  mailUser: process.env.MAIL_USER,
+  mailPass: (process.env.MAIL_PASS || '').replace(/\s/g, ''), // Google la muestra con espacios
 };
 
 module.exports = env;

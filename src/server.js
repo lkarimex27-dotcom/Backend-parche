@@ -22,6 +22,18 @@ const start = async () => {
   const server = app.listen(env.port, () => {
     console.log(`Servidor listo en http://localhost:${env.port}/api/health`);
   });
+  server.on('error', async (err) => {
+    if (err.code === 'EADDRINUSE') {
+      console.error(
+        `El puerto ${env.port} ya está en uso: probablemente el backend ya está corriendo en otra terminal.\n` +
+          'Usa esa terminal, o detenla con Ctrl + C y vuelve a iniciar este.'
+      );
+    } else {
+      console.error('No se pudo iniciar el servidor:', err.message);
+    }
+    await pool.end();
+    process.exit(1);
+  });
 
   const shutdown = async () => {
     console.log('Cerrando servidor...');

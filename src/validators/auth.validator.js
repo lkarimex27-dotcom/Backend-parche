@@ -30,4 +30,8 @@ const perfil = z
 
 const cambioContrasena = z.object({ actual: z.string().min(1).max(72), nueva: contrasena });
 
-module.exports = { login, registro, contrasena, perfil, cambioContrasena };
+// Olvidé mi contraseña: pedir el código y usarlo
+const recuperar = z.object({ correo });
+const restablecer = z.object({ correo, codigo: z.string().trim().regex(/^\d{6}$/, 'El código tiene 6 dígitos'), nueva: contrasena });
+
+module.exports = { login, registro, contrasena, perfil, cambioContrasena, recuperar, restablecer };

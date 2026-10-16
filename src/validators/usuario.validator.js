@@ -9,9 +9,9 @@ const filtros = z.object({
   estado: z.enum(['ACTIVO', 'INACTIVO']).optional(),
 });
 
+// La contraseña no la escribe el admin: se envía una provisional al correo del usuario
 const crearUsuario = z.object({
   correo,
-  contrasena,
   nombre: z.string().trim().min(2).max(150),
   tipo_documento: z.string().trim().max(30).optional(),
   documento: z.string().trim().max(50).optional(),
