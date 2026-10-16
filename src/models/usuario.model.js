@@ -3,8 +3,9 @@ const { pool } = require('../config/db');
 const exec = (c) => c || pool; // permite usar un client de transacción
 
 const SELECT = `
-  SELECT u.id_usuario, u.correo, u.estado,
+  SELECT u.id_usuario, u.correo, u.estado, u.es_administrador_principal, u.requiere_cambio_contrasena,
          pe.id_persona, pe.nombre, pe.tipo_documento, pe.documento, pe.tipo AS tipo_persona,
+         pe.telefono, pe.direcciones,
          COALESCE((SELECT array_agg(r.nombre_rol ORDER BY r.nombre_rol)
                      FROM roles_usuario ru JOIN roles r ON r.id_rol = ru.id_rol
                     WHERE ru.id_usuario = u.id_usuario), '{}') AS roles
@@ -30,15 +31,17 @@ const obtenerPorId = async (id, c) =>
 // Incluye el hash de la contraseña: SOLO para el login. Nunca devolver al cliente.
 const obtenerParaLogin = async (correo) =>
   (await pool.query(
-    `SELECT id_usuario, correo, contrasena, estado FROM usuarios WHERE lower(correo) = lower($1)`,
+    `SELECT id_usuario, correo, contrasena, estado, requiere_cambio_contrasena
+       FROM usuarios WHERE lower(correo) = lower($1)`,
     [correo]
   )).rows[0] || null;
 
-const crearUsuario = async (c, { correo, hash, estado }) =>
+const crearUsuario = async (c, { correo, hash, estado, requiereCambioContrasena = false, esAdministradorPrincipal = false }) =>
   (await exec(c).query(
-    `INSERT INTO usuarios (correo, contrasena, estado) VALUES ($1, $2, COALESCE($3, 'ACTIVO'))
+    `INSERT INTO usuarios (correo, contrasena, estado, requiere_cambio_contrasena, es_administrador_principal)
+     VALUES ($1, $2, COALESCE($3, 'ACTIVO'), $4, $5)
      RETURNING id_usuario`,
-    [correo, hash, estado ?? null]
+    [correo, hash, estado ?? null, requiereCambioContrasena, esAdministradorPrincipal]
   )).rows[0];
 
 const crearPersona = async (c, { id_usuario, nombre, tipo_documento, documento, tipo }) =>
@@ -77,7 +80,69 @@ const reemplazarRoles = async (c, idUsuario, nombres) => {
   return r.rowCount === unicos.length;
 };
 
+// Datos que el usuario edita en su perfil (solo los enviados)
+const actualizarPerfil = async (id, d) => {
+  const campos = ['nombre', 'tipo_documento', 'documento', 'telefono'].filter((k) => d[k] !== undefined);
+  const valores = campos.map((k) => d[k]);
+  if (d.direcciones !== undefined) {
+    campos.push('direcciones', 'direccion');
+    valores.push(JSON.stringify(d.direcciones), d.direcciones[0] ?? null);
+  }
+  if (!campos.length) return;
+  await pool.query(
+    `UPDATE personas SET ${campos.map((k, i) => `${k} = $${i + 2}`).join(', ')} WHERE id_usuario = $1`,
+    [id, ...valores]
+  );
+};
+
+const cambiarContrasena = (id, hash) => pool.query('UPDATE usuarios SET contrasena = $2 WHERE id_usuario = $1', [id, hash]);
+const cambiarContrasenaInicial = (c, id, hash) =>
+  exec(c).query(
+    `UPDATE usuarios
+        SET contrasena = $2, requiere_cambio_contrasena = FALSE
+      WHERE id_usuario = $1 AND requiere_cambio_contrasena = TRUE`,
+    [id, hash]
+  );
+const obtenerHash = async (id) =>
+  (await pool.query('SELECT contrasena FROM usuarios WHERE id_usuario = $1', [id])).rows[0]?.contrasena ?? null;
+
+const obtenerAdministradorPrincipal = async (c) =>
+  (await exec(c).query(
+    `SELECT u.id_usuario, pe.nombre
+       FROM usuarios u
+       LEFT JOIN personas pe ON pe.id_usuario = u.id_usuario
+      WHERE u.es_administrador_principal = TRUE
+      FOR UPDATE OF u`
+  )).rows[0] || null;
+
+const reasignarRegistros = async (c, idUsuario, idPrincipal, nombreUsuario, nombrePrincipal) => {
+  await c.query(
+    `UPDATE ventas
+        SET datos_panel = jsonb_set(datos_panel, '{1}', to_jsonb($1::text), FALSE)
+      WHERE id_usuario = $3
+        AND datos_panel IS NOT NULL
+        AND datos_panel->>1 = $2`,
+    [nombrePrincipal, nombreUsuario, idUsuario]
+  );
+  await c.query('UPDATE ventas SET id_usuario = $1 WHERE id_usuario = $2', [idPrincipal, idUsuario]);
+  await c.query('UPDATE producto_no_conforme SET id_usuario = $1 WHERE id_usuario = $2', [idPrincipal, idUsuario]);
+  await c.query('UPDATE perdidas_insumos SET id_usuario = $1 WHERE id_usuario = $2', [idPrincipal, idUsuario]);
+  await c.query('UPDATE pedidos SET id_cliente = $1 WHERE id_cliente = $2', [idPrincipal, idUsuario]);
+  await c.query('UPDATE pedidos SET id_domiciliario = $1 WHERE id_domiciliario = $2', [idPrincipal, idUsuario]);
+  await c.query('UPDATE historial_estados_pedido SET id_usuario = $1 WHERE id_usuario = $2', [idPrincipal, idUsuario]);
+  await c.query('UPDATE devoluciones SET id_usuario = $1 WHERE id_usuario = $2', [idPrincipal, idUsuario]);
+  await c.query('UPDATE consumos_produccion SET id_usuario = $1 WHERE id_usuario = $2', [idPrincipal, idUsuario]);
+};
+
+const eliminar = async (c, id) => {
+  await exec(c).query('DELETE FROM roles_usuario WHERE id_usuario = $1', [id]);
+  await exec(c).query('DELETE FROM personas WHERE id_usuario = $1', [id]);
+  return (await exec(c).query('DELETE FROM usuarios WHERE id_usuario = $1', [id])).rowCount > 0;
+};
+
 module.exports = {
+  actualizarPerfil, cambiarContrasena, cambiarContrasenaInicial, obtenerHash,
   listar, obtenerPorId, obtenerParaLogin, crearUsuario, crearPersona,
-  actualizarUsuario, actualizarPersona, reemplazarRoles,
+  actualizarUsuario, actualizarPersona, reemplazarRoles, obtenerAdministradorPrincipal,
+  reasignarRegistros, eliminar,
 };

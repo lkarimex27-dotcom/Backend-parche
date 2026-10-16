@@ -7,7 +7,11 @@ const Permiso = require('../models/permiso.model');
 const AppError = require('../errors/AppError');
 
 const firmarToken = (u) =>
-  jwt.sign({ correo: u.correo }, env.jwtSecret, { subject: String(u.id_usuario), expiresIn: env.jwtExpiresIn });
+  jwt.sign(
+    { correo: u.correo, ...(u.requiere_cambio_contrasena ? { requiere_cambio_contrasena: true } : {}) },
+    env.jwtSecret,
+    { subject: String(u.id_usuario), expiresIn: env.jwtExpiresIn }
+  );
 
 const perfilCompleto = async (id) => {
   const usuario = await Usuario.obtenerPorId(id);
@@ -35,7 +39,11 @@ const login = async ({ correo, contrasena }) => {
   const ok = u && (await bcrypt.compare(contrasena, u.contrasena));
   if (!ok) throw AppError.unauthorized('Correo o contraseña incorrectos');
   if (u.estado !== 'ACTIVO') throw AppError.forbidden('Tu usuario está inactivo');
-  return { token: firmarToken(u), ...(await perfilCompleto(u.id_usuario)) };
+  return {
+    token: firmarToken(u),
+    ...(await perfilCompleto(u.id_usuario)),
+    requiere_cambio_contrasena: Boolean(u.requiere_cambio_contrasena),
+  };
 };
 
 const me = async (id) => {
@@ -44,4 +52,30 @@ const me = async (id) => {
   return p;
 };
 
-module.exports = { registrar, login, me };
+const actualizarPerfil = async (id, d) => {
+  await Usuario.actualizarPerfil(id, d);
+  return me(id);
+};
+
+const cambiarContrasena = async (id, { actual, nueva }) => {
+  const hash = await Usuario.obtenerHash(id);
+  if (!hash || !(await bcrypt.compare(actual, hash))) throw AppError.badRequest('La contraseña actual es incorrecta');
+  if (actual === nueva) throw AppError.badRequest('La nueva contraseña debe ser diferente a la actual');
+  await Usuario.cambiarContrasena(id, await bcrypt.hash(nueva, 10));
+};
+
+const cambiarContrasenaInicial = async (id, { nueva }) => {
+  const usuario = await Usuario.obtenerPorId(id);
+  if (!usuario || !usuario.requiere_cambio_contrasena) {
+    throw AppError.badRequest('Esta cuenta no requiere un cambio inicial de contraseña.');
+  }
+  const hash = await bcrypt.hash(nueva, 10);
+  const result = await withTransaction((c) => Usuario.cambiarContrasenaInicial(c, id, hash));
+  if (!result.rowCount) {
+    throw AppError.badRequest('Esta cuenta no requiere un cambio inicial de contraseña.');
+  }
+  const actualizado = await Usuario.obtenerPorId(id);
+  return { token: firmarToken(actualizado) };
+};
+
+module.exports = { registrar, login, me, actualizarPerfil, cambiarContrasena, cambiarContrasenaInicial };

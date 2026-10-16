@@ -11,11 +11,19 @@ npm install
 #    - DATABASE_URL  (cadena de Neon)
 #    - JWT_SECRET    (node -e "console.log(require('crypto').randomBytes(48).toString('hex'))")
 #    - ADMIN_EMAIL / ADMIN_PASSWORD (primer administrador)
+#    - DEFAULT_PASSWORD_ADMINISTRADOR / DEFAULT_PASSWORD_EMPLEADO / DEFAULT_PASSWORD_DOMICILIARIO
 npm run db:setup     # crea las 26 tablas + roles, privilegios, módulos, permisos y el admin
 npm run dev
 ```
 
 `npm run db:init` (solo esquema) y `npm run db:seed` (solo datos base) también existen. Ambos son idempotentes.
+
+Configura contraseñas temporales diferentes en el `.env` para cada rol de personal
+(y `DEFAULT_PASSWORD_<ROL>` para roles personalizados). Cada contraseña debe tener entre 8 y 72
+caracteres e incluir una mayúscula, una minúscula y un número. El servidor las asigna al crear
+usuarios de personal, devuelve la clave temporal solo en la respuesta de alta y exige cambiarla
+en `PATCH /api/auth/me/contrasena-inicial` antes de permitir cualquier otra ruta autenticada.
+Las cuentas de cliente conservan la contraseña que el cliente eligió.
 
 ## Cómo se usa la seguridad
 
@@ -29,7 +37,7 @@ npm run dev
 | Módulo del panel | Ruta | Estado |
 |---|---|---|
 | Roles y permisos | `/api/roles` (+ `/catalogo`, `PUT /:id/permisos`) | Listo |
-| Usuarios | `/api/usuarios` (DELETE desactiva) | Listo |
+| Usuarios | `/api/usuarios` (DELETE reasigna registros al administrador principal y elimina) | Listo |
 | Categ. Insumos | `/api/categorias-insumos` | Listo |
 | Insumos | `/api/insumos` | Listo |
 | Proveedores | `/api/proveedores` (DELETE desactiva) | Listo |

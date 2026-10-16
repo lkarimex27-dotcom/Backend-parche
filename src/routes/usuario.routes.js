@@ -11,6 +11,6 @@ router.get('/', authorize(M, 'VER'), validate(v.filtros, 'query'), c.listar);
 router.get('/:id', authorize(M, 'VER'), validate(v.idParam, 'params'), c.obtener);
 router.post('/', authorize(M, 'CREAR'), validate(v.crearUsuario), c.crear);
 router.patch('/:id', authorize(M, 'EDITAR'), validate(v.idParam, 'params'), validate(v.actualizarUsuario), c.actualizar);
-router.delete('/:id', authorize(M, 'ELIMINAR'), validate(v.idParam, 'params'), c.desactivar); // desactiva, no borra
+router.delete('/:id', authorize(M, 'ELIMINAR'), validate(v.idParam, 'params'), c.eliminar);
 
 module.exports = router;
