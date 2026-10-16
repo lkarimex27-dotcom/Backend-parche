@@ -3,6 +3,7 @@ const env = require('../config/env');
 const Usuario = require('../models/usuario.model');
 const { withTransaction } = require('../config/db');
 const AppError = require('../errors/AppError');
+const { contrasenaProvisional, enviarProvisional } = require('../utils/provisional');
 
 const ROUNDS = 10;
 
@@ -17,6 +18,14 @@ const obtener = async (id) => {
 const asegurarRoles = (ok) => {
   if (!ok) throw AppError.badRequest('Alguno de los roles indicados no existe');
 };
+
+
+// Cuenta creada por el admin: el usuario recibe una contraseña provisional y debe cambiarla al entrar
+const crear = async (d) => {
+  const provisional = contrasenaProvisional();
+  const hash = await bcrypt.hash(provisional, ROUNDS);
+  const id = await withTransaction(async (c) => {
+    const u = await Usuario.crearUsuario(c, { correo: d.correo, hash, estado: d.estado, debeCambiar: true });
 
 const normalizarRol = (rol) =>
   rol.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9]+/g, '_').toUpperCase();
@@ -72,8 +81,11 @@ const crear = async (d) => {
       requiereCambioContrasena,
       esAdministradorPrincipal: esAdministrador && !principal,
     });
+
     await Usuario.crearPersona(c, { id_usuario: u.id_usuario, ...d });
     asegurarRoles(await Usuario.reemplazarRoles(c, u.id_usuario, d.roles));
+    // Dentro de la transacción: si el correo no sale, el usuario no se crea
+    await enviarProvisional({ para: d.correo, nombre: d.nombre, contrasena: provisional });
     return u.id_usuario;
   });
   return {

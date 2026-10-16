@@ -490,3 +490,17 @@ UPDATE insumos_productos ip
  WHERE c.id_categoria = ip.id_categoria
    AND c.nombre_categoria = 'Hamburguesas'
    AND ip.nombre NOT ILIKE 'hamburguesa %';
+
+-- 29. RECUPERACIÓN DE CONTRASEÑA: un código de 6 dígitos por usuario (se guarda su hash), vence a los 15 min
+CREATE TABLE IF NOT EXISTS recuperaciones_contrasena (
+    id_usuario   BIGINT PRIMARY KEY,
+    codigo_hash  VARCHAR(64) NOT NULL,
+    expira       TIMESTAMPTZ NOT NULL,
+    intentos     INT NOT NULL DEFAULT 0,
+    creado_en    TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_recuperacion_usuario FOREIGN KEY (id_usuario) REFERENCES usuarios(id_usuario) ON DELETE CASCADE
+);
+
+-- Cuenta creada con contraseña provisional (enviada al correo): debe cambiarla al entrar
+ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS debe_cambiar_contrasena BOOLEAN NOT NULL DEFAULT false;

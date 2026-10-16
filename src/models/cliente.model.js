@@ -15,12 +15,13 @@ const listar = async () => (await query(`${SELECT} ORDER BY p.id_persona`)).rows
 
 const obtenerPorId = async (id) => (await query(`${SELECT} AND p.id_persona = $1`, [id])).rows[0] || null;
 
-const crear = async (d) =>
-  (await query(
-    `INSERT INTO personas (nombre, tipo, tipo_documento, documento, telefono, correo, direccion, de_local, estado)
-     VALUES ($1, 'CLIENTE', $2, $3, $4, $5, $6, COALESCE($7, FALSE), COALESCE($8, 'ACTIVO')) RETURNING id_persona`,
+// idUsuario: la cuenta con la que entra a la app (null = cliente sin cuenta)
+const crear = async (c, d, idUsuario = null) =>
+  (await exec(c).query(
+    `INSERT INTO personas (nombre, tipo, tipo_documento, documento, telefono, correo, direccion, de_local, estado, id_usuario)
+     VALUES ($1, 'CLIENTE', $2, $3, $4, $5, $6, COALESCE($7, FALSE), COALESCE($8, 'ACTIVO'), $9) RETURNING id_persona`,
     [d.nombre, d.tipo_documento ?? null, d.documento ?? null, d.telefono ?? null, d.correo ?? null,
-     d.direccion ?? null, d.de_local ?? null, d.estado ?? null]
+     d.direccion ?? null, d.de_local ?? null, d.estado ?? null, idUsuario]
   )).rows[0];
 
 const actualizar = async (c, id, d) =>

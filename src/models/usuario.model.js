@@ -3,7 +3,11 @@ const { pool } = require('../config/db');
 const exec = (c) => c || pool; // permite usar un client de transacción
 
 const SELECT = `
+
+  SELECT u.id_usuario, u.correo, u.estado, u.debe_cambiar_contrasena,
+
   SELECT u.id_usuario, u.correo, u.estado, u.es_administrador_principal, u.requiere_cambio_contrasena,
+
          pe.id_persona, pe.nombre, pe.tipo_documento, pe.documento, pe.tipo AS tipo_persona,
          pe.telefono, pe.direcciones,
          COALESCE((SELECT array_agg(r.nombre_rol ORDER BY r.nombre_rol)
@@ -36,12 +40,20 @@ const obtenerParaLogin = async (correo) =>
     [correo]
   )).rows[0] || null;
 
+
+const crearUsuario = async (c, { correo, hash, estado, debeCambiar = false }) =>
+  (await exec(c).query(
+    `INSERT INTO usuarios (correo, contrasena, estado, debe_cambiar_contrasena) VALUES ($1, $2, COALESCE($3, 'ACTIVO'), $4)
+     RETURNING id_usuario`,
+    [correo, hash, estado ?? null, debeCambiar]
+
 const crearUsuario = async (c, { correo, hash, estado, requiereCambioContrasena = false, esAdministradorPrincipal = false }) =>
   (await exec(c).query(
     `INSERT INTO usuarios (correo, contrasena, estado, requiere_cambio_contrasena, es_administrador_principal)
      VALUES ($1, $2, COALESCE($3, 'ACTIVO'), $4, $5)
      RETURNING id_usuario`,
     [correo, hash, estado ?? null, requiereCambioContrasena, esAdministradorPrincipal]
+
   )).rows[0];
 
 const crearPersona = async (c, { id_usuario, nombre, tipo_documento, documento, tipo }) =>
@@ -95,6 +107,10 @@ const actualizarPerfil = async (id, d) => {
   );
 };
 
+
+// Una contraseña elegida por el usuario reemplaza la provisional
+const cambiarContrasena = (id, hash) =>
+  pool.query('UPDATE usuarios SET contrasena = $2, debe_cambiar_contrasena = false WHERE id_usuario = $1', [id, hash]);
 const cambiarContrasena = (id, hash) => pool.query('UPDATE usuarios SET contrasena = $2 WHERE id_usuario = $1', [id, hash]);
 
 const cambiarContrasenaInicial = (c, id, hash) =>
@@ -143,7 +159,7 @@ const eliminar = async (c, id) => {
 
 module.exports = {
   actualizarPerfil, cambiarContrasena, cambiarContrasenaInicial, obtenerHash,
-=======
+
 const obtenerHash = async (id) =>
   (await pool.query('SELECT contrasena FROM usuarios WHERE id_usuario = $1', [id])).rows[0]?.contrasena ?? null;
 
