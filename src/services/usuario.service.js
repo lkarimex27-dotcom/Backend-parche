@@ -84,6 +84,7 @@ const crear = async (d) => {
 
 const actualizar = async (id, d, idQuienEdita) => {
   if (id === idQuienEdita && d.estado === 'INACTIVO') throw AppError.badRequest('No puedes desactivar tu propio usuario');
+
   const usuario = await obtener(id);
   const roles = d.roles || usuario.roles || [];
   if (
@@ -99,6 +100,9 @@ const actualizar = async (id, d, idQuienEdita) => {
       throw AppError.badRequest('El administrador principal no se puede desactivar ni quitar del rol Administrador.');
     }
   }
+
+  await obtener(id); // 404 si no existe
+  const hash = d.contrasena ? await bcrypt.hash(d.contrasena, ROUNDS) : null;
   await withTransaction(async (c) => {
     await Usuario.actualizarUsuario(c, id, { correo: d.correo, estado: d.estado });
     await Usuario.actualizarPersona(c, id, d);

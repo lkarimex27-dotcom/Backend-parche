@@ -27,7 +27,11 @@ const perfil = z
   .object({
     nombre: z.string().trim().min(2).max(150),
     tipo_documento: z.string().trim().max(30),
+
     documento: z.string().trim().min(6, 'El documento debe tener entre 6 y 10 caracteres').max(10, 'El documento debe tener entre 6 y 10 caracteres'),
+
+    documento: z.string().trim().max(50),
+
     telefono: z.string().trim().max(30),
     direcciones: z.array(z.string().trim().min(1).max(200)).max(10),
   })

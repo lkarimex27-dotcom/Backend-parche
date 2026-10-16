@@ -96,6 +96,7 @@ const actualizarPerfil = async (id, d) => {
 };
 
 const cambiarContrasena = (id, hash) => pool.query('UPDATE usuarios SET contrasena = $2 WHERE id_usuario = $1', [id, hash]);
+
 const cambiarContrasenaInicial = (c, id, hash) =>
   exec(c).query(
     `UPDATE usuarios
@@ -142,6 +143,12 @@ const eliminar = async (c, id) => {
 
 module.exports = {
   actualizarPerfil, cambiarContrasena, cambiarContrasenaInicial, obtenerHash,
+=======
+const obtenerHash = async (id) =>
+  (await pool.query('SELECT contrasena FROM usuarios WHERE id_usuario = $1', [id])).rows[0]?.contrasena ?? null;
+
+module.exports = {
+  actualizarPerfil, cambiarContrasena, obtenerHash,
   listar, obtenerPorId, obtenerParaLogin, crearUsuario, crearPersona,
   actualizarUsuario, actualizarPersona, reemplazarRoles, obtenerAdministradorPrincipal,
   reasignarRegistros, eliminar,
