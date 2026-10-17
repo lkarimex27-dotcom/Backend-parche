@@ -112,4 +112,27 @@ const reemplazarImagen = async (c, id, url) => {
 const obtenerImagen = async (idImagen) =>
   (await query('SELECT url FROM imagenes WHERE id_imagen = $1', [idImagen])).rows[0]?.url ?? null;
 
-module.exports = { listar, obtenerPorId, crear, actualizar, eliminar, guardarFicha, reemplazarImagen, obtenerImagen };
+// Un insumo "alcanza" para vender si tiene lo que pide la receta y no está por debajo de su mínimo
+const AGOTADO = 'i.stock < fi.cantidad OR i.stock < i.minimo OR i.estado <> \'ACTIVO\''
+
+// Productos con receta que hoy no se pueden preparar (algún insumo agotado o bajo su mínimo)
+const productosSinStock = async () =>
+  (await query(
+    `SELECT DISTINCT f.id_insumo_producto AS id
+       FROM fichas_tecnicas f
+       JOIN ficha_tecnica_insumos fi ON fi.id_ficha_tecnica = f.id_ficha_tecnica
+       JOIN insumos_productos i ON i.id_insumo_producto = fi.id_insumo_producto
+      WHERE ${AGOTADO}`
+  )).rows.map((r) => Number(r.id));
+
+// Insumos que se venden tal cual (las gaseosas: "Gaseosa Coca-Cola 1.5 L") y hoy tienen stock para vender
+const insumosVendibles = async () =>
+  (await query(
+    `SELECT nombre FROM insumos_productos
+      WHERE tipo = 'INSUMO' AND estado = 'ACTIVO' AND stock >= 1 AND stock >= minimo`
+  )).rows.map((r) => r.nombre);
+
+module.exports = {
+  listar, obtenerPorId, crear, actualizar, eliminar, guardarFicha, reemplazarImagen, obtenerImagen,
+  productosSinStock, insumosVendibles,
+};

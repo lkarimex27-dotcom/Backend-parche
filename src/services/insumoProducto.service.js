@@ -62,4 +62,9 @@ const imagen = async (idImagen) => {
   return { tipo: m[1], bytes: Buffer.from(m[2], 'base64') };
 };
 
-module.exports = { listar, obtener, crear, actualizar, eliminar, guardarFicha, reemplazarImagen, imagen };
+const productosSinStock = () => Modelo.productosSinStock();
+const insumosVendibles = () => Modelo.insumosVendibles();
+
+module.exports = {
+  listar, obtener, crear, actualizar, eliminar, guardarFicha, reemplazarImagen, imagen, productosSinStock, insumosVendibles,
+};

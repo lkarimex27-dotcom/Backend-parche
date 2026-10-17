@@ -500,3 +500,7 @@ CREATE TABLE IF NOT EXISTS recuperaciones_contrasena (
 INSERT INTO personas (nombre, tipo, tipo_documento, documento, de_local, estado)
 SELECT 'Cliente mostrador', 'CLIENTE', 'Cédula de Ciudadanía', '000000000', TRUE, 'ACTIVO'
  WHERE NOT EXISTS (SELECT 1 FROM personas WHERE tipo = 'CLIENTE' AND documento = '000000000');
+
+-- Datos de contacto del personal (usuarios que no son clientes)
+ALTER TABLE personas ADD COLUMN IF NOT EXISTS barrio VARCHAR(100);
+ALTER TABLE personas ADD COLUMN IF NOT EXISTS telefono_emergencia VARCHAR(30);

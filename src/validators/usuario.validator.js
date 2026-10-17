@@ -16,6 +16,15 @@ const filtros = z.object({
 });
 
 // La contraseña no la escribe el admin: se envía una provisional al correo del usuario
+// Contacto del personal (los clientes lo llenan en Clientes)
+const contacto = {
+  telefono: z.string().trim().max(30).optional(),
+  barrio: z.string().trim().max(100).optional(),
+  direccion: z.string().trim().max(200).optional(),
+  telefono_emergencia: z.string().trim().max(30).optional(),
+  correo_personal: z.union([correo, z.literal('')]).optional(), // "" = sin correo personal
+};
+
 const crearUsuario = z.object({
   correo,
 
@@ -27,11 +36,9 @@ const crearUsuario = z.object({
   tipo: z.string().trim().max(50).optional(),
   estado: z.enum(['ACTIVO', 'INACTIVO']).optional(),
   roles: z.array(z.string().trim().min(1)).min(1, 'Asigna al menos un rol'),
+  ...contacto,
 }).superRefine((data, ctx) => {
   const esCliente = data.roles.every((rol) => normalizarRol(rol) === 'CLIENTE');
-  if (esCliente && !data.contrasena) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['contrasena'], message: 'La contraseña es obligatoria para las cuentas de cliente.' });
-  }
   if (
     !esCliente &&
     normalizarRol(data.tipo_documento || '') === 'TARJETA_DE_IDENTIDAD'
@@ -53,6 +60,7 @@ const actualizarUsuario = z
     tipo: z.string().trim().max(50),
     estado: z.enum(['ACTIVO', 'INACTIVO']),
     roles: z.array(z.string().trim().min(1)).min(1),
+    ...contacto,
   })
   .partial()
   .refine((o) => Object.keys(o).length > 0, { message: 'Envía al menos un campo' });

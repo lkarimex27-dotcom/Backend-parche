@@ -22,7 +22,8 @@ const cotizar = (items, catalogo) => {
   const EXTRAS = ['Adiciones', 'Salsas', 'Bebidas', 'Sabores de bebida'];
 
   return items.map((it) => {
-    const producto = buscar(it.producto, EXTRAS, false);
+    // Las hamburguesas antes se llamaban solo "Sencilla", "Doble"...: un carrito viejo aún puede traer ese nombre
+    const producto = buscar(it.producto, EXTRAS, false) || buscar(`Hamburguesa ${it.producto}`, ['Hamburguesas']);
     if (!producto) throw AppError.badRequest(`El producto «${it.producto}» no está disponible`);
     for (const s of it.salsas) {
       if (!buscar(s, ['Salsas'])) throw AppError.badRequest(`La salsa «${s}» no está disponible`);
