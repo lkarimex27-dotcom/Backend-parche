@@ -64,7 +64,7 @@ const actualizar = async (tipo, id, d) =>
      d.descripcion, d.etiqueta, d.estado]
   )).rows[0] || null;
 
-// Borra también su propia ficha técnica; si está en compras, pérdidas, pedidos o recetas de otros, Postgres lo impide (409)
+// Borra también su propia ficha técnica y lo quita de las recetas; si está en compras, pérdidas o pedidos, Postgres lo impide (409)
 const eliminar = (tipo, id) =>
   withTransaction(async (c) => {
     await c.query(
@@ -73,6 +73,8 @@ const eliminar = (tipo, id) =>
       [id]
     );
     await c.query('DELETE FROM fichas_tecnicas WHERE id_insumo_producto = $1', [id]);
+    // Sale de las recetas de los productos que lo usaban (compras y pérdidas sí lo bloquean: son historial)
+    await c.query('DELETE FROM ficha_tecnica_insumos WHERE id_insumo_producto = $1', [id]);
     return (await c.query('DELETE FROM insumos_productos WHERE id_insumo_producto = $1 AND tipo = $2', [id, tipo])).rowCount > 0;
   });
 

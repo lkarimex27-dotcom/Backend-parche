@@ -1,4 +1,5 @@
 const bcrypt = require('bcryptjs');
+const env = require('../config/env');
 const Usuario = require('../models/usuario.model');
 const { withTransaction } = require('../config/db');
 const AppError = require('../errors/AppError');
@@ -19,6 +20,8 @@ const asegurarRoles = (ok) => {
 };
 
 
+const esSuperAdmin = (correo) => String(correo || '').trim().toLowerCase() === env.superAdminEmail;
+
 const normalizarRol = (rol) =>
   rol.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9]+/g, '_').toUpperCase();
 
@@ -28,18 +31,16 @@ const crear = async (d) => {
   if (!esCliente && normalizarRol(d.tipo_documento || '') === 'TARJETA_DE_IDENTIDAD') {
     throw AppError.badRequest('La tarjeta de identidad solo está permitida para clientes.');
   }
-  const esAdministrador = d.roles.some((rol) => normalizarRol(rol) === 'ADMINISTRADOR');
   const provisional = contrasenaProvisional();
   const hash = await bcrypt.hash(provisional, ROUNDS);
   const id = await withTransaction(async (c) => {
-    await c.query('SELECT pg_advisory_xact_lock($1)', [72419031]);
-    const principal = await Usuario.obtenerAdministradorPrincipal(c);
     const u = await Usuario.crearUsuario(c, {
       correo: d.correo,
       hash,
       estado: d.estado,
       requiereCambioContrasena: true,
-      esAdministradorPrincipal: esAdministrador && !principal,
+      // Solo admin@minifood.com es superadministrador; cualquier otro administrador es normal
+      esAdministradorPrincipal: esSuperAdmin(d.correo),
     });
     await Usuario.crearPersona(c, { id_usuario: u.id_usuario, ...d });
     asegurarRoles(await Usuario.reemplazarRoles(c, u.id_usuario, d.roles));
@@ -65,7 +66,10 @@ const actualizar = async (id, d, idQuienEdita) => {
     const conservaRolAdministrador = !d.roles ||
       d.roles.some((rol) => normalizarRol(rol) === 'ADMINISTRADOR');
     if (!conservaRolAdministrador || d.estado === 'INACTIVO') {
-      throw AppError.badRequest('El administrador principal no se puede desactivar ni quitar del rol Administrador.');
+      throw AppError.badRequest('El superadministrador no se puede desactivar ni quitar del rol Administrador.');
+    }
+    if (d.correo !== undefined && !esSuperAdmin(d.correo)) {
+      throw AppError.badRequest(`El correo del superadministrador siempre es ${env.superAdminEmail}.`);
     }
   }
 
@@ -83,11 +87,11 @@ const eliminar = async (id, idQuienElimina) => {
     const usuario = await Usuario.obtenerPorId(id, c);
     if (!usuario) throw AppError.notFound('Usuario no encontrado');
     if (usuario.es_administrador_principal) {
-      throw AppError.badRequest('El administrador principal no se puede eliminar.');
+      throw AppError.badRequest('El superadministrador no se puede eliminar.');
     }
     const principal = await Usuario.obtenerAdministradorPrincipal(c);
     if (!principal) {
-      throw AppError.badRequest('No existe un administrador principal para recibir los registros.');
+      throw AppError.badRequest('No existe el superadministrador para recibir los registros.');
     }
     await Usuario.reasignarRegistros(
       c,

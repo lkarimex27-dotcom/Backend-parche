@@ -15,6 +15,10 @@ const obtener = async (id) => {
 
 // Con correo: también se le crea la cuenta y le llega una contraseña provisional (la cambia al entrar).
 // Sin correo (ej. cliente de local): solo queda registrado, sin cuenta.
+// "Cliente mostrador": anónimo para ventas a quien no da sus datos (lo crea init.sql); es fijo
+const DOC_MOSTRADOR = '000000000';
+const esMostrador = (c) => String(c?.documento ?? '').replace(/\D/g, '') === DOC_MOSTRADOR;
+
 const crear = async (d) => {
   if (!d.correo) return obtener((await Cliente.crear(null, d)).id_persona);
   const provisional = contrasenaProvisional();
@@ -33,6 +37,9 @@ const crear = async (d) => {
 };
 
 const actualizar = async (id, d) => {
+  if (esMostrador(await obtener(id))) {
+    throw AppError.badRequest('El cliente mostrador no se puede editar ni desactivar.');
+  }
   await withTransaction(async (c) => {
     const p = await Cliente.actualizar(c, id, d);
     if (!p) throw AppError.notFound('Cliente no encontrado');
@@ -43,6 +50,7 @@ const actualizar = async (id, d) => {
 
 const eliminar = async (id) => {
   const c = await obtener(id);
+  if (esMostrador(c)) throw AppError.badRequest('El cliente mostrador no se puede eliminar.');
   if (c.id_usuario) throw AppError.badRequest('Este cliente tiene cuenta en la app: desactívalo en lugar de eliminarlo');
   await Cliente.eliminarSinCuenta(id);
 };
