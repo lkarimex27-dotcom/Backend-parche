@@ -134,16 +134,10 @@ CREATE TABLE IF NOT EXISTS roles_usuario (
     CONSTRAINT fk_roles_usuario_rol     FOREIGN KEY (id_rol)     REFERENCES roles(id_rol),
     CONSTRAINT uq_roles_usuario UNIQUE (id_usuario, id_rol)
 );
+-- El superadministrador siempre es admin@minifood.com (debe coincidir con superAdminEmail en src/config/env.js)
 UPDATE usuarios
-   SET es_administrador_principal = TRUE
- WHERE id_usuario = (
-   SELECT MIN(u.id_usuario)
-     FROM usuarios u
-     JOIN roles_usuario ru ON ru.id_usuario = u.id_usuario
-     JOIN roles r ON r.id_rol = ru.id_rol
-    WHERE r.nombre_rol = 'ADMINISTRADOR'
- )
-   AND NOT EXISTS (SELECT 1 FROM usuarios WHERE es_administrador_principal);
+   SET es_administrador_principal = (lower(correo) = 'admin@minifood.com')
+ WHERE es_administrador_principal IS DISTINCT FROM (lower(correo) = 'admin@minifood.com');
 CREATE UNIQUE INDEX IF NOT EXISTS uq_usuario_administrador_principal
     ON usuarios (es_administrador_principal)
  WHERE es_administrador_principal = TRUE;
@@ -501,3 +495,12 @@ CREATE TABLE IF NOT EXISTS recuperaciones_contrasena (
 
     CONSTRAINT fk_recuperacion_usuario FOREIGN KEY (id_usuario) REFERENCES usuarios(id_usuario) ON DELETE CASCADE
 );
+
+-- Cliente mostrador: anónimo para registrar ventas a quien no quiere dar sus datos (no se edita ni se anula)
+INSERT INTO personas (nombre, tipo, tipo_documento, documento, de_local, estado)
+SELECT 'Cliente mostrador', 'CLIENTE', 'Cédula de Ciudadanía', '000000000', TRUE, 'ACTIVO'
+ WHERE NOT EXISTS (SELECT 1 FROM personas WHERE tipo = 'CLIENTE' AND documento = '000000000');
+
+-- Datos de contacto del personal (usuarios que no son clientes)
+ALTER TABLE personas ADD COLUMN IF NOT EXISTS barrio VARCHAR(100);
+ALTER TABLE personas ADD COLUMN IF NOT EXISTS telefono_emergencia VARCHAR(30);

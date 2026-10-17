@@ -6,7 +6,8 @@ const idParam = z.object({ id: z.coerce.number().int().positive() });
 const crearCliente = z.object({
   nombre: z.string().trim().min(2).max(150),
   tipo_documento: z.string().trim().max(30).optional(),
-  documento: z.string().trim().max(50).optional(),
+  // Igual que usuarios y registro: el documento del cliente pasa a su cuenta
+  documento: z.string().trim().min(6, 'El documento debe tener entre 6 y 10 caracteres').max(10, 'El documento debe tener entre 6 y 10 caracteres').optional(),
   telefono: z.string().trim().max(30).optional(),
   correo: correo.optional(),
   direccion: z.string().trim().max(200).optional(),

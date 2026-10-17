@@ -25,6 +25,13 @@ describe('cotizar (precios del pedido calculados en el servidor)', () => {
     ]);
   });
 
+  it('acepta el nombre viejo de una hamburguesa ("Sencilla" -> "Hamburguesa Sencilla")', () => {
+    const catalogo = [...CATALOGO, { id_insumo_producto: 9, nombre: 'Hamburguesa Sencilla', precio: 14500, categoria: 'Hamburguesas' }];
+    const [linea] = cotizar([{ producto: 'Sencilla', cantidad: 1, salsas: [], adiciones: [] }], catalogo);
+    expect(linea.id_insumo_producto).toBe(9);
+    expect(linea.precio_unitario).toBe(14500);
+  });
+
   it('rechaza productos o adiciones que no están en el menú', () => {
     expect(() => cotizar([{ producto: 'Pizza', cantidad: 1, salsas: [], adiciones: [] }], CATALOGO)).toThrow('Pizza');
     expect(() => cotizar([{ producto: 'Mini', cantidad: 1, salsas: [], adiciones: [{ nombre: 'Oro', cantidad: 1 }] }], CATALOGO))
