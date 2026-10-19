@@ -14,38 +14,24 @@ const eliminar = asyncHandler(async (req, res) => {
   res.status(204).send();
 });
 
-// Menú público: solo productos activos que hoy se pueden vender (con stock) y solo lo que ve el cliente
-// (sin costo ni stock). A cada sabor de gaseosa le agrega los tamaños que sí hay (disponible_en).
+// Menú público: solo productos activos que hoy se pueden preparar (su receta tiene stock)
+// y solo lo que ve el cliente (sin costo ni stock).
 const catalogo = asyncHandler(async (_req, res) => {
-  const [productos, sinStock, vendibles] = await Promise.all([
-    service.listar('PRODUCTO', {}),
-    service.productosSinStock(),
-    service.insumosVendibles(),
-  ]);
-  const activos = productos.filter((p) => p.estado === 'ACTIVO');
+  const [productos, sinStock] = await Promise.all([service.listar('PRODUCTO', {}), service.productosSinStock()]);
   const agotado = new Set(sinStock);
-  const conStock = new Set(vendibles.map((n) => n.toLowerCase()));
-  // Gaseosas: el sabor (ej. "Coca-Cola") en el tamaño (ej. "1.5 L") es el insumo "Gaseosa Coca-Cola 1.5 L"
-  const tamanos = activos.filter((p) => p.nombre_categoria === 'Bebidas').map((p) => p.nombre);
-  const sabores = activos.filter((p) => p.nombre_categoria === 'Sabores de bebida').map((p) => p.nombre);
-  const hay = (sabor, tamano) => conStock.has(`gaseosa ${sabor} ${tamano}`.toLowerCase());
-  const disponibleEn = (sabor) => tamanos.filter((t) => hay(sabor, t));
-  const sePuedeVender = (p) =>
-    !agotado.has(p.id_insumo_producto) &&
-    (p.nombre_categoria !== 'Sabores de bebida' || disponibleEn(p.nombre).length > 0) &&
-    (p.nombre_categoria !== 'Bebidas' || sabores.some((s) => hay(s, p.nombre)));
   res.json({
     ok: true,
-    data: activos.filter(sePuedeVender).map((p) => ({
-      id: p.id_insumo_producto,
-      nombre: p.nombre,
-      descripcion: p.descripcion,
-      etiqueta: p.etiqueta,
-      precio: p.precio,
-      categoria: p.nombre_categoria,
-      imagenes: p.imagenes,
-      ...(p.nombre_categoria === 'Sabores de bebida' ? { disponible_en: disponibleEn(p.nombre) } : {}),
-    })),
+    data: productos
+      .filter((p) => p.estado === 'ACTIVO' && !agotado.has(p.id_insumo_producto))
+      .map((p) => ({
+        id: p.id_insumo_producto,
+        nombre: p.nombre,
+        descripcion: p.descripcion,
+        etiqueta: p.etiqueta,
+        precio: p.precio,
+        categoria: p.nombre_categoria,
+        imagenes: p.imagenes,
+      })),
   });
 });
 

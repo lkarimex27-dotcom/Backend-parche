@@ -316,6 +316,11 @@ CREATE TABLE IF NOT EXISTS perdidas_insumos (
 );
 -- id_usuario = quien la registró; responsable = persona a cargo (texto libre del panel)
 ALTER TABLE perdidas_insumos ADD COLUMN IF NOT EXISTS responsable VARCHAR(150);
+-- Una pérdida que vino de una compra se puede devolver a la compra: vuelve al stock y queda el motivo
+ALTER TABLE perdidas_insumos ADD COLUMN IF NOT EXISTS estado VARCHAR(20) NOT NULL DEFAULT 'REGISTRADA';
+ALTER TABLE perdidas_insumos ADD COLUMN IF NOT EXISTS motivo_devolucion TEXT;
+-- Se puede devolver solo una parte: cantidad = lo que sigue perdido, cantidad_devuelta = lo que volvió al stock
+ALTER TABLE perdidas_insumos ADD COLUMN IF NOT EXISTS cantidad_devuelta DECIMAL(12,3) NOT NULL DEFAULT 0;
 
 -- 24. PEDIDOS (ciclo: PENDIENTE > APROBADO > EN_PREPARACION > LISTO > EN_CAMINO > ENTREGADO | RECHAZADO | CANCELADO)
 -- Al entregarse un pedido se genera la venta (id_venta).

@@ -25,6 +25,10 @@ module.exports = (cfg) => {
 
   router.post('/', authorize(cfg.modulo, 'CREAR'), validate(cuerpo), asyncHandler(async (req, res) => {
     const fila = req.body.datos_panel;
+    if (cfg.unico) {
+      const v = String(fila[cfg.unico.posicion] ?? '').trim();
+      if (!cfg.unico.ignorar.includes(v) && (await Panel.existe(cfg, cfg.unico.columna, v))) throw AppError.conflict(cfg.unico.mensaje);
+    }
     const id = await Panel.crear(cfg, await cfg.columnas(fila, req.user.id), fila);
     res.status(201).json({ ok: true, data: { id, datos_panel: fila } });
   }));
@@ -40,6 +44,11 @@ module.exports = (cfg) => {
 
   if (cfg.borrar) {
     router.delete('/:id', authorize(cfg.modulo, 'ELIMINAR'), validate(idParam, 'params'), asyncHandler(async (req, res) => {
+      if (cfg.borrarSi) {
+        const actual = await Panel.valor(cfg, req.params.id, cfg.borrarSi.columna);
+        if (actual === null) throw AppError.notFound('Registro no encontrado');
+        if (actual !== cfg.borrarSi.valor) throw AppError.conflict(cfg.borrarSi.mensaje);
+      }
       if (!(await Panel.eliminar(cfg, req.params.id))) throw AppError.notFound('Registro no encontrado');
       res.status(204).send();
     }));

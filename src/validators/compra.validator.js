@@ -1,7 +1,12 @@
 const { z } = require('zod');
 
 const idParam = z.object({ id: z.coerce.number().int().positive() });
-const fecha = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'La fecha debe tener formato AAAA-MM-DD');
+// Hoy en Colombia (AAAA-MM-DD): una compra no puede tener fecha futura
+const hoy = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
+const fecha = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, 'La fecha debe tener formato AAAA-MM-DD')
+  .refine((f) => f <= hoy(), 'La fecha de compra no puede ser posterior a hoy');
 
 const compra = z.object({
   id_proveedor: z.number().int().positive(),

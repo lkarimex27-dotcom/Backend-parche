@@ -51,8 +51,9 @@ const actualizar = async (id, d) => {
 const eliminar = async (id) => {
   const c = await obtener(id);
   if (esMostrador(c)) throw AppError.badRequest('El cliente mostrador no se puede eliminar.');
-  if (c.id_usuario) throw AppError.badRequest('Este cliente tiene cuenta en la app: desactívalo en lugar de eliminarlo');
-  await Cliente.eliminarSinCuenta(id);
+  const n = await Cliente.compras(c);
+  if (n) throw AppError.conflict(`No se puede eliminar: tiene ${n} compra${n === 1 ? '' : 's'} registrada${n === 1 ? '' : 's'}. Anúlalo en su lugar.`);
+  await Cliente.eliminar(c);
 };
 
 module.exports = { listar, obtener, crear, actualizar, eliminar };

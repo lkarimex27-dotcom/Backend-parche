@@ -2,7 +2,8 @@ const { query } = require('../config/db');
 
 const SELECT = `
   SELECT pe.id_perdida, pe.id_insumo_producto, i.nombre AS insumo, i.medida, pe.cantidad::float AS cantidad,
-         pe.motivo, pe.responsable, pe.observacion, to_char(pe.fecha, 'YYYY-MM-DD') AS fecha, pe.id_usuario
+         pe.motivo, pe.responsable, pe.observacion, to_char(pe.fecha, 'YYYY-MM-DD') AS fecha, pe.id_usuario,
+         pe.estado, pe.motivo_devolucion, pe.cantidad_devuelta::float AS cantidad_devuelta
     FROM perdidas_insumos pe
     JOIN insumos_productos i ON i.id_insumo_producto = pe.id_insumo_producto`;
 
@@ -27,4 +28,17 @@ const actualizar = (c, id, d) =>
     [id, d.id_insumo_producto, d.fecha ?? null, d.cantidad, d.motivo ?? null, d.responsable ?? null, d.observacion ?? null]
   );
 
-module.exports = { listar, obtenerPorId, crear, actualizar };
+// total = se devolvió todo (queda DEVUELTA con su cantidad original); si no, la pérdida baja en lo devuelto.
+// Cada devolución agrega una línea "cantidad: motivo" al historial
+const devolver = (c, id, { cantidad, total, nota }) =>
+  c.query(
+    `UPDATE perdidas_insumos
+        SET estado = CASE WHEN $3 THEN 'DEVUELTA' ELSE estado END,
+            cantidad = CASE WHEN $3 THEN cantidad ELSE cantidad - $2 END,
+            cantidad_devuelta = cantidad_devuelta + $2,
+            motivo_devolucion = concat_ws(E'\n', NULLIF(motivo_devolucion, ''), $4::text)
+      WHERE id_perdida = $1`,
+    [id, cantidad, total, nota]
+  );
+
+module.exports = { listar, obtenerPorId, crear, actualizar, devolver };
