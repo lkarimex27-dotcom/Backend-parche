@@ -12,5 +12,6 @@ router.get('/', authorize(M, 'VER'), c.listar);
 router.get('/:id', authorize(M, 'VER'), validate(v.idParam, 'params'), c.obtener);
 router.post('/', authorize(M, 'CREAR'), validate(v.crearPerdida), c.crear);
 router.put('/:id', authorize(M, 'EDITAR'), validate(v.idParam, 'params'), validate(v.actualizarPerdida), c.actualizar);
+router.patch('/:id/devolver', authorize(M, 'EDITAR'), validate(v.idParam, 'params'), validate(v.devolver), c.devolver);
 
 module.exports = router;

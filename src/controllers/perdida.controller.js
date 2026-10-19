@@ -8,4 +8,7 @@ const crear = asyncHandler(async (req, res) =>
 const actualizar = asyncHandler(async (req, res) =>
   res.json({ ok: true, data: await service.actualizar(req.params.id, req.body) }));
 
-module.exports = { listar, obtener, crear, actualizar };
+const devolver = asyncHandler(async (req, res) =>
+  res.json({ ok: true, data: await service.devolver(req.params.id, req.body) }));
+
+module.exports = { listar, obtener, crear, actualizar, devolver };

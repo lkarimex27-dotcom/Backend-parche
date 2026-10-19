@@ -20,6 +20,7 @@ const registro = z.object({
   nombre: z.string().trim().min(2).max(150),
   tipo_documento: z.string().trim().max(30).optional(),
   documento: z.string().trim().min(6, 'El documento debe tener entre 6 y 10 caracteres').max(10, 'El documento debe tener entre 6 y 10 caracteres').optional(),
+  telefono: z.string().trim().max(30).optional(),
 });
 
 // Perfil propio (cliente o personal)
