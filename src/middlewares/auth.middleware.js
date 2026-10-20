@@ -10,6 +10,12 @@ const authenticate = (req, _res, next) => {
   try {
     const payload = jwt.verify(token, env.jwtSecret);
     req.user = { id: Number(payload.sub), correo: payload.correo };
+    if (
+      payload.requiere_cambio_contrasena &&
+      !(req.baseUrl === '/api/auth' && req.path === '/me/contrasena-inicial')
+    ) {
+      return next(AppError.forbidden('Debes cambiar tu contraseña antes de continuar.'));
+    }
     return next();
   } catch (_e) {
     return next(AppError.unauthorized('Token inválido o vencido'));

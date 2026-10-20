@@ -10,4 +10,7 @@ router.get('/me', authenticate, c.me);                        // perfil + permis
 router.patch('/me', authenticate, validate(v.perfil), c.actualizarPerfil);                    // nombre, documento, teléfono, direcciones
 router.patch('/me/contrasena', authenticate, validate(v.cambioContrasena), c.cambiarContrasena); // pide la actual
 
+router.patch('/me/contrasena-inicial', authenticate, validate(v.cambioContrasenaInicial), c.cambiarContrasenaInicial);
+
+
 module.exports = router;

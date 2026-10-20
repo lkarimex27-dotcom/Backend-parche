@@ -34,6 +34,8 @@ CREATE TABLE IF NOT EXISTS usuarios (
     contrasena  VARCHAR(255) NOT NULL,          -- guardar SIEMPRE el hash (bcrypt), nunca la clave
     estado      VARCHAR(30) NOT NULL DEFAULT 'ACTIVO'
 );
+ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS es_administrador_principal BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS requiere_cambio_contrasena BOOLEAN NOT NULL DEFAULT FALSE;
 
 -- 5. PROVEEDORES
 CREATE TABLE IF NOT EXISTS proveedores (
@@ -132,6 +134,19 @@ CREATE TABLE IF NOT EXISTS roles_usuario (
     CONSTRAINT fk_roles_usuario_rol     FOREIGN KEY (id_rol)     REFERENCES roles(id_rol),
     CONSTRAINT uq_roles_usuario UNIQUE (id_usuario, id_rol)
 );
+UPDATE usuarios
+   SET es_administrador_principal = TRUE
+ WHERE id_usuario = (
+   SELECT MIN(u.id_usuario)
+     FROM usuarios u
+     JOIN roles_usuario ru ON ru.id_usuario = u.id_usuario
+     JOIN roles r ON r.id_rol = ru.id_rol
+    WHERE r.nombre_rol = 'ADMINISTRADOR'
+ )
+   AND NOT EXISTS (SELECT 1 FROM usuarios WHERE es_administrador_principal);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_usuario_administrador_principal
+    ON usuarios (es_administrador_principal)
+ WHERE es_administrador_principal = TRUE;
 
 -- 11. PERMISOS
 CREATE TABLE IF NOT EXISTS permisos (
@@ -467,3 +482,11 @@ CREATE TABLE IF NOT EXISTS consumos_produccion (
 
     CONSTRAINT fk_consumo_usuario FOREIGN KEY (id_usuario) REFERENCES usuarios(id_usuario)
 );
+
+-- Las hamburguesas se llaman "Hamburguesa <nombre>" (ej. "Hamburguesa Doble", no solo "Doble"); no repite si ya empieza así
+UPDATE insumos_productos ip
+   SET nombre = 'Hamburguesa ' || ip.nombre
+  FROM categorias c
+ WHERE c.id_categoria = ip.id_categoria
+   AND c.nombre_categoria = 'Hamburguesas'
+   AND ip.nombre NOT ILIKE 'hamburguesa %';

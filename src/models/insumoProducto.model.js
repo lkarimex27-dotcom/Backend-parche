@@ -1,4 +1,4 @@
-const { query } = require('../config/db');
+const { query, withTransaction } = require('../config/db');
 
 // Fotos subidas (data URL) se devuelven como /imagenes/<id> (GET /api/imagenes/:id) para no inflar los listados.
 // La ficha técnica va completa (nombre, versión, preparación y receta con sus insumos).
@@ -64,8 +64,17 @@ const actualizar = async (tipo, id, d) =>
      d.descripcion, d.etiqueta, d.estado]
   )).rows[0] || null;
 
-const eliminar = async (tipo, id) =>
-  (await query('DELETE FROM insumos_productos WHERE id_insumo_producto = $1 AND tipo = $2', [id, tipo])).rowCount > 0;
+// Borra también su propia ficha técnica; si está en compras, pérdidas, pedidos o recetas de otros, Postgres lo impide (409)
+const eliminar = (tipo, id) =>
+  withTransaction(async (c) => {
+    await c.query(
+      `DELETE FROM ficha_tecnica_insumos WHERE id_ficha_tecnica IN
+         (SELECT id_ficha_tecnica FROM fichas_tecnicas WHERE id_insumo_producto = $1)`,
+      [id]
+    );
+    await c.query('DELETE FROM fichas_tecnicas WHERE id_insumo_producto = $1', [id]);
+    return (await c.query('DELETE FROM insumos_productos WHERE id_insumo_producto = $1 AND tipo = $2', [id, tipo])).rowCount > 0;
+  });
 
 // Ficha técnica: una por producto/insumo; la receta se reemplaza completa
 const guardarFicha = async (c, id, d) => {
