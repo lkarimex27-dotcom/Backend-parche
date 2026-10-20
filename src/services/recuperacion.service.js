@@ -10,11 +10,11 @@ const MAX_INTENTOS = 5;
 const hash = (codigo) => crypto.createHash('sha256').update(String(codigo)).digest('hex');
 const iguales = (a, b) => a.length === b.length && crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b));
 
-// Envía un código de 6 dígitos al correo; solo a cuentas registradas en la app y activas
+// Envía un código de 6 dígitos al correo; solo a cuentas registradas en la app y activas.
+// Para cualquier otro correo responde igual (sin error): así no se puede averiguar quién tiene cuenta
 const solicitar = async ({ correo }) => {
   const u = await Usuario.obtenerParaLogin(correo);
-  if (!u) throw AppError.notFound('Ese correo no está registrado en la aplicación. Revisa que esté bien escrito o regístrate.');
-  if (u.estado !== 'ACTIVO') throw AppError.forbidden('Tu usuario está inactivo. Comunícate con el administrador.');
+  if (!u || u.estado !== 'ACTIVO') return;
   if ((await Recuperacion.obtener(u.id_usuario))?.reciente) return; // ya se envió uno hace menos de 1 minuto
   const codigo = String(crypto.randomInt(0, 1_000_000)).padStart(6, '0');
   await Recuperacion.guardar(u.id_usuario, hash(codigo), MINUTOS);
