@@ -14,6 +14,7 @@ const cambiarContrasena = asyncHandler(async (req, res) => {
 });
 
 
+
 const recuperar = asyncHandler(async (req, res) => {
   await recuperacion.solicitar(req.body);
   res.status(204).send();
@@ -29,3 +30,6 @@ const cambiarContrasenaInicial = asyncHandler(async (req, res) =>
 module.exports = {
   registro, login, me, actualizarPerfil, cambiarContrasena, cambiarContrasenaInicial, recuperar, restablecer,
 };
+
+module.exports = { registro, login, me, actualizarPerfil, cambiarContrasena, cambiarContrasenaInicial };
+
