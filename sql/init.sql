@@ -10,6 +10,10 @@ CREATE TABLE IF NOT EXISTS roles (
     id_rol      BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     nombre_rol  VARCHAR(100) NOT NULL UNIQUE
 );
+ALTER TABLE roles ADD COLUMN IF NOT EXISTS descripcion TEXT;
+ALTER TABLE roles ADD COLUMN IF NOT EXISTS estado VARCHAR(20) NOT NULL DEFAULT 'ACTIVO';
+ALTER TABLE roles DROP CONSTRAINT IF EXISTS ck_roles_estado;
+ALTER TABLE roles ADD CONSTRAINT ck_roles_estado CHECK (estado IN ('ACTIVO', 'INACTIVO'));
 
 -- 2. PRIVILEGIOS
 CREATE TABLE IF NOT EXISTS privilegios (
@@ -43,6 +47,15 @@ CREATE TABLE IF NOT EXISTS proveedores (
     tipo          VARCHAR(50),
     estado        VARCHAR(30) NOT NULL DEFAULT 'ACTIVO'
 );
+-- Datos extra que pide el panel admin (empresa + persona de contacto)
+ALTER TABLE proveedores ADD COLUMN IF NOT EXISTS nit VARCHAR(30);
+ALTER TABLE proveedores ADD COLUMN IF NOT EXISTS direccion VARCHAR(200);
+ALTER TABLE proveedores ADD COLUMN IF NOT EXISTS insumos TEXT;  -- nombres de insumos que suministra, separados por coma
+ALTER TABLE proveedores ADD COLUMN IF NOT EXISTS contacto_tipo_documento VARCHAR(30);
+ALTER TABLE proveedores ADD COLUMN IF NOT EXISTS contacto_documento VARCHAR(50);
+ALTER TABLE proveedores ADD COLUMN IF NOT EXISTS contacto_telefono VARCHAR(30);
+ALTER TABLE proveedores ADD COLUMN IF NOT EXISTS contacto_correo VARCHAR(255);
+ALTER TABLE proveedores ADD COLUMN IF NOT EXISTS contacto_cargo VARCHAR(100);
 
 -- 6. CATEGORIAS  (tipo separa "Categ. Insumos" de "Categ. Producto")
 CREATE TABLE IF NOT EXISTS categorias (
@@ -54,6 +67,10 @@ ALTER TABLE categorias DROP CONSTRAINT IF EXISTS ck_categorias_tipo;
 ALTER TABLE categorias ADD CONSTRAINT ck_categorias_tipo CHECK (tipo IN ('INSUMO', 'PRODUCTO'));
 ALTER TABLE categorias DROP CONSTRAINT IF EXISTS categorias_nombre_categoria_key;
 CREATE UNIQUE INDEX IF NOT EXISTS uq_categorias_nombre_tipo ON categorias(nombre_categoria, tipo);
+ALTER TABLE categorias ADD COLUMN IF NOT EXISTS descripcion TEXT;
+ALTER TABLE categorias ADD COLUMN IF NOT EXISTS estado VARCHAR(20) NOT NULL DEFAULT 'ACTIVO';
+ALTER TABLE categorias DROP CONSTRAINT IF EXISTS ck_categorias_estado;
+ALTER TABLE categorias ADD CONSTRAINT ck_categorias_estado CHECK (estado IN ('ACTIVO', 'INACTIVO'));
 
 -- 7. PROCESOS
 CREATE TABLE IF NOT EXISTS procesos (
@@ -78,6 +95,12 @@ CREATE TABLE IF NOT EXISTS insumos_productos (
     CONSTRAINT fk_insumos_categoria
         FOREIGN KEY (id_categoria) REFERENCES categorias(id_categoria)
 );
+-- Datos que muestra el menú del cliente (solo productos)
+ALTER TABLE insumos_productos ADD COLUMN IF NOT EXISTS descripcion TEXT;
+ALTER TABLE insumos_productos ADD COLUMN IF NOT EXISTS etiqueta VARCHAR(30);
+ALTER TABLE insumos_productos ADD COLUMN IF NOT EXISTS estado VARCHAR(20) NOT NULL DEFAULT 'ACTIVO';
+ALTER TABLE insumos_productos DROP CONSTRAINT IF EXISTS ck_insumos_productos_estado;
+ALTER TABLE insumos_productos ADD CONSTRAINT ck_insumos_productos_estado CHECK (estado IN ('ACTIVO', 'INACTIVO'));
 
 -- 9. PERSONAS
 CREATE TABLE IF NOT EXISTS personas (
@@ -91,6 +114,15 @@ CREATE TABLE IF NOT EXISTS personas (
     CONSTRAINT fk_personas_usuario
         FOREIGN KEY (id_usuario) REFERENCES usuarios(id_usuario)
 );
+-- Clientes registrados desde el panel (ej. "cliente de local") no tienen cuenta: id_usuario puede ser NULL
+ALTER TABLE personas ALTER COLUMN id_usuario DROP NOT NULL;
+ALTER TABLE personas ADD COLUMN IF NOT EXISTS telefono VARCHAR(30);
+ALTER TABLE personas ADD COLUMN IF NOT EXISTS direccion VARCHAR(200);
+ALTER TABLE personas ADD COLUMN IF NOT EXISTS correo VARCHAR(255);   -- solo si no tiene cuenta (si la tiene, manda usuarios.correo)
+ALTER TABLE personas ADD COLUMN IF NOT EXISTS de_local BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE personas ADD COLUMN IF NOT EXISTS estado VARCHAR(20) NOT NULL DEFAULT 'ACTIVO';
+ALTER TABLE personas DROP CONSTRAINT IF EXISTS ck_personas_estado;
+ALTER TABLE personas ADD CONSTRAINT ck_personas_estado CHECK (estado IN ('ACTIVO', 'INACTIVO'));
 
 -- 10. ROLES DE USUARIO
 CREATE TABLE IF NOT EXISTS roles_usuario (
@@ -162,6 +194,9 @@ CREATE TABLE IF NOT EXISTS compras (
 
     CONSTRAINT fk_compras_proveedor FOREIGN KEY (id_proveedor) REFERENCES proveedores(id_proveedor)
 );
+ALTER TABLE compras ADD COLUMN IF NOT EXISTS subtotal DECIMAL(12,2) NOT NULL DEFAULT 0;
+ALTER TABLE compras DROP CONSTRAINT IF EXISTS ck_compras_estado;
+ALTER TABLE compras ADD CONSTRAINT ck_compras_estado CHECK (estado IN ('REGISTRADA', 'ANULADA'));
 
 -- 15. DETALLE DE COMPRAS
 CREATE TABLE IF NOT EXISTS detalle_compras (
@@ -285,6 +320,8 @@ CREATE TABLE IF NOT EXISTS perdidas_insumos (
     CONSTRAINT fk_perdida_insumo  FOREIGN KEY (id_insumo_producto) REFERENCES insumos_productos(id_insumo_producto),
     CONSTRAINT fk_perdida_usuario FOREIGN KEY (id_usuario)         REFERENCES usuarios(id_usuario)
 );
+-- id_usuario = quien la registró; responsable = persona a cargo (texto libre del panel)
+ALTER TABLE perdidas_insumos ADD COLUMN IF NOT EXISTS responsable VARCHAR(150);
 
 -- 24. PEDIDOS (ciclo: PENDIENTE > APROBADO > EN_PREPARACION > LISTO > EN_CAMINO > ENTREGADO | RECHAZADO | CANCELADO)
 -- Al entregarse un pedido se genera la venta (id_venta).
@@ -306,6 +343,16 @@ CREATE TABLE IF NOT EXISTS pedidos (
     CONSTRAINT fk_pedido_domiciliario FOREIGN KEY (id_domiciliario) REFERENCES usuarios(id_usuario),
     CONSTRAINT fk_pedido_venta        FOREIGN KEY (id_venta)        REFERENCES ventas(id_venta)
 );
+-- Datos del checkout de la tienda y del flujo del panel. 'estado' guarda la etiqueta que muestra la app
+-- (Por confirmar, Recibido, Confirmado, En cocina, En camino, Entregado, Cancelado).
+ALTER TABLE pedidos ALTER COLUMN estado SET DEFAULT 'Recibido';
+ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS nombre_contacto VARCHAR(150);
+ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS metodo_pago VARCHAR(30);
+ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS estado_pago VARCHAR(40) NOT NULL DEFAULT 'Pendiente';
+ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS motivo_rechazo_pago TEXT;
+ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS comprobante TEXT;  -- imagen del pago (data URL JPEG, ~100-300 KB)
+ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS produccion_autorizada BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS registros_produccion JSONB NOT NULL DEFAULT '[]';  -- órdenes que generó el panel
 
 -- 25. DETALLE DE PEDIDOS (precio_unitario queda congelado al confirmar el pedido)
 CREATE TABLE IF NOT EXISTS pedido_detalle (
@@ -353,3 +400,93 @@ CREATE INDEX IF NOT EXISTS idx_pedido_detalle_pedido         ON pedido_detalle(i
 CREATE INDEX IF NOT EXISTS idx_historial_pedido              ON historial_estados_pedido(id_pedido);
 CREATE INDEX IF NOT EXISTS idx_roles_usuario_usuario         ON roles_usuario(id_usuario);
 CREATE INDEX IF NOT EXISTS idx_permisos_rol                  ON permisos(id_rol);
+
+-- Vistas de solo lectura para revisar la tabla insumos_productos por separado (ej. en el panel de Neon)
+CREATE OR REPLACE VIEW vista_insumos AS
+  SELECT i.id_insumo_producto AS id, i.nombre, c.nombre_categoria AS categoria, i.medida, i.costo, i.stock, i.minimo, i.estado
+    FROM insumos_productos i JOIN categorias c ON c.id_categoria = i.id_categoria
+   WHERE i.tipo = 'INSUMO';
+CREATE OR REPLACE VIEW vista_productos AS
+  SELECT i.id_insumo_producto AS id, i.nombre, c.nombre_categoria AS categoria, i.precio, i.descripcion, i.etiqueta, i.estado
+    FROM insumos_productos i JOIN categorias c ON c.id_categoria = i.id_categoria
+   WHERE i.tipo = 'PRODUCTO';
+
+-- =====================================================
+-- MÓDULOS DEL PANEL CON LÓGICA EN LA APP (ventas, producción, no conformes, devoluciones)
+-- Cada registro guarda sus datos principales en columnas y la fila completa del panel en datos_panel,
+-- para que el panel la recupere tal cual (historial de estados, líneas, consumo de stock...).
+-- =====================================================
+ALTER TABLE ventas ADD COLUMN IF NOT EXISTS codigo VARCHAR(30);
+ALTER TABLE ventas ADD COLUMN IF NOT EXISTS cliente VARCHAR(150);
+ALTER TABLE ventas ADD COLUMN IF NOT EXISTS tipo_venta VARCHAR(30);
+ALTER TABLE ventas ADD COLUMN IF NOT EXISTS metodo_pago VARCHAR(30);
+ALTER TABLE ventas ADD COLUMN IF NOT EXISTS pedido_asociado VARCHAR(30);
+ALTER TABLE ventas ADD COLUMN IF NOT EXISTS datos_panel JSONB;
+
+ALTER TABLE ordenes_produccion ADD COLUMN IF NOT EXISTS productos TEXT;
+ALTER TABLE ordenes_produccion ADD COLUMN IF NOT EXISTS cantidad DECIMAL(12,3);
+ALTER TABLE ordenes_produccion ADD COLUMN IF NOT EXISTS prioridad INT;
+ALTER TABLE ordenes_produccion ADD COLUMN IF NOT EXISTS datos_panel JSONB;
+
+-- En el panel un no conforme puede tener varios productos y no siempre una orden: se enlaza cuando se puede
+ALTER TABLE producto_no_conforme ALTER COLUMN id_insumo_producto DROP NOT NULL;
+ALTER TABLE producto_no_conforme ALTER COLUMN id_orden_produccion DROP NOT NULL;
+ALTER TABLE producto_no_conforme ADD COLUMN IF NOT EXISTS codigo VARCHAR(30);
+ALTER TABLE producto_no_conforme ADD COLUMN IF NOT EXISTS productos TEXT;
+ALTER TABLE producto_no_conforme ADD COLUMN IF NOT EXISTS datos_panel JSONB;
+
+-- 27. DEVOLUCIONES (las del panel: venta asociada, cliente y motivo Reembolso/Reposición)
+CREATE TABLE IF NOT EXISTS devoluciones (
+    id_devolucion  BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    codigo         VARCHAR(30),
+    codigo_venta   VARCHAR(30),
+    id_venta       BIGINT,
+    cliente        VARCHAR(150),
+    motivo         VARCHAR(50),
+    fecha          DATE NOT NULL DEFAULT CURRENT_DATE,
+    id_usuario     BIGINT NOT NULL,
+    datos_panel    JSONB,
+    creado_en      TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_devolucion_venta   FOREIGN KEY (id_venta)   REFERENCES ventas(id_venta),
+    CONSTRAINT fk_devolucion_usuario FOREIGN KEY (id_usuario) REFERENCES usuarios(id_usuario)
+);
+
+-- Pedidos creados a mano en el panel (ej. cliente de local sin cuenta): sin id_cliente, con la fila del panel
+ALTER TABLE pedidos ALTER COLUMN id_cliente DROP NOT NULL;
+ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS codigo VARCHAR(30);
+ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS datos_panel JSONB;
+
+-- Ficha técnica de cada producto o insumo (receta en ficha_tecnica_insumos)
+ALTER TABLE fichas_tecnicas ALTER COLUMN id_proceso DROP NOT NULL;
+ALTER TABLE fichas_tecnicas ADD COLUMN IF NOT EXISTS id_insumo_producto BIGINT;
+ALTER TABLE fichas_tecnicas ADD COLUMN IF NOT EXISTS nombre VARCHAR(150);
+ALTER TABLE fichas_tecnicas ADD COLUMN IF NOT EXISTS version VARCHAR(30);
+ALTER TABLE fichas_tecnicas ADD COLUMN IF NOT EXISTS insumos_principales TEXT;
+ALTER TABLE fichas_tecnicas ADD COLUMN IF NOT EXISTS preparacion TEXT;
+ALTER TABLE fichas_tecnicas DROP CONSTRAINT IF EXISTS fk_ficha_insumo_producto_item;
+ALTER TABLE fichas_tecnicas ADD CONSTRAINT fk_ficha_insumo_producto_item
+    FOREIGN KEY (id_insumo_producto) REFERENCES insumos_productos(id_insumo_producto);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_ficha_por_item ON fichas_tecnicas(id_insumo_producto);
+
+-- Direcciones guardadas del cliente (la primera también queda en personas.direccion)
+ALTER TABLE personas ADD COLUMN IF NOT EXISTS direcciones JSONB NOT NULL DEFAULT '[]';
+
+-- 28. CONSUMOS DE PRODUCCION: insumos que se descontaron al pasar una orden a "En cocina" (una vez por orden)
+CREATE TABLE IF NOT EXISTS consumos_produccion (
+    id_consumo    BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    numero_orden  VARCHAR(50) NOT NULL UNIQUE,
+    detalle       JSONB NOT NULL,   -- [{ insumo, cantidad }]
+    id_usuario    BIGINT,
+    creado_en     TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_consumo_usuario FOREIGN KEY (id_usuario) REFERENCES usuarios(id_usuario)
+);
+
+-- Las hamburguesas se llaman "Hamburguesa <nombre>" (ej. "Hamburguesa Doble", no solo "Doble"); no repite si ya empieza así
+UPDATE insumos_productos ip
+   SET nombre = 'Hamburguesa ' || ip.nombre
+  FROM categorias c
+ WHERE c.id_categoria = ip.id_categoria
+   AND c.nombre_categoria = 'Hamburguesas'
+   AND ip.nombre NOT ILIKE 'hamburguesa %';

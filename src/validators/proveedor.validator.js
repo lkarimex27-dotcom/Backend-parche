@@ -10,6 +10,14 @@ const crearProveedor = z.object({
   contacto: z.string().trim().max(150).optional(),
   tipo: z.string().trim().max(50).optional(),
   estado: z.enum(['ACTIVO', 'INACTIVO']).optional(),
+  nit: z.string().trim().max(30).optional(),
+  direccion: z.string().trim().max(200).optional(),
+  insumos: z.string().trim().max(2000).optional(),   // nombres separados por coma
+  contacto_tipo_documento: z.string().trim().max(30).optional(),
+  contacto_documento: z.string().trim().max(50).optional(),
+  contacto_telefono: z.string().trim().max(30).optional(),
+  contacto_correo: correo.optional(),
+  contacto_cargo: z.string().trim().max(100).optional(),
 });
 
 const actualizarProveedor = crearProveedor

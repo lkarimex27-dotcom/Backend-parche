@@ -7,14 +7,18 @@ const listar = async (tipo) =>
 const obtenerPorId = async (tipo, id) =>
   (await query('SELECT * FROM categorias WHERE id_categoria = $1 AND tipo = $2', [id, tipo])).rows[0] || null;
 
-const crear = async (tipo, { nombre_categoria }) =>
-  (await query('INSERT INTO categorias (nombre_categoria, tipo) VALUES ($1, $2) RETURNING *', [nombre_categoria, tipo]))
-    .rows[0];
-
-const actualizar = async (tipo, id, { nombre_categoria }) =>
+const crear = async (tipo, { nombre_categoria, descripcion, estado }) =>
   (await query(
-    'UPDATE categorias SET nombre_categoria = $3 WHERE id_categoria = $1 AND tipo = $2 RETURNING *',
-    [id, tipo, nombre_categoria]
+    `INSERT INTO categorias (nombre_categoria, tipo, descripcion, estado)
+     VALUES ($1, $2, $3, COALESCE($4, 'ACTIVO')) RETURNING *`,
+    [nombre_categoria, tipo, descripcion ?? null, estado ?? null]
+  )).rows[0];
+
+const actualizar = async (tipo, id, { nombre_categoria, descripcion, estado }) =>
+  (await query(
+    `UPDATE categorias SET nombre_categoria = $3, descripcion = COALESCE($4, descripcion), estado = COALESCE($5, estado)
+      WHERE id_categoria = $1 AND tipo = $2 RETURNING *`,
+    [id, tipo, nombre_categoria, descripcion, estado]
   )).rows[0] || null;
 
 const eliminar = async (tipo, id) =>
