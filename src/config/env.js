@@ -9,7 +9,7 @@ const env = {
     .map((o) => o.trim())
     .filter(Boolean),
   jwtSecret: process.env.JWT_SECRET,
-  jwtExpiresIn: process.env.JWT_EXPIRES_IN || '1d',
+  jwtExpiresIn: process.env.JWT_EXPIRES_IN || '30d',
   adminEmail: process.env.ADMIN_EMAIL,
   adminPassword: process.env.ADMIN_PASSWORD,
   adminNombre: process.env.ADMIN_NOMBRE || 'Administrador',
