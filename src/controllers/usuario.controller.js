@@ -22,11 +22,3 @@ const eliminar = asyncHandler(async (req, res) => {
 });
 
 module.exports = { listar, obtener, crear, actualizar, eliminar, listarClientes, obtenerCliente };
-=======
-const desactivar = asyncHandler(async (req, res) => {
-  await service.desactivar(req.params.id, req.user.id);
-  res.status(204).send();
-});
-
-module.exports = { listar, obtener, crear, actualizar, desactivar };
-
