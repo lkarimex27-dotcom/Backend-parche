@@ -77,9 +77,16 @@ Endpoints autenticados:
 | `GET /api/barrios?buscar=ana` | Barrios activos de Bello, búsqueda parcial sin distinguir mayúsculas |
 | `GET /api/barrios/admin` | Catálogo completo para administración (`BARRIOS:VER`) |
 | `POST /api/barrios` | Crear candidato inactivo por defecto (`BARRIOS:CREAR`) |
-| `PATCH /api/barrios/:id` | Activar/desactivar o configurar cercanía/tiempo (`BARRIOS:EDITAR`) |
+| `PATCH /api/barrios/:id` | Activar/desactivar o configurar cercanía, tiempo y `costo_domicilio_cop` (`BARRIOS:EDITAR`) |
 | `POST /api/pedidos/estimacion` | Estimar con `{ "id_barrio": 1, "direccion": "..." }` |
 | `POST /api/pedidos` | Crear pedido con `id_barrio`; el backend valida y almacena la estimación inicial |
+
+Configura `costo_domicilio_cop` por barrio mediante `PATCH /api/barrios/:id`.
+No se asigna una tarifa predeterminada: si el barrio no tiene costo configurado,
+la estimación devuelve `deliveryCost: null` y el pedido no se crea. Cuando la
+tarifa está configurada, el backend suma el costo al subtotal y persiste el
+detalle del domicilio y el total del pedido. El umbral de aprobación sigue
+evaluándose con el subtotal de productos.
 
 La respuesta exitosa usa el formato general `{ "ok": true, "data": ... }`. La
 estimación contiene `minimumMinutes` y `maximumMinutes` solo cuando hay al menos
@@ -95,8 +102,9 @@ El tiempo entre fin de preparación y salida no está registrado y no se inventa
 
 Sin tiempo de zona ni historial suficiente, la respuesta indica
 `source: "unavailable"`, `estimatedMinutes: null` y un mensaje “Por confirmar”;
-el pedido puede crearse si el barrio sigue activo y dentro de cobertura. La
-estimación no modifica el precio, y el snapshot inicial no se sobrescribe.
+el pedido puede crearse si el barrio sigue activo, dentro de cobertura y con
+costo de domicilio configurado. La estimación inicial se conserva como snapshot
+y no se sobrescribe con consultas posteriores.
 
 ## Estructura
 

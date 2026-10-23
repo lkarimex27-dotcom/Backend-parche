@@ -26,6 +26,9 @@ const estimar = (barrio, pedidosActivos, estadisticas) => {
   const esperaCocinaMinutos = calcularEsperaCocina(pedidosActivos);
   const preparacionMinutos = ESTIMADOR.PREPARACION_BASE_MINUTOS;
   const zona = barrio.nombre;
+  const deliveryCost = barrio.costo_domicilio_cop == null
+    ? null
+    : Number(barrio.costo_domicilio_cop);
 
   if (!minutosValidos(desplazamiento)) {
     return {
@@ -34,6 +37,8 @@ const estimar = (barrio, pedidosActivos, estadisticas) => {
       estimatedMinutes: null,
       estimatedArrival: null,
       zone: zona,
+      deliveryCost,
+      costConfigured: deliveryCost !== null,
       source: 'unavailable',
       isApproximate: true,
       coverageAvailable: true,
@@ -64,6 +69,8 @@ const estimar = (barrio, pedidosActivos, estadisticas) => {
     estimatedMinutes,
     estimatedArrival: null,
     zone: zona,
+    deliveryCost,
+    costConfigured: deliveryCost !== null,
     source: historialSuficiente ? 'history' : 'baseline',
     isApproximate: true,
     coverageAvailable: true,
