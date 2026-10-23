@@ -50,12 +50,17 @@ const cotizar = (items, catalogo) => {
 
 const crear = async (d, idCliente) => {
   const lineas = cotizar(d.items, await Pedido.catalogoActivo());
-  const total = lineas.reduce((s, l) => s + l.subtotal, 0);
-  const estado = total >= PEDIDO_MONTO_APROBACION ? 'Por confirmar' : 'Recibido';
+  const subtotal = lineas.reduce((s, l) => s + l.subtotal, 0);
   const id = await withTransaction(async (c) => {
     const estimacionInicial = await Estimador.calcular(d.id_barrio, c);
+    if (estimacionInicial.deliveryCost === null) {
+      throw AppError.conflict('Costo de domicilio por confirmar para este barrio.');
+    }
+    const costoDomicilio = estimacionInicial.deliveryCost;
+    const total = subtotal + costoDomicilio;
+    const estado = subtotal >= PEDIDO_MONTO_APROBACION ? 'Por confirmar' : 'Recibido';
     const idPedido = await Pedido.crear(c, {
-      ...d, id_cliente: idCliente, total, estado,
+      ...d, id_cliente: idCliente, subtotal, costo_domicilio_cop: costoDomicilio, total, estado,
       estimacion_inicial: estimacionInicial,
       estado_pago: d.pago === 'Efectivo' ? 'Pendiente' : 'Pendiente de verificación',
     });

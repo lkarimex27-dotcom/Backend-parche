@@ -20,6 +20,7 @@ describe('integración de la estimación inicial al crear un pedido', () => {
       activo: true,
       es_cercano: true,
       tiempo_desplazamiento_minutos: null,
+      costo_domicilio_cop: 3500,
     });
     Pedido.cargaCocina.mockResolvedValue(0);
     Pedido.estadisticasDesplazamiento.mockResolvedValue({
@@ -50,9 +51,33 @@ describe('integración de la estimación inicial al crear un pedido', () => {
       source: 'baseline',
       zone: 'Santa Ana',
     });
-    expect(payload.total).toBe(13000);
+    expect(payload.subtotal).toBe(13000);
+    expect(payload.costo_domicilio_cop).toBe(3500);
+    expect(payload.total).toBe(16500);
     expect(Pedido.crearDetalle).toHaveBeenCalledWith(client, 22, expect.objectContaining({
       subtotal: 13000,
     }));
+  });
+
+  it('no crea un pedido cuando el domicilio aún no tiene tarifa configurada', async () => {
+    Barrio.obtenerActivo.mockResolvedValueOnce({
+      id_barrio: 2,
+      nombre: 'Santa Ana',
+      activo: true,
+      es_cercano: true,
+      tiempo_desplazamiento_minutos: null,
+      costo_domicilio_cop: null,
+    });
+
+    await expect(service.crear({
+      nombre: 'Cliente',
+      telefono: '3000000000',
+      direccion: 'Calle 1',
+      id_barrio: 2,
+      pago: 'Efectivo',
+      items: [{ producto: 'Mini', cantidad: 1, salsas: [], adiciones: [] }],
+    }, 7)).rejects.toThrow('Costo de domicilio por confirmar');
+
+    expect(Pedido.crear).not.toHaveBeenCalled();
   });
 });
