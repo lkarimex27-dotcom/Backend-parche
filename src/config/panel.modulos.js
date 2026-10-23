@@ -71,7 +71,7 @@ module.exports = {
     tabla: 'producto_no_conforme',
     id: 'id_producto_no_conforme',
     modulo: 'PRODUCTO_NO_CONFORME',
-    columnas: async (r, idUsuario) => ({
+    columnas: async (r, idUsuario, relacionados = {}) => ({
       id_usuario: idUsuario,
       codigo: txt(r[0], 30),
       productos: txt(r[1], 2000),
@@ -81,6 +81,9 @@ module.exports = {
       fecha: fecha(r[5]),
       observacion: txt(r[6], 2000),
       medida: txt(r[7], 50),
+      ...(Object.hasOwn(relacionados, 'id_orden_produccion')
+        ? { id_orden_produccion: relacionados.id_orden_produccion }
+        : {}),
       estado: txt(r[8], 30) ?? 'PENDIENTE',
     }),
   },

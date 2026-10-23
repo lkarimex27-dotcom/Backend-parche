@@ -17,9 +17,17 @@ const obtener = async (id, c) => {
 // Calcula precios con el menú de la base (el navegador solo dice qué y cuánto pide).
 // Las bebidas llegan como adición "Gaseosa <sabor> (<tamaño>)" y cuestan lo que vale su tamaño.
 const cotizar = (items, catalogo) => {
+  const categoriaNormalizada = (categoria) => {
+    const c = normalizar(categoria);
+    if (c === 'gaseosas' || c === 'bebidas') return 'Gaseosas';
+    return categoria;
+  };
   const buscar = (nombre, categorias, incluir = true) =>
-    catalogo.find((p) => normalizar(p.nombre) === normalizar(nombre) && categorias.includes(p.categoria) === incluir);
-  const EXTRAS = ['Adiciones', 'Salsas', 'Bebidas', 'Sabores de bebida'];
+    catalogo.find((p) => {
+      const categoria = categoriaNormalizada(p.categoria);
+      return normalizar(p.nombre) === normalizar(nombre) && categorias.map((c) => categoriaNormalizada(c)).includes(categoria) === incluir;
+    });
+  const EXTRAS = ['Adiciones', 'Salsas', 'Gaseosas', 'Bebidas', 'Sabores de bebida'];
 
   return items.map((it) => {
     const producto = buscar(it.producto, EXTRAS, false);
@@ -30,7 +38,7 @@ const cotizar = (items, catalogo) => {
     const adiciones = it.adiciones.map((a) => {
       const gaseosa = /^Gaseosa (.+) \((.+)\)$/.exec(a.nombre);
       const extra = gaseosa
-        ? buscar(gaseosa[1], ['Sabores de bebida']) && buscar(gaseosa[2], ['Bebidas'])
+        ? buscar(gaseosa[1], ['Sabores de bebida']) && buscar(gaseosa[2], ['Gaseosas', 'Bebidas'])
         : buscar(a.nombre, ['Adiciones']);
       if (!extra) throw AppError.badRequest(`La adición «${a.nombre}» no está disponible`);
       return { nombre: a.nombre, cantidad: a.cantidad, precio: extra.precio };

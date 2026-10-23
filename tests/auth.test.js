@@ -19,6 +19,13 @@ describe('Seguridad', () => {
     expect(res.status).toBe(401);
   });
 
+  it('POST /api/productos-no-conformes/con-reposicion sin token devuelve 401', async () => {
+    const res = await request(app)
+      .post('/api/productos-no-conformes/con-reposicion')
+      .send({ producto_no_conforme: [], orden_produccion: [] });
+    expect(res.status).toBe(401);
+  });
+
   it('rechaza un token falso', async () => {
     const res = await request(app).get('/api/usuarios').set('Authorization', 'Bearer abc.def.ghi');
     expect(res.status).toBe(401);

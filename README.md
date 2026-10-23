@@ -45,14 +45,19 @@ Las cuentas de cliente conservan la contraseña que el cliente eligió.
 | Pérdida Insumos | `/api/perdidas-insumos` | Pendiente (baja stock, transacción) |
 | Categ. Producto | `/api/categorias-productos` | Listo |
 | Productos | `/api/productos` | Listo |
-| Órdenes de Prod. | `/api/ordenes-produccion` | Pendiente |
-| Prod. No Conforme | `/api/productos-no-conformes` | Pendiente |
+| Órdenes de Prod. | `/api/ordenes-produccion` | Panel sincronizado; reposiciones transaccionales |
+| Prod. No Conforme | `/api/productos-no-conformes` | Panel sincronizado; vínculo de reposición |
 | Clientes | `/api/clientes` (solo lectura) | Listo |
 | Pedidos | `/api/pedidos` | Pendiente |
 | Ventas | `/api/ventas` | Pendiente |
 | Devoluciones | `/api/devoluciones` | Pendiente |
 
 Las tablas de los módulos pendientes ya existen en `sql/init.sql`.
+Al registrar un producto no conforme que genera reposición, el panel usa
+`POST /api/productos-no-conformes/con-reposicion`: registra la orden nueva y el
+producto no conforme en una transacción, los vincula en la base de datos y,
+cuando se informa la orden afectada, guarda también su cambio de estado dentro
+de la misma transacción.
 
 ## Estructura
 

@@ -1,10 +1,29 @@
-const { query } = require('../config/db');
+const { query, withTransaction } = require('../config/db');
+const AppError = require('../errors/AppError');
 
 // Consultas genéricas para los módulos de config/panel.modulos.js (tabla e id vienen de esa config, no del usuario)
 const listar = async (cfg) =>
   (await query(
     `SELECT ${cfg.id} AS id, datos_panel FROM ${cfg.tabla} WHERE datos_panel IS NOT NULL ORDER BY ${cfg.id} DESC`
   )).rows;
+
+const crearConCliente = async (client, cfg, columnas, fila) => {
+  const keys = Object.keys(columnas);
+  return (await client.query(
+    `INSERT INTO ${cfg.tabla} (${keys.join(', ')}, datos_panel)
+     VALUES (${keys.map((_, i) => `$${i + 1}`).join(', ')}, $${keys.length + 1}) RETURNING ${cfg.id} AS id`,
+    [...keys.map((k) => columnas[k]), JSON.stringify(fila)]
+  )).rows[0].id;
+};
+
+const actualizarConCliente = async (client, cfg, id, columnas, fila) => {
+  const keys = Object.keys(columnas);
+  return (await client.query(
+    `UPDATE ${cfg.tabla} SET ${keys.map((k, i) => `${k} = $${i + 2}`).join(', ')}, datos_panel = $${keys.length + 2}
+      WHERE ${cfg.id} = $1`,
+    [id, ...keys.map((k) => columnas[k]), JSON.stringify(fila)]
+  )).rowCount > 0;
+};
 
 const crear = async (cfg, columnas, fila) => {
   const keys = Object.keys(columnas);
@@ -14,6 +33,26 @@ const crear = async (cfg, columnas, fila) => {
     [...keys.map((k) => columnas[k]), JSON.stringify(fila)]
   )).rows[0].id;
 };
+
+const crearPar = async ({ cfgA, filaA, cfgB, filaB, idUsuario, actualizarExistente }) =>
+  withTransaction(async (client) => {
+    const columnasB = await cfgB.columnas(filaB, idUsuario);
+    const idB = await crearConCliente(client, cfgB, columnasB, filaB);
+    const columnasA = await cfgA.columnas(filaA, idUsuario, {
+      id_orden_produccion: idB,
+    });
+    const idA = await crearConCliente(client, cfgA, columnasA, filaA);
+
+    if (actualizarExistente) {
+      const { cfg, id, fila } = actualizarExistente;
+      const { id_usuario, ...columnas } = await cfg.columnas(fila, idUsuario);
+      if (!(await actualizarConCliente(client, cfg, id, columnas, fila))) {
+        throw AppError.notFound('Orden de producción afectada no encontrada');
+      }
+    }
+
+    return { idA, idB };
+  });
 
 const actualizar = async (cfg, id, columnas, fila) => {
   const keys = Object.keys(columnas);
@@ -27,4 +66,4 @@ const actualizar = async (cfg, id, columnas, fila) => {
 const eliminar = async (cfg, id) =>
   (await query(`DELETE FROM ${cfg.tabla} WHERE ${cfg.id} = $1`, [id])).rowCount > 0;
 
-module.exports = { listar, crear, actualizar, eliminar };
+module.exports = { listar, crear, crearPar, actualizar, eliminar };
