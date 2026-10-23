@@ -22,6 +22,7 @@ const MODULOS = [
   // Ventas
   'CLIENTES',
   'PEDIDOS',
+  'BARRIOS',
   'VENTAS',
   'DEVOLUCIONES',
 ];
@@ -55,4 +56,16 @@ const PERMISOS_INICIALES = {
 // Pedidos de este total o más quedan "Por confirmar" hasta que el administrador los apruebe (igual que la app)
 const PEDIDO_MONTO_APROBACION = 150000;
 
-module.exports = { ROLES, PRIVILEGIOS, MODULOS, PERMISOS_INICIALES, PEDIDO_MONTO_APROBACION };
+const ESTIMADOR = {
+  MUNICIPIO: 'Bello',
+  DEPARTAMENTO: 'Antioquia',
+  PREPARACION_BASE_MINUTOS: 15,
+  DESPLAZAMIENTO_CERCANO_MINUTOS: 5,
+  CAPACIDAD_COCINA_PEDIDOS: 2,
+  MIN_OBSERVACIONES_ZONA: 5,
+  HISTORIAL_DIAS: 180,
+};
+
+module.exports = {
+  ROLES, PRIVILEGIOS, MODULOS, PERMISOS_INICIALES, PEDIDO_MONTO_APROBACION, ESTIMADOR,
+};
