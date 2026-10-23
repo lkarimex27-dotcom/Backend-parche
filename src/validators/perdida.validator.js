@@ -14,8 +14,10 @@ const perdida = z.object({
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/, 'La fecha debe tener formato AAAA-MM-DD')
     .refine((f) => f <= hoy(), 'La fecha de la pérdida no puede ser posterior a hoy')
+    .refine((f) => f >= '2013-01-01', 'La fecha no puede ser anterior a 2013: el negocio abrió ese año')
     .optional(),
   observacion: z.string().trim().max(1000).optional(),  // ej. "Compra a X del <fecha>"
+  id_compra: z.number().int().positive().optional(),     // la compra de la que se envió (si vino de una)
 });
 
 const devolver = z.object({

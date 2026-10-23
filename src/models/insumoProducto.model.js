@@ -146,7 +146,17 @@ const productosSinStock = async () =>
       WHERE ${AGOTADO}`
   )).rows.map((r) => Number(r.id));
 
+// Stock de las gaseosas de reventa: el producto "Gaseosa <sabor> (<tamaño>)" de «Bebidas» (sus compras lo suben).
+// Solo se agota una que ya se compró alguna vez; las que nunca se han comprado se venden sin control de stock.
+const gaseosas = async () =>
+  (await query(
+    `SELECT ip.nombre,
+            (ip.stock <= 0 AND EXISTS (SELECT 1 FROM detalle_compras d WHERE d.id_insumo_producto = ip.id_insumo_producto)) AS agotada
+       FROM insumos_productos ip
+      WHERE ip.tipo = 'PRODUCTO' AND ip.nombre ILIKE 'Gaseosa %'`
+  )).rows;
+
 module.exports = {
   listar, obtenerPorId, crear, actualizar, eliminar, guardarFicha, reemplazarImagen, obtenerImagen,
-  productosSinStock, usos,
+  productosSinStock, gaseosas, usos,
 };

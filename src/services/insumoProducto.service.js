@@ -80,7 +80,8 @@ const imagen = async (idImagen) => {
 };
 
 const productosSinStock = () => Modelo.productosSinStock();
+const gaseosas = () => Modelo.gaseosas();
 
 module.exports = {
-  listar, obtener, crear, actualizar, eliminar, guardarFicha, reemplazarImagen, imagen, productosSinStock,
+  listar, obtener, crear, actualizar, eliminar, guardarFicha, reemplazarImagen, imagen, productosSinStock, gaseosas,
 };

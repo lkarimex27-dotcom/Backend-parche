@@ -15,6 +15,7 @@ jest.mock('../src/services/insumoProducto.service', () => ({
     prod(6, 'Coca-Cola', 'Sabores de bebida'),
   ]),
   productosSinStock: jest.fn(async () => [3]),
+  gaseosas: jest.fn(async () => [{ nombre: 'Gaseosa Coca-Cola (Personal)', agotada: true }]),
 }));
 const app = require('../src/app');
 
@@ -31,5 +32,13 @@ describe('GET /api/catalogo', () => {
   it('no muestra los productos cuya receta no tiene stock (las bebidas no son insumos: siempre salen)', async () => {
     const res = await request(app).get('/api/catalogo');
     expect(res.body.data.map((p) => p.nombre)).toEqual(['Mini', 'Personal', 'Coca-Cola']);
+  });
+});
+
+describe('GET /api/catalogo/gaseosas', () => {
+  it('es público y dice qué gaseosas compradas están agotadas', async () => {
+    const res = await request(app).get('/api/catalogo/gaseosas');
+    expect(res.status).toBe(200);
+    expect(res.body.data).toEqual([{ nombre: 'Gaseosa Coca-Cola (Personal)', agotada: true }]);
   });
 });

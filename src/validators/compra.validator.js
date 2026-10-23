@@ -6,7 +6,8 @@ const hoy = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bo
 const fecha = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/, 'La fecha debe tener formato AAAA-MM-DD')
-  .refine((f) => f <= hoy(), 'La fecha de compra no puede ser posterior a hoy');
+  .refine((f) => f <= hoy(), 'La fecha de compra no puede ser posterior a hoy')
+  .refine((f) => f >= '2013-01-01', 'La fecha no puede ser anterior a 2013: el negocio abrió ese año');
 
 const compra = z.object({
   id_proveedor: z.number().int().positive(),

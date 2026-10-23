@@ -35,6 +35,9 @@ const catalogo = asyncHandler(async (_req, res) => {
   });
 });
 
+// Público: estado, precio propio y si está agotada cada gaseosa con datos propios (la tienda las muestra así)
+const gaseosas = asyncHandler(async (_req, res) => res.json({ ok: true, data: await service.gaseosas() }));
+
 const guardarFicha = asyncHandler(async (req, res) =>
   res.json({ ok: true, data: await service.guardarFicha(req.tipo, req.params.id, req.body) }));
 const reemplazarImagen = asyncHandler(async (req, res) =>
@@ -47,4 +50,4 @@ const imagen = asyncHandler(async (req, res) => {
   res.send(bytes);
 });
 
-module.exports = { listar, obtener, crear, actualizar, eliminar, catalogo, guardarFicha, reemplazarImagen, imagen };
+module.exports = { listar, obtener, crear, actualizar, eliminar, catalogo, gaseosas, guardarFicha, reemplazarImagen, imagen };
