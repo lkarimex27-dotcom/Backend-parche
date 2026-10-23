@@ -19,8 +19,10 @@ describe('Seguridad', () => {
     expect(res.status).toBe(401);
   });
 
-  it('POST /api/pedidos/estimacion sin token devuelve 401', async () => {
-    const res = await request(app).post('/api/pedidos/estimacion').send({ id_barrio: 1 });
+  it('POST /api/productos-no-conformes/con-reposicion sin token devuelve 401', async () => {
+    const res = await request(app)
+      .post('/api/productos-no-conformes/con-reposicion')
+      .send({ producto_no_conforme: [], orden_produccion: [] });
     expect(res.status).toBe(401);
   });
 

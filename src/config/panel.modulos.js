@@ -36,6 +36,8 @@ module.exports = {
     tabla: 'ventas',
     id: 'id_venta',
     modulo: 'VENTAS',
+    // Un pedido tiene una sola venta (posición 9 de la fila = pedido asociado)
+    unico: { columna: 'pedido_asociado', posicion: 9, ignorar: ['', 'Sin pedido'], mensaje: 'Ese pedido ya tiene su venta registrada.' },
     // id_usuario = el vendedor elegido en el panel (si no es del personal, quien la registra); cambia al editar
     usuarioEditable: true,
     columnas: async (r, idUsuario) => ({
@@ -57,6 +59,8 @@ module.exports = {
     id: 'id_orden_produccion',
     modulo: 'ORDENES_PRODUCCION',
     borrar: true,
+    // Solo se elimina mientras no ha empezado (estado Recibida)
+    borrarSi: { columna: 'estado', valor: 'Recibida', mensaje: 'Solo se puede eliminar una orden de producción en estado Recibida.' },
     columnas: (r) => ({
       numero_orden: txt(r[0], 50),
       productos: txt(r[1], 2000),
@@ -71,7 +75,7 @@ module.exports = {
     tabla: 'producto_no_conforme',
     id: 'id_producto_no_conforme',
     modulo: 'PRODUCTO_NO_CONFORME',
-    columnas: async (r, idUsuario) => ({
+    columnas: async (r, idUsuario, relacionados = {}) => ({
       id_usuario: idUsuario,
       codigo: txt(r[0], 30),
       productos: txt(r[1], 2000),
@@ -81,6 +85,9 @@ module.exports = {
       fecha: fecha(r[5]),
       observacion: txt(r[6], 2000),
       medida: txt(r[7], 50),
+      ...(Object.hasOwn(relacionados, 'id_orden_produccion')
+        ? { id_orden_produccion: relacionados.id_orden_produccion }
+        : {}),
       estado: txt(r[8], 30) ?? 'PENDIENTE',
     }),
   },

@@ -8,7 +8,8 @@ const clientes = {
 jest.mock('../src/models/cliente.model', () => ({
   obtenerPorId: jest.fn(async (id) => clientes[id] || null),
   actualizar: jest.fn(async () => ({ id_persona: 2, id_usuario: null })),
-  eliminarSinCuenta: jest.fn(async () => true),
+  compras: jest.fn(async () => 0),
+  eliminar: jest.fn(async () => undefined),
 }));
 jest.mock('../src/config/db', () => ({ withTransaction: (fn) => fn({ query: jest.fn() }) }));
 const service = require('../src/services/cliente.service');
