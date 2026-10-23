@@ -22,4 +22,3 @@ const eliminar = asyncHandler(async (req, res) => {
 });
 
 module.exports = { listar, obtener, crear, actualizar, eliminar, listarClientes, obtenerCliente };
-

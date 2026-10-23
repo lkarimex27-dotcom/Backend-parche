@@ -54,6 +54,45 @@ Las cuentas de cliente conservan la contraseña que el cliente eligió.
 
 Las tablas de los módulos pendientes ya existen en `sql/init.sql`.
 
+## Barrios y estimación de entrega
+
+`npm run db:init` crea/actualiza el catálogo `barrios`, agrega `id_barrio` y
+`estimacion_inicial` a `pedidos`. Ejecuta también `npm run db:seed` para incorporar
+el módulo y los permisos administrativos `BARRIOS`.
+Los nombres candidatos suministrados para Bello se insertan inactivos: una persona
+administradora debe validar cobertura antes de habilitarlos. No se consideran una
+lista oficial o completa. El tiempo de desplazamiento queda sin configurar salvo
+que el administrador marque explícitamente una zona como cercana (`es_cercano: true`,
+referencia inicial de 5 minutos) o indique su tiempo medido.
+
+Endpoints autenticados:
+
+| Método y ruta | Uso |
+|---|---|
+| `GET /api/barrios?buscar=ana` | Barrios activos de Bello, búsqueda parcial sin distinguir mayúsculas |
+| `GET /api/barrios/admin` | Catálogo completo para administración (`BARRIOS:VER`) |
+| `POST /api/barrios` | Crear candidato inactivo por defecto (`BARRIOS:CREAR`) |
+| `PATCH /api/barrios/:id` | Activar/desactivar o configurar cercanía/tiempo (`BARRIOS:EDITAR`) |
+| `POST /api/pedidos/estimacion` | Estimar con `{ "id_barrio": 1, "direccion": "..." }` |
+| `POST /api/pedidos` | Crear pedido con `id_barrio`; el backend valida y almacena la estimación inicial |
+
+La respuesta exitosa usa el formato general `{ "ok": true, "data": ... }`. La
+estimación contiene `minimumMinutes` y `maximumMinutes` solo cuando hay al menos
+cinco entregas válidas con marcas de salida y entrega para el barrio; incluye la
+mediana histórica del tramo `En camino` → `Entregado`. Los pedidos actuales solo
+registran esos estados en `historial_estados_pedido`, no el fin de preparación,
+por lo que cocina se estima con 15 minutos base y capacidad configurable en
+`src/config/constants.js` (dos pedidos concurrentes inicialmente). La espera se
+estima por lotes y no añade 15 minutos por cada pedido.
+El tiempo entre fin de preparación y salida no está registrado y no se inventa:
+`components.dispatchWaitMinutes` será `null`, y `isApproximate` permanece en
+`true` incluso cuando el tramo de desplazamiento usa historial.
+
+Sin tiempo de zona ni historial suficiente, la respuesta indica
+`source: "unavailable"`, `estimatedMinutes: null` y un mensaje “Por confirmar”;
+el pedido puede crearse si el barrio sigue activo y dentro de cobertura. La
+estimación no modifica el precio, y el snapshot inicial no se sobrescribe.
+
 ## Estructura
 
 | Carpeta | Responsabilidad |

@@ -79,4 +79,3 @@ const cambiarContrasenaInicial = async (id, { nueva }) => {
 };
 
 module.exports = { registrar, login, me, actualizarPerfil, cambiarContrasena, cambiarContrasenaInicial };
-
