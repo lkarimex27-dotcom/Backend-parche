@@ -20,6 +20,7 @@ const registro = z.object({
   nombre: z.string().trim().min(2).max(150),
   tipo_documento: z.string().trim().max(30).optional(),
   documento: z.string().trim().min(6, 'El documento debe tener entre 6 y 10 caracteres').max(10, 'El documento debe tener entre 6 y 10 caracteres').optional(),
+  telefono: z.string().trim().max(30).optional(),
 });
 
 // Perfil propio (cliente o personal)
@@ -27,11 +28,7 @@ const perfil = z
   .object({
     nombre: z.string().trim().min(2).max(150),
     tipo_documento: z.string().trim().max(30),
-
     documento: z.string().trim().min(6, 'El documento debe tener entre 6 y 10 caracteres').max(10, 'El documento debe tener entre 6 y 10 caracteres'),
-
-    documento: z.string().trim().max(50),
-
     telefono: z.string().trim().max(30),
     direcciones: z.array(z.string().trim().min(1).max(200)).max(10),
   })
@@ -41,4 +38,12 @@ const perfil = z
 const cambioContrasena = z.object({ actual: z.string().min(1).max(72), nueva: contrasena });
 const cambioContrasenaInicial = z.object({ nueva: contrasena });
 
-module.exports = { login, registro, contrasena, perfil, cambioContrasena, cambioContrasenaInicial };
+
+// Olvidé mi contraseña: pedir el código y usarlo
+const recuperar = z.object({ correo });
+const restablecer = z.object({ correo, codigo: z.string().trim().regex(/^\d{6}$/, 'El código tiene 6 dígitos'), nueva: contrasena });
+
+
+
+module.exports = { login, registro, contrasena, perfil, cambioContrasena, cambioContrasenaInicial, recuperar, restablecer };
+

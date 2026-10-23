@@ -30,12 +30,29 @@ const crear = async (tipo, datos) => {
 };
 
 const actualizar = async (tipo, id, datos) => {
+  // El costo y el stock de un insumo solo cambian con compras, pérdidas y producción
+  if (tipo === 'INSUMO') {
+    const { costo, stock, ...resto } = datos;
+    datos = resto;
+  }
   await validar(tipo, datos);
   if (!(await Modelo.actualizar(tipo, id, datos))) throw AppError.notFound(`${NOMBRE[tipo]} no encontrado`);
   return obtener(tipo, id);
 };
 
 const eliminar = async (tipo, id) => {
+  // Un insumo solo se elimina si ningún otro módulo tiene registros de él
+  if (tipo === 'INSUMO') {
+    const u = await Modelo.usos(id);
+    const en = [
+      u.compras && 'compras',
+      u.perdidas && 'pérdidas de insumos',
+      u.recetas && `la ficha técnica de ${u.recetas}`,
+    ].filter(Boolean);
+    if (en.length) {
+      throw AppError.conflict(`No se puede eliminar: está registrado en ${en.join(', ')}. Si ya no lo usas, desactívalo.`);
+    }
+  }
   if (!(await Modelo.eliminar(tipo, id))) throw AppError.notFound(`${NOMBRE[tipo]} no encontrado`);
 };
 
@@ -62,4 +79,9 @@ const imagen = async (idImagen) => {
   return { tipo: m[1], bytes: Buffer.from(m[2], 'base64') };
 };
 
-module.exports = { listar, obtener, crear, actualizar, eliminar, guardarFicha, reemplazarImagen, imagen };
+const productosSinStock = () => Modelo.productosSinStock();
+const gaseosas = () => Modelo.gaseosas();
+
+module.exports = {
+  listar, obtener, crear, actualizar, eliminar, guardarFicha, reemplazarImagen, imagen, productosSinStock, gaseosas,
+};

@@ -1,4 +1,4 @@
-const { query } = require('../config/db');
+const { query, withTransaction } = require('../config/db');
 
 const exec = (c) => c || { query };
 
@@ -6,7 +6,7 @@ const exec = (c) => c || { query };
 // Si tiene cuenta, el correo es el de la cuenta.
 const SELECT = `
   SELECT p.id_persona, p.id_usuario, p.nombre, p.tipo_documento, p.documento, p.telefono, p.direccion,
-         p.de_local, p.estado, COALESCE(u.correo, p.correo) AS correo
+         p.direcciones, p.de_local, p.estado, COALESCE(u.correo, p.correo) AS correo
     FROM personas p
     LEFT JOIN usuarios u ON u.id_usuario = p.id_usuario
    WHERE p.tipo = 'CLIENTE'`;
@@ -15,12 +15,13 @@ const listar = async () => (await query(`${SELECT} ORDER BY p.id_persona`)).rows
 
 const obtenerPorId = async (id) => (await query(`${SELECT} AND p.id_persona = $1`, [id])).rows[0] || null;
 
-const crear = async (d) =>
-  (await query(
-    `INSERT INTO personas (nombre, tipo, tipo_documento, documento, telefono, correo, direccion, de_local, estado)
-     VALUES ($1, 'CLIENTE', $2, $3, $4, $5, $6, COALESCE($7, FALSE), COALESCE($8, 'ACTIVO')) RETURNING id_persona`,
+// idUsuario: la cuenta con la que entra a la app (null = cliente sin cuenta)
+const crear = async (c, d, idUsuario = null) =>
+  (await exec(c).query(
+    `INSERT INTO personas (nombre, tipo, tipo_documento, documento, telefono, correo, direccion, de_local, estado, id_usuario)
+     VALUES ($1, 'CLIENTE', $2, $3, $4, $5, $6, COALESCE($7, FALSE), COALESCE($8, 'ACTIVO'), $9) RETURNING id_persona`,
     [d.nombre, d.tipo_documento ?? null, d.documento ?? null, d.telefono ?? null, d.correo ?? null,
-     d.direccion ?? null, d.de_local ?? null, d.estado ?? null]
+     d.direccion ?? null, d.de_local ?? null, d.estado ?? null, idUsuario]
   )).rows[0];
 
 const actualizar = async (c, id, d) =>
@@ -38,8 +39,22 @@ const actualizar = async (c, id, d) =>
 const actualizarCorreoCuenta = (c, idUsuario, correo) =>
   c.query('UPDATE usuarios SET correo = $2 WHERE id_usuario = $1', [idUsuario, correo]);
 
-// Solo clientes sin cuenta: los que tienen cuenta se desactivan (su historial depende del usuario)
-const eliminarSinCuenta = async (id) =>
-  (await query("DELETE FROM personas WHERE id_persona = $1 AND tipo = 'CLIENTE' AND id_usuario IS NULL", [id])).rowCount > 0;
+// Compras del cliente: pedidos de su cuenta o a su nombre, y ventas a su nombre
+const compras = async (c) =>
+  (await query(
+    `SELECT (SELECT count(*) FROM pedidos WHERE ($1::bigint IS NOT NULL AND id_cliente = $1) OR lower(nombre_contacto) = lower($2))
+          + (SELECT count(*) FROM ventas WHERE lower(cliente) = lower($2)) AS n`,
+    [c.id_usuario ?? null, c.nombre]
+  )).rows[0].n * 1;
 
-module.exports = { listar, obtenerPorId, crear, actualizar, actualizarCorreoCuenta, eliminarSinCuenta };
+// Borra la persona y, si tenía cuenta, también la cuenta (sin compras no hay historial que conservar)
+const eliminar = (c) =>
+  withTransaction(async (tx) => {
+    await tx.query("DELETE FROM personas WHERE id_persona = $1 AND tipo = 'CLIENTE'", [c.id_persona]);
+    if (c.id_usuario) {
+      await tx.query('DELETE FROM roles_usuario WHERE id_usuario = $1', [c.id_usuario]);
+      await tx.query('DELETE FROM usuarios WHERE id_usuario = $1', [c.id_usuario]);
+    }
+  });
+
+module.exports = { listar, obtenerPorId, crear, actualizar, actualizarCorreoCuenta, compras, eliminar };

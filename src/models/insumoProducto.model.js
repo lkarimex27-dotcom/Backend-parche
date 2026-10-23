@@ -64,7 +64,8 @@ const actualizar = async (tipo, id, d) =>
      d.descripcion, d.etiqueta, d.estado]
   )).rows[0] || null;
 
-// Borra también su propia ficha técnica; si está en compras, pérdidas, pedidos o recetas de otros, Postgres lo impide (409)
+// Borra el insumo y su propia ficha técnica, y lo quita de la lista de proveedores que lo venden.
+// Si otro módulo tiene registros de él (compras, pérdidas, recetas), el servicio no deja borrarlo (y Postgres tampoco)
 const eliminar = (tipo, id) =>
   withTransaction(async (c) => {
     await c.query(
@@ -73,8 +74,30 @@ const eliminar = (tipo, id) =>
       [id]
     );
     await c.query('DELETE FROM fichas_tecnicas WHERE id_insumo_producto = $1', [id]);
+    const nombre = (await c.query('SELECT nombre FROM insumos_productos WHERE id_insumo_producto = $1', [id])).rows[0]?.nombre;
+    if (nombre) {
+      await c.query(
+        `UPDATE proveedores
+            SET insumos = array_to_string(array_remove(regexp_split_to_array(insumos, '\\s*,\\s*'), $1), ', ')
+          WHERE $1 = ANY(regexp_split_to_array(insumos, '\\s*,\\s*'))`,
+        [nombre]
+      );
+    }
     return (await c.query('DELETE FROM insumos_productos WHERE id_insumo_producto = $1 AND tipo = $2', [id, tipo])).rowCount > 0;
   });
+
+// Registros de otros módulos que usan este insumo (si hay alguno, no se puede eliminar)
+const usos = async (id) =>
+  (await query(
+    `SELECT (SELECT count(*) FROM detalle_compras WHERE id_insumo_producto = $1)::int AS compras,
+            (SELECT count(*) FROM perdidas_insumos WHERE id_insumo_producto = $1)::int AS perdidas,
+            (SELECT string_agg(DISTINCT p.nombre, ', ')
+               FROM ficha_tecnica_insumos fi
+               JOIN fichas_tecnicas f ON f.id_ficha_tecnica = fi.id_ficha_tecnica
+               JOIN insumos_productos p ON p.id_insumo_producto = f.id_insumo_producto
+              WHERE fi.id_insumo_producto = $1) AS recetas`,
+    [id]
+  )).rows[0];
 
 // Ficha técnica: una por producto/insumo; la receta se reemplaza completa
 const guardarFicha = async (c, id, d) => {
@@ -110,4 +133,30 @@ const reemplazarImagen = async (c, id, url) => {
 const obtenerImagen = async (idImagen) =>
   (await query('SELECT url FROM imagenes WHERE id_imagen = $1', [idImagen])).rows[0]?.url ?? null;
 
-module.exports = { listar, obtenerPorId, crear, actualizar, eliminar, guardarFicha, reemplazarImagen, obtenerImagen };
+// Un insumo "alcanza" para vender si tiene lo que pide la receta y no está por debajo de su mínimo
+const AGOTADO = 'i.stock < fi.cantidad OR i.stock < i.minimo OR i.estado <> \'ACTIVO\''
+
+// Productos con receta que hoy no se pueden preparar (algún insumo agotado o bajo su mínimo)
+const productosSinStock = async () =>
+  (await query(
+    `SELECT DISTINCT f.id_insumo_producto AS id
+       FROM fichas_tecnicas f
+       JOIN ficha_tecnica_insumos fi ON fi.id_ficha_tecnica = f.id_ficha_tecnica
+       JOIN insumos_productos i ON i.id_insumo_producto = fi.id_insumo_producto
+      WHERE ${AGOTADO}`
+  )).rows.map((r) => Number(r.id));
+
+// Stock de las gaseosas de reventa: el producto "Gaseosa <sabor> (<tamaño>)" de «Bebidas» (sus compras lo suben).
+// Solo se agota una que ya se compró alguna vez; las que nunca se han comprado se venden sin control de stock.
+const gaseosas = async () =>
+  (await query(
+    `SELECT ip.nombre,
+            (ip.stock <= 0 AND EXISTS (SELECT 1 FROM detalle_compras d WHERE d.id_insumo_producto = ip.id_insumo_producto)) AS agotada
+       FROM insumos_productos ip
+      WHERE ip.tipo = 'PRODUCTO' AND ip.nombre ILIKE 'Gaseosa %'`
+  )).rows;
+
+module.exports = {
+  listar, obtenerPorId, crear, actualizar, eliminar, guardarFicha, reemplazarImagen, obtenerImagen,
+  productosSinStock, gaseosas, usos,
+};

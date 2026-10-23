@@ -55,3 +55,23 @@ describe('Seguridad', () => {
     expect(res.status).toBe(400);
   });
 });
+
+describe('Recuperar contraseña', () => {
+  it('recuperar con correo inválido devuelve 400', async () => {
+    const res = await request(app).post('/api/auth/recuperar').send({ correo: 'no-es-correo' });
+    expect(res.status).toBe(400);
+  });
+
+  it('restablecer exige un código de 6 dígitos y una contraseña de 8+', async () => {
+    const res = await request(app)
+      .post('/api/auth/restablecer')
+      .send({ correo: 'ana@correo.com', codigo: '12ab', nueva: 'corta' });
+    expect(res.status).toBe(400);
+    expect(res.body.detalles).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ campo: 'codigo' }),
+        expect.objectContaining({ campo: 'nueva' }),
+      ])
+    );
+  });
+});

@@ -19,9 +19,17 @@ const env = {
   adminEmail: process.env.ADMIN_EMAIL,
   adminPassword: process.env.ADMIN_PASSWORD,
   adminNombre: process.env.ADMIN_NOMBRE || 'Administrador',
+  // Superadministrador fijo: nadie lo desactiva, lo elimina, le quita el rol ni le cambia el correo
+  superAdminEmail: 'admin@minifood.com',
+
+  // Correo que envía los códigos de recuperación (Gmail + contraseña de aplicación)
+  mailUser: process.env.MAIL_USER,
+  mailPass: (process.env.MAIL_PASS || '').replace(/\s/g, ''), // Google la muestra con espacios
+
   defaultPasswords: Object.fromEntries(
     Object.entries(process.env).filter(([key]) => key.startsWith('DEFAULT_PASSWORD_'))
   ),
+
 };
 
 module.exports = env;

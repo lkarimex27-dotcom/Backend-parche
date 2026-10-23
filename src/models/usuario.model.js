@@ -5,7 +5,7 @@ const exec = (c) => c || pool; // permite usar un client de transacción
 const SELECT = `
   SELECT u.id_usuario, u.correo, u.estado, u.es_administrador_principal, u.requiere_cambio_contrasena,
          pe.id_persona, pe.nombre, pe.tipo_documento, pe.documento, pe.tipo AS tipo_persona,
-         pe.telefono, pe.direcciones,
+         pe.telefono, pe.direcciones, pe.direccion, pe.barrio, pe.telefono_emergencia, pe.correo AS correo_personal,
          COALESCE((SELECT array_agg(r.nombre_rol ORDER BY r.nombre_rol)
                      FROM roles_usuario ru JOIN roles r ON r.id_rol = ru.id_rol
                     WHERE ru.id_usuario = u.id_usuario), '{}') AS roles
@@ -36,6 +36,7 @@ const obtenerParaLogin = async (correo) =>
     [correo]
   )).rows[0] || null;
 
+
 const crearUsuario = async (c, { correo, hash, estado, requiereCambioContrasena = false, esAdministradorPrincipal = false }) =>
   (await exec(c).query(
     `INSERT INTO usuarios (correo, contrasena, estado, requiere_cambio_contrasena, es_administrador_principal)
@@ -44,11 +45,12 @@ const crearUsuario = async (c, { correo, hash, estado, requiereCambioContrasena 
     [correo, hash, estado ?? null, requiereCambioContrasena, esAdministradorPrincipal]
   )).rows[0];
 
-const crearPersona = async (c, { id_usuario, nombre, tipo_documento, documento, tipo }) =>
+const crearPersona = async (c, { id_usuario, nombre, tipo_documento, documento, tipo, telefono, barrio, direccion, telefono_emergencia, correo_personal }) =>
   (await exec(c).query(
-    `INSERT INTO personas (id_usuario, nombre, tipo_documento, documento, tipo)
-     VALUES ($1, $2, $3, $4, $5) RETURNING id_persona`,
-    [id_usuario, nombre, tipo_documento ?? null, documento ?? null, tipo ?? null]
+    `INSERT INTO personas (id_usuario, nombre, tipo_documento, documento, tipo, telefono, barrio, direccion, telefono_emergencia, correo)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id_persona`,
+    [id_usuario, nombre, tipo_documento ?? null, documento ?? null, tipo ?? null,
+     telefono ?? null, barrio ?? null, direccion ?? null, telefono_emergencia ?? null, correo_personal ?? null]
   )).rows[0];
 
 const actualizarUsuario = async (c, id, { correo, hash, estado }) =>
@@ -59,12 +61,19 @@ const actualizarUsuario = async (c, id, { correo, hash, estado }) =>
     [id, correo ?? null, hash ?? null, estado ?? null]
   );
 
-const actualizarPersona = async (c, id, { nombre, tipo_documento, documento, tipo }) =>
+const actualizarPersona = async (c, id, { nombre, tipo_documento, documento, tipo, telefono, barrio, direccion, telefono_emergencia, correo_personal }) =>
   exec(c).query(
     `UPDATE personas SET nombre = COALESCE($2, nombre), tipo_documento = COALESCE($3, tipo_documento),
-                         documento = COALESCE($4, documento), tipo = COALESCE($5, tipo)
+                         documento = COALESCE($4, documento), tipo = COALESCE($5, tipo),
+                         telefono = COALESCE($6, telefono), barrio = COALESCE($7, barrio),
+                         direccion = COALESCE($8, direccion),
+                         -- el de emergencia es opcional: "" lo borra
+                         telefono_emergencia = CASE WHEN $9::text IS NULL THEN telefono_emergencia ELSE NULLIF($9::text, '') END,
+                         -- correo personal del empleado (opcional; "" lo borra). El de acceso está en usuarios
+                         correo = CASE WHEN $10::text IS NULL THEN correo ELSE NULLIF($10::text, '') END
       WHERE id_usuario = $1`,
-    [id, nombre ?? null, tipo_documento ?? null, documento ?? null, tipo ?? null]
+    [id, nombre ?? null, tipo_documento ?? null, documento ?? null, tipo ?? null,
+     telefono ?? null, barrio ?? null, direccion ?? null, telefono_emergencia ?? null, correo_personal ?? null]
   );
 
 // Reemplaza los roles del usuario por los indicados (por nombre). Devuelve false si algún rol no existe.
@@ -95,7 +104,9 @@ const actualizarPerfil = async (id, d) => {
   );
 };
 
-const cambiarContrasena = (id, hash) => pool.query('UPDATE usuarios SET contrasena = $2 WHERE id_usuario = $1', [id, hash]);
+// Una contraseña elegida por el usuario (cambio o recuperación) reemplaza la provisional
+const cambiarContrasena = (id, hash) =>
+  pool.query('UPDATE usuarios SET contrasena = $2, requiere_cambio_contrasena = FALSE WHERE id_usuario = $1', [id, hash]);
 
 const cambiarContrasenaInicial = (c, id, hash) =>
   exec(c).query(

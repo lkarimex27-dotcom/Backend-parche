@@ -1,4 +1,5 @@
 const Pedido = require('../models/pedido.model');
+const InsumoProducto = require('../models/insumoProducto.model');
 const { withTransaction } = require('../config/db');
 const { PEDIDO_MONTO_APROBACION } = require('../config/constants');
 const AppError = require('../errors/AppError');
@@ -15,32 +16,25 @@ const obtener = async (id, c) => {
 };
 
 // Calcula precios con el menú de la base (el navegador solo dice qué y cuánto pide).
-// Las bebidas llegan como adición "Gaseosa <sabor> (<tamaño>)" y cuestan lo que vale su tamaño.
-const cotizar = (items, catalogo) => {
-  const categoriaNormalizada = (categoria) => {
-    const c = normalizar(categoria);
-    if (c === 'gaseosas' || c === 'bebidas') return 'Gaseosas';
-    return categoria;
-  };
+// Las bebidas llegan como adición "Gaseosa <sabor> (<tamaño>)": cada una es un producto de la categoría
+// «Bebidas» y cuesta lo que vale ese producto. `gaseosas` = cuáles están agotadas (por su stock comprado).
+const cotizar = (items, catalogo, gaseosas = []) => {
   const buscar = (nombre, categorias, incluir = true) =>
-    catalogo.find((p) => {
-      const categoria = categoriaNormalizada(p.categoria);
-      return normalizar(p.nombre) === normalizar(nombre) && categorias.map((c) => categoriaNormalizada(c)).includes(categoria) === incluir;
-    });
-  const EXTRAS = ['Adiciones', 'Salsas', 'Gaseosas', 'Bebidas', 'Sabores de bebida'];
+    catalogo.find((p) => normalizar(p.nombre) === normalizar(nombre) && categorias.includes(p.categoria) === incluir);
+  const EXTRAS = ['Adiciones', 'Salsas', 'Bebidas'];
 
   return items.map((it) => {
-    const producto = buscar(it.producto, EXTRAS, false);
+    // Las hamburguesas antes se llamaban solo "Sencilla", "Doble"...: un carrito viejo aún puede traer ese nombre
+    const producto = buscar(it.producto, EXTRAS, false) || buscar(`Hamburguesa ${it.producto}`, ['Hamburguesas']);
     if (!producto) throw AppError.badRequest(`El producto «${it.producto}» no está disponible`);
     for (const s of it.salsas) {
       if (!buscar(s, ['Salsas'])) throw AppError.badRequest(`La salsa «${s}» no está disponible`);
     }
     const adiciones = it.adiciones.map((a) => {
-      const gaseosa = /^Gaseosa (.+) \((.+)\)$/.exec(a.nombre);
-      const extra = gaseosa
-        ? buscar(gaseosa[1], ['Sabores de bebida']) && buscar(gaseosa[2], ['Gaseosas', 'Bebidas'])
-        : buscar(a.nombre, ['Adiciones']);
-      if (!extra) throw AppError.badRequest(`La adición «${a.nombre}» no está disponible`);
+      const esGaseosa = /^Gaseosa .+ \(.+\)$/.test(a.nombre);
+      const extra = buscar(a.nombre, [esGaseosa ? 'Bebidas' : 'Adiciones']);
+      const agotada = esGaseosa && gaseosas.some((g) => g.agotada && normalizar(g.nombre) === normalizar(a.nombre));
+      if (!extra || agotada) throw AppError.badRequest(`La adición «${a.nombre}» no está disponible`);
       return { nombre: a.nombre, cantidad: a.cantidad, precio: extra.precio };
     });
     const unitario = producto.precio + adiciones.reduce((s, a) => s + a.cantidad * a.precio, 0);
@@ -55,7 +49,7 @@ const cotizar = (items, catalogo) => {
 };
 
 const crear = async (d, idCliente) => {
-  const lineas = cotizar(d.items, await Pedido.catalogoActivo());
+  const lineas = cotizar(d.items, await Pedido.catalogoActivo(), await InsumoProducto.gaseosas());
   const total = lineas.reduce((s, l) => s + l.subtotal, 0);
   const estado = total >= PEDIDO_MONTO_APROBACION ? 'Por confirmar' : 'Recibido';
   const id = await withTransaction(async (c) => {

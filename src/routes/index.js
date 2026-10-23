@@ -73,11 +73,13 @@ router.use('/insumos', insumoProductoRoutes('INSUMO', 'INSUMOS'));
 router.use('/proveedores', require('./proveedor.routes'));
 router.use('/compras', require('./compra.routes'));                    // sube el stock
 router.use('/perdidas-insumos', require('./perdida.routes'));          // baja el stock
+router.use('/movimientos-stock', require('./movimiento.routes'));      // historial de entradas y salidas
 
 // Producción
 router.use('/categorias-productos', categoriaRoutes('PRODUCTO', 'CATEGORIAS_PRODUCTO'));
 router.use('/productos', insumoProductoRoutes('PRODUCTO', 'PRODUCTOS'));
 router.get('/catalogo', require('../controllers/insumoProducto.controller').catalogo); // público: menú del cliente
+router.get('/catalogo/gaseosas', require('../controllers/insumoProducto.controller').gaseosas); // público
 router.get('/imagenes/:id', require('../controllers/insumoProducto.controller').imagen); // público: fotos subidas
 router.use('/ordenes-produccion', panelRoutes(PANEL.ordenes_produccion));
 router.use('/productos-no-conformes', panelRoutes(PANEL.productos_no_conformes));

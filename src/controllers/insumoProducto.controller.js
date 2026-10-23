@@ -14,22 +14,29 @@ const eliminar = asyncHandler(async (req, res) => {
   res.status(204).send();
 });
 
-// Menú público: solo productos activos y solo lo que ve el cliente (sin costo ni stock).
+// Menú público: solo productos activos que hoy se pueden preparar (su receta tiene stock)
+// y solo lo que ve el cliente (sin costo ni stock).
 const catalogo = asyncHandler(async (_req, res) => {
-  const productos = await service.listar('PRODUCTO', {});
+  const [productos, sinStock] = await Promise.all([service.listar('PRODUCTO', {}), service.productosSinStock()]);
+  const agotado = new Set(sinStock);
   res.json({
     ok: true,
-    data: productos.filter((p) => p.estado === 'ACTIVO').map((p) => ({
-      id: p.id_insumo_producto,
-      nombre: p.nombre,
-      descripcion: p.descripcion,
-      etiqueta: p.etiqueta,
-      precio: p.precio,
-      categoria: p.nombre_categoria,
-      imagenes: p.imagenes,
-    })),
+    data: productos
+      .filter((p) => p.estado === 'ACTIVO' && !agotado.has(p.id_insumo_producto))
+      .map((p) => ({
+        id: p.id_insumo_producto,
+        nombre: p.nombre,
+        descripcion: p.descripcion,
+        etiqueta: p.etiqueta,
+        precio: p.precio,
+        categoria: p.nombre_categoria,
+        imagenes: p.imagenes,
+      })),
   });
 });
+
+// Público: estado, precio propio y si está agotada cada gaseosa con datos propios (la tienda las muestra así)
+const gaseosas = asyncHandler(async (_req, res) => res.json({ ok: true, data: await service.gaseosas() }));
 
 const guardarFicha = asyncHandler(async (req, res) =>
   res.json({ ok: true, data: await service.guardarFicha(req.tipo, req.params.id, req.body) }));
@@ -43,4 +50,4 @@ const imagen = asyncHandler(async (req, res) => {
   res.send(bytes);
 });
 
-module.exports = { listar, obtener, crear, actualizar, eliminar, catalogo, guardarFicha, reemplazarImagen, imagen };
+module.exports = { listar, obtener, crear, actualizar, eliminar, catalogo, gaseosas, guardarFicha, reemplazarImagen, imagen };
