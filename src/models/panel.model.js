@@ -27,4 +27,12 @@ const actualizar = async (cfg, id, columnas, fila) => {
 const eliminar = async (cfg, id) =>
   (await query(`DELETE FROM ${cfg.tabla} WHERE ${cfg.id} = $1`, [id])).rowCount > 0;
 
-module.exports = { listar, crear, actualizar, eliminar };
+// Valor de una columna del registro (null si no existe)
+const valor = async (cfg, id, columna) =>
+  (await query(`SELECT ${columna} AS v FROM ${cfg.tabla} WHERE ${cfg.id} = $1`, [id])).rows[0]?.v ?? null;
+
+// ¿Ya hay un registro con ese valor en la columna?
+const existe = async (cfg, columna, v) =>
+  (await query(`SELECT 1 FROM ${cfg.tabla} WHERE ${columna} = $1 LIMIT 1`, [v])).rowCount > 0;
+
+module.exports = { listar, crear, actualizar, eliminar, valor, existe };

@@ -316,6 +316,11 @@ CREATE TABLE IF NOT EXISTS perdidas_insumos (
 );
 -- id_usuario = quien la registró; responsable = persona a cargo (texto libre del panel)
 ALTER TABLE perdidas_insumos ADD COLUMN IF NOT EXISTS responsable VARCHAR(150);
+-- Una pérdida que vino de una compra se puede devolver a la compra: vuelve al stock y queda el motivo
+ALTER TABLE perdidas_insumos ADD COLUMN IF NOT EXISTS estado VARCHAR(20) NOT NULL DEFAULT 'REGISTRADA';
+ALTER TABLE perdidas_insumos ADD COLUMN IF NOT EXISTS motivo_devolucion TEXT;
+-- Se puede devolver solo una parte: cantidad = lo que sigue perdido, cantidad_devuelta = lo que volvió al stock
+ALTER TABLE perdidas_insumos ADD COLUMN IF NOT EXISTS cantidad_devuelta DECIMAL(12,3) NOT NULL DEFAULT 0;
 
 -- 24. PEDIDOS (ciclo: PENDIENTE > APROBADO > EN_PREPARACION > LISTO > EN_CAMINO > ENTREGADO | RECHAZADO | CANCELADO)
 -- Al entregarse un pedido se genera la venta (id_venta).
@@ -504,3 +509,116 @@ SELECT 'Cliente mostrador', 'CLIENTE', 'Cédula de Ciudadanía', '000000000', TR
 -- Datos de contacto del personal (usuarios que no son clientes)
 ALTER TABLE personas ADD COLUMN IF NOT EXISTS barrio VARCHAR(100);
 ALTER TABLE personas ADD COLUMN IF NOT EXISTS telefono_emergencia VARCHAR(30);
+
+-- 30. PÉRDIDA ↔ COMPRA POR NÚMERO: una pérdida enviada desde una compra guarda su id_compra.
+-- Antes solo quedaba el texto "Compra a <proveedor> del <fecha>", ambiguo con dos compras al mismo proveedor el mismo día.
+ALTER TABLE perdidas_insumos ADD COLUMN IF NOT EXISTS id_compra BIGINT REFERENCES compras(id_compra);
+-- Pérdidas anteriores: se enlazan si su texto apunta a una sola compra; si hay dos posibles quedan sin enlazar
+UPDATE perdidas_insumos pe
+   SET id_compra = m.id_compra
+  FROM (SELECT pe2.id_perdida, min(co.id_compra) AS id_compra
+          FROM perdidas_insumos pe2
+          JOIN compras co ON TRUE
+          JOIN proveedores pr ON pr.id_proveedor = co.id_proveedor
+         WHERE pe2.id_compra IS NULL
+           AND pe2.observacion = 'Compra a ' || pr.nombre || ' del ' || extract(day FROM co.fecha)::int || ' de ' ||
+               (ARRAY['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'])
+                 [extract(month FROM co.fecha)::int] || ' de ' || extract(year FROM co.fecha)::int
+         GROUP BY pe2.id_perdida
+        HAVING count(*) = 1) m
+ WHERE pe.id_perdida = m.id_perdida;
+CREATE INDEX IF NOT EXISTS idx_perdidas_compra ON perdidas_insumos(id_compra);
+
+-- 31. HISTORIAL DE MOVIMIENTOS DE STOCK: cada cambio del stock de un insumo queda registrado con su origen.
+-- Lo escribe un trigger, así ningún camino (compra, pérdida, producción, edición) se salta el registro y
+-- siempre se cumple: stock actual = suma de sus movimientos. El origen lo indica el backend en la transacción
+-- con set_config('app.mov_origen', ...) / ('app.mov_ref', ...); sin eso queda como 'AJUSTE'.
+CREATE TABLE IF NOT EXISTS movimientos_stock (
+    id_movimiento       BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    id_insumo_producto  BIGINT NOT NULL,
+    cantidad            DECIMAL(12,3) NOT NULL,   -- positiva entra, negativa sale
+    stock_resultante    DECIMAL(12,3) NOT NULL,
+    origen              VARCHAR(40) NOT NULL,     -- COMPRA, ANULACION_COMPRA, PERDIDA, DEVOLUCION_PERDIDA, PRODUCCION...
+    referencia          VARCHAR(150),             -- ej. "Compra #12", "Pérdida #4", "Orden OP-0007"
+    fecha               TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_movimiento_insumo FOREIGN KEY (id_insumo_producto) REFERENCES insumos_productos(id_insumo_producto) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_movimientos_insumo ON movimientos_stock(id_insumo_producto, fecha);
+
+CREATE OR REPLACE FUNCTION registrar_movimiento_stock() RETURNS trigger AS $$
+DECLARE
+  delta NUMERIC := NEW.stock - CASE WHEN TG_OP = 'INSERT' THEN 0 ELSE OLD.stock END;
+BEGIN
+  IF NEW.tipo <> 'INSUMO' OR delta = 0 THEN
+    RETURN NEW;
+  END IF;
+  INSERT INTO movimientos_stock (id_insumo_producto, cantidad, stock_resultante, origen, referencia)
+  VALUES (NEW.id_insumo_producto, delta, NEW.stock,
+          COALESCE(NULLIF(current_setting('app.mov_origen', true), ''), 'AJUSTE'),
+          NULLIF(current_setting('app.mov_ref', true), ''));
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS tr_movimiento_stock ON insumos_productos;
+CREATE TRIGGER tr_movimiento_stock
+  AFTER INSERT OR UPDATE OF stock ON insumos_productos
+  FOR EACH ROW EXECUTE FUNCTION registrar_movimiento_stock();
+
+-- Punto de partida: el stock que ya tenía cada insumo antes del historial
+INSERT INTO movimientos_stock (id_insumo_producto, cantidad, stock_resultante, origen, referencia)
+SELECT ip.id_insumo_producto, ip.stock, ip.stock, 'SALDO_INICIAL', 'Stock al empezar el historial'
+  FROM insumos_productos ip
+ WHERE ip.tipo = 'INSUMO' AND ip.stock <> 0
+   AND NOT EXISTS (SELECT 1 FROM movimientos_stock m WHERE m.id_insumo_producto = ip.id_insumo_producto);
+
+-- 32. GASEOSAS COMO PRODUCTOS DE «BEBIDAS»: cada gaseosa es un producto de la categoría «Bebidas» llamado
+-- "Gaseosa <sabor> (<tamaño>)", con su propio precio y foto y sin ficha técnica (la tienda las arma con ese nombre).
+-- Ya no existen «Sabores de bebida» ni la categoría «Gaseosas»: si quedara algo en «Gaseosas», pasa a «Bebidas».
+UPDATE insumos_productos
+   SET id_categoria = (SELECT id_categoria FROM categorias WHERE nombre_categoria = 'Bebidas' AND tipo = 'PRODUCTO')
+ WHERE tipo = 'PRODUCTO'
+   AND id_categoria IN (SELECT id_categoria FROM categorias WHERE nombre_categoria = 'Gaseosas' AND tipo = 'PRODUCTO')
+   AND EXISTS (SELECT 1 FROM categorias WHERE nombre_categoria = 'Bebidas' AND tipo = 'PRODUCTO');
+DELETE FROM categorias c
+ WHERE c.nombre_categoria = 'Gaseosas' AND c.tipo = 'PRODUCTO'
+   AND NOT EXISTS (SELECT 1 FROM insumos_productos ip WHERE ip.id_categoria = c.id_categoria);
+
+-- 33. LAS GASEOSAS LLEVAN SU STOCK EN EL PRODUCTO: una gaseosa de reventa ya no es insumo; su compra suma al stock
+-- de su producto "Gaseosa <sabor> (<tamaño>)" de «Bebidas» y su venta lo baja. Por eso el historial de stock
+-- también registra esos productos (antes solo insumos).
+CREATE OR REPLACE FUNCTION registrar_movimiento_stock() RETURNS trigger AS $$
+DECLARE
+  delta NUMERIC := NEW.stock - CASE WHEN TG_OP = 'INSERT' THEN 0 ELSE OLD.stock END;
+BEGIN
+  IF delta = 0 OR NOT (NEW.tipo = 'INSUMO' OR (NEW.tipo = 'PRODUCTO' AND NEW.nombre ILIKE 'Gaseosa %')) THEN
+    RETURN NEW;
+  END IF;
+  INSERT INTO movimientos_stock (id_insumo_producto, cantidad, stock_resultante, origen, referencia)
+  VALUES (NEW.id_insumo_producto, delta, NEW.stock,
+          COALESCE(NULLIF(current_setting('app.mov_origen', true), ''), 'AJUSTE'),
+          NULLIF(current_setting('app.mov_ref', true), ''));
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Una gaseosa que quedó como insumo pasa a su producto: stock, costo y compras (su historial viejo se va con el insumo;
+-- el traslado queda como un movimiento del producto)
+CREATE TEMP TABLE gaseosas_insumo ON COMMIT DROP AS
+SELECT i.id_insumo_producto AS insumo, p.id_insumo_producto AS producto, i.stock, i.costo
+  FROM insumos_productos i
+  JOIN insumos_productos p ON p.tipo = 'PRODUCTO' AND lower(p.nombre) = lower(i.nombre)
+ WHERE i.tipo = 'INSUMO' AND i.nombre ILIKE 'Gaseosa %';
+UPDATE detalle_compras d SET id_insumo_producto = g.producto FROM gaseosas_insumo g WHERE d.id_insumo_producto = g.insumo;
+UPDATE perdidas_insumos pe SET id_insumo_producto = g.producto FROM gaseosas_insumo g WHERE pe.id_insumo_producto = g.insumo;
+SELECT set_config('app.mov_origen', 'TRASLADO', true), set_config('app.mov_ref', 'Desde su antiguo insumo', true);
+UPDATE insumos_productos p
+   SET stock = p.stock + g.stock, costo = CASE WHEN g.costo > 0 THEN g.costo ELSE p.costo END
+  FROM gaseosas_insumo g WHERE p.id_insumo_producto = g.producto;
+SELECT set_config('app.mov_origen', '', true), set_config('app.mov_ref', '', true);
+DELETE FROM insumos_productos i USING gaseosas_insumo g WHERE i.id_insumo_producto = g.insumo;
+-- La categoría de insumos «Bebidas» ya no se usa
+DELETE FROM categorias c
+ WHERE c.nombre_categoria = 'Bebidas' AND c.tipo = 'INSUMO'
+   AND NOT EXISTS (SELECT 1 FROM insumos_productos ip WHERE ip.id_categoria = c.id_categoria);
