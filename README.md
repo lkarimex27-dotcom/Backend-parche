@@ -12,7 +12,7 @@ npm install
 #    - JWT_SECRET    (node -e "console.log(require('crypto').randomBytes(48).toString('hex'))")
 #    - ADMIN_EMAIL / ADMIN_PASSWORD (primer administrador)
 #    - DEFAULT_PASSWORD_ADMINISTRADOR / DEFAULT_PASSWORD_EMPLEADO / DEFAULT_PASSWORD_DOMICILIARIO
-npm run db:setup     # crea las 26 tablas + roles, privilegios, módulos, permisos y el admin
+npm run db:setup     # crea las 27 tablas + roles, privilegios, módulos, permisos y el admin
 npm run dev
 ```
 
@@ -31,6 +31,20 @@ Las cuentas de cliente conservan la contraseña que el cliente eligió.
 2. Todas las demás rutas (salvo `/health`, `/auth/login`, `/auth/registro`) exigen `Authorization: Bearer <token>`.
 3. Cada ruta valida contra la BD que algún rol del usuario tenga el privilegio (`VER`, `CREAR`, `EDITAR`, `ELIMINAR`) en el módulo.
    Los permisos se leen en cada petición: si cambias un rol o desactivas a alguien, aplica de inmediato.
+   Las rutas públicas de autenticación para registro y recuperación se detallan a continuación.
+
+### Registro y recuperación de contraseña
+
+El registro envía un PIN aleatorio de seis dígitos al correo indicado. La cuenta solo se crea
+después de validar el PIN, que vence en 15 minutos y permite hasta cinco intentos. El endpoint
+`POST /api/auth/registro` también inicia el mismo flujo de verificación.
+
+Para recuperar la contraseña, usa `POST /api/auth/recuperar`, luego valida el PIN con
+`POST /api/auth/recuperar/verificar` y envía el token devuelto junto con la nueva contraseña a
+`POST /api/auth/restablecer`. El token temporal vence a los 10 minutos. Configura `MAIL_USER`
+y `MAIL_PASS` en `.env` para habilitar el envío de correo; en Gmail, `MAIL_PASS` debe ser una
+contraseña de aplicación. Ejecuta `npm run db:init` para aplicar la tabla temporal de registros
+y las columnas de verificación de recuperación.
 
 ## Módulos y rutas
 
