@@ -64,6 +64,17 @@ const actualizar = async (tipo, id, d) =>
      d.descripcion, d.etiqueta, d.estado]
   )).rows[0] || null;
 
+// Las fichas técnicas que usan este insumo pasan a su nueva medida, salvo las que se convierten
+// (g ↔ kg, ml ↔ L): un "paq" y una "und" no se convierten entre sí y el costo y el stock dejarían de cuadrar
+const alinearMedidaFichas = async (id, medida) =>
+  (await query(
+    `UPDATE ficha_tecnica_insumos SET medida = $2::varchar
+      WHERE id_insumo_producto = $1 AND medida IS DISTINCT FROM $2::varchar
+        AND NOT (medida IN ('g', 'kg') AND $2::varchar IN ('g', 'kg'))
+        AND NOT (medida IN ('ml', 'L') AND $2::varchar IN ('ml', 'L'))`,
+    [id, medida]
+  )).rowCount;
+
 // Borra el insumo y su propia ficha técnica, y lo quita de la lista de proveedores que lo venden.
 // Si otro módulo tiene registros de él (compras, pérdidas, recetas), el servicio no deja borrarlo (y Postgres tampoco)
 const eliminar = (tipo, id) =>
@@ -158,5 +169,5 @@ const gaseosas = async () =>
 
 module.exports = {
   listar, obtenerPorId, crear, actualizar, eliminar, guardarFicha, reemplazarImagen, obtenerImagen,
-  productosSinStock, gaseosas, usos,
+  productosSinStock, gaseosas, usos, alinearMedidaFichas,
 };

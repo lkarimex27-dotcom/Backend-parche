@@ -322,6 +322,37 @@ ALTER TABLE perdidas_insumos ADD COLUMN IF NOT EXISTS motivo_devolucion TEXT;
 -- Se puede devolver solo una parte: cantidad = lo que sigue perdido, cantidad_devuelta = lo que volvió al stock
 ALTER TABLE perdidas_insumos ADD COLUMN IF NOT EXISTS cantidad_devuelta DECIMAL(12,3) NOT NULL DEFAULT 0;
 
+-- Catálogo operativo de barrios. Los candidatos suministrados por el negocio quedan inactivos
+-- hasta que una persona administradora confirme cobertura y configuración de desplazamiento.
+CREATE TABLE IF NOT EXISTS barrios (
+    id_barrio                       BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    nombre                          VARCHAR(120) NOT NULL,
+    municipio                       VARCHAR(100) NOT NULL DEFAULT 'Bello',
+    departamento                    VARCHAR(100) NOT NULL DEFAULT 'Antioquia',
+    activo                          BOOLEAN NOT NULL DEFAULT FALSE,
+    es_cercano                      BOOLEAN NOT NULL DEFAULT FALSE,
+    tiempo_desplazamiento_minutos   SMALLINT CHECK (tiempo_desplazamiento_minutos > 0),
+    costo_domicilio_cop             DECIMAL(12,2) CHECK (costo_domicilio_cop >= 0),
+    creado_en                       TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+ALTER TABLE barrios ADD COLUMN IF NOT EXISTS costo_domicilio_cop DECIMAL(12,2) CHECK (costo_domicilio_cop >= 0);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_barrios_nombre_municipio
+    ON barrios (lower(nombre), lower(municipio), lower(departamento));
+
+INSERT INTO barrios (nombre)
+SELECT candidatos.nombre
+  FROM unnest(ARRAY[
+    'Santa Ana', 'Los Búcaros', 'Serramonte', 'Salento', 'Molinares', 'San Simón',
+    'Villas de Occidente', 'La Madera', 'La Cabañita', 'La Cabaña', 'Centro', 'Pérez',
+    'Espíritu Santo', 'La Florida', 'Barrio Nuevo', 'La Cumbre', 'Bellavista', 'Niquía'
+  ]::text[]) AS candidatos(nombre)
+ WHERE NOT EXISTS (
+   SELECT 1 FROM barrios b
+    WHERE lower(b.nombre) = lower(candidatos.nombre)
+      AND lower(b.municipio) = 'bello'
+      AND lower(b.departamento) = 'antioquia'
+ );
+
 -- 24. PEDIDOS (ciclo: PENDIENTE > APROBADO > EN_PREPARACION > LISTO > EN_CAMINO > ENTREGADO | RECHAZADO | CANCELADO)
 -- Al entregarse un pedido se genera la venta (id_venta).
 CREATE TABLE IF NOT EXISTS pedidos (
@@ -352,6 +383,10 @@ ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS motivo_rechazo_pago TEXT;
 ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS comprobante TEXT;  -- imagen del pago (data URL JPEG, ~100-300 KB)
 ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS produccion_autorizada BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS registros_produccion JSONB NOT NULL DEFAULT '[]';  -- órdenes que generó el panel
+ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS id_barrio BIGINT REFERENCES barrios(id_barrio);
+ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS estimacion_inicial JSONB;
+ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS costo_domicilio_cop DECIMAL(12,2);
+ALTER TABLE barrios ADD COLUMN IF NOT EXISTS es_cercano BOOLEAN NOT NULL DEFAULT FALSE;
 
 -- 25. DETALLE DE PEDIDOS (precio_unitario queda congelado al confirmar el pedido)
 CREATE TABLE IF NOT EXISTS pedido_detalle (
@@ -395,6 +430,7 @@ CREATE INDEX IF NOT EXISTS idx_estados_orden_produccion      ON estados_orden_pr
 CREATE INDEX IF NOT EXISTS idx_perdidas_insumo               ON perdidas_insumos(id_insumo_producto);
 CREATE INDEX IF NOT EXISTS idx_pedidos_cliente               ON pedidos(id_cliente);
 CREATE INDEX IF NOT EXISTS idx_pedidos_estado                ON pedidos(estado);
+CREATE INDEX IF NOT EXISTS idx_pedidos_barrio_estado          ON pedidos(id_barrio, estado);
 CREATE INDEX IF NOT EXISTS idx_pedido_detalle_pedido         ON pedido_detalle(id_pedido);
 CREATE INDEX IF NOT EXISTS idx_historial_pedido              ON historial_estados_pedido(id_pedido);
 CREATE INDEX IF NOT EXISTS idx_roles_usuario_usuario         ON roles_usuario(id_usuario);
@@ -622,3 +658,14 @@ DELETE FROM insumos_productos i USING gaseosas_insumo g WHERE i.id_insumo_produc
 DELETE FROM categorias c
  WHERE c.nombre_categoria = 'Bebidas' AND c.tipo = 'INSUMO'
    AND NOT EXISTS (SELECT 1 FROM insumos_productos ip WHERE ip.id_categoria = c.id_categoria);
+
+-- 34. EL PAN DE HAMBURGUESA SE MIDE EN PAQUETES: cada paquete trae los dos panes (una hamburguesa), igual que
+-- en sus fichas técnicas. Y en general: una ficha técnica usa la medida de su insumo cuando no se convierten entre
+-- sí (g ↔ kg y ml ↔ L sí), para que el costo y el stock cuadren.
+UPDATE insumos_productos SET medida = 'paq'
+ WHERE tipo = 'INSUMO' AND lower(nombre) = 'pan de hamburguesa' AND medida = 'und';
+UPDATE ficha_tecnica_insumos f SET medida = i.medida
+  FROM insumos_productos i
+ WHERE i.id_insumo_producto = f.id_insumo_producto AND f.medida IS DISTINCT FROM i.medida
+   AND NOT (f.medida IN ('g', 'kg') AND i.medida IN ('g', 'kg'))
+   AND NOT (f.medida IN ('ml', 'L') AND i.medida IN ('ml', 'L'));
