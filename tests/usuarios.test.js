@@ -1,9 +1,7 @@
 process.env.JWT_SECRET = 'secreto_de_pruebas_secreto_de_pruebas_123';
 const request = require('supertest');
 const jwt = require('jsonwebtoken');
-
 const usuarioValidator = require('../src/validators/usuario.validator');
-
 
 // Sin base de datos: el usuario del token tiene todos los permisos.
 jest.mock('../src/models/permiso.model', () => ({ tienePermiso: jest.fn(async () => true) }));
@@ -20,7 +18,6 @@ describe('PATCH /api/usuarios/:id', () => {
     expect(res.status).toBe(400);
     expect(res.body.mensaje).toBe('No puedes desactivar tu propio usuario');
   });
-
 
   describe('Validaciones de usuarios', () => {
     const usuarioBase = {
@@ -52,6 +49,18 @@ describe('PATCH /api/usuarios/:id', () => {
         }).success
       ).toBe(false);
     });
-  });
 
+    it('requiere contraseña para clientes y permite omitirla para personal', () => {
+      expect(
+        usuarioValidator.crearUsuario.safeParse({ ...usuarioBase, contrasena: undefined }).success
+      ).toBe(false);
+      expect(
+        usuarioValidator.crearUsuario.safeParse({
+          ...usuarioBase,
+          contrasena: undefined,
+          roles: ['EMPLEADO'],
+        }).success
+      ).toBe(true);
+    });
+  });
 });

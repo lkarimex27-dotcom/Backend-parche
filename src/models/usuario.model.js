@@ -36,7 +36,6 @@ const obtenerParaLogin = async (correo) =>
     [correo]
   )).rows[0] || null;
 
-
 const crearUsuario = async (c, { correo, hash, estado, requiereCambioContrasena = false, esAdministradorPrincipal = false }) =>
   (await exec(c).query(
     `INSERT INTO usuarios (correo, contrasena, estado, requiere_cambio_contrasena, es_administrador_principal)
