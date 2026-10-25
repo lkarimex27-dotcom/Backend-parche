@@ -19,9 +19,7 @@ const perfilCompleto = async (id) => {
   return { usuario, permisos };
 };
 
-// Registro público: crea un CLIENTE (para la app móvil).
-const registrar = async (d) => {
-  const hash = await bcrypt.hash(d.contrasena, 10);
+const crearCliente = async (d, hash) => {
   const id = await withTransaction(async (c) => {
     const u = await Usuario.crearUsuario(c, { correo: d.correo, hash });
     await Usuario.crearPersona(c, { id_usuario: u.id_usuario, ...d, tipo: 'CLIENTE' });
@@ -32,6 +30,12 @@ const registrar = async (d) => {
   });
   return { token: firmarToken({ id_usuario: id, correo: d.correo }), ...(await perfilCompleto(id)) };
 };
+
+// Registro público para consumidores existentes.
+const registrar = async (d) => crearCliente(d, await bcrypt.hash(d.contrasena, 10));
+
+// Registro confirmado por correo: la contraseña ya está hasheada al guardar el código temporal.
+const registrarVerificado = async (d) => crearCliente(d, d.contrasena_hash);
 
 const login = async ({ correo, contrasena }) => {
   const u = await Usuario.obtenerParaLogin(correo);
@@ -78,4 +82,4 @@ const cambiarContrasenaInicial = async (id, { nueva }) => {
   return { token: firmarToken(actualizado) };
 };
 
-module.exports = { registrar, login, me, actualizarPerfil, cambiarContrasena, cambiarContrasenaInicial };
+module.exports = { registrar, registrarVerificado, login, me, actualizarPerfil, cambiarContrasena, cambiarContrasenaInicial };
