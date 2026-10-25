@@ -6,7 +6,7 @@ const app = require('../src/app');
 describe('Seguridad', () => {
   it.each(['/api/usuarios', '/api/roles', '/api/insumos', '/api/productos', '/api/proveedores', '/api/clientes',
     '/api/compras', '/api/perdidas-insumos', '/api/pedidos', '/api/pedidos/mios', '/api/ventas', '/api/devoluciones',
-    '/api/ordenes-produccion', '/api/productos-no-conformes'])(
+    '/api/ordenes-produccion', '/api/productos-no-conformes', '/api/barrios'] )(
     'GET %s sin token devuelve 401',
     async (ruta) => {
       const res = await request(app).get(ruta);
@@ -16,6 +16,13 @@ describe('Seguridad', () => {
 
   it('POST /api/consumos-produccion sin token devuelve 401 (no descuenta stock)', async () => {
     const res = await request(app).post('/api/consumos-produccion').send({ numero_orden: 'OP-1', insumos: [] });
+    expect(res.status).toBe(401);
+  });
+
+  it('POST /api/productos-no-conformes/con-reposicion sin token devuelve 401', async () => {
+    const res = await request(app)
+      .post('/api/productos-no-conformes/con-reposicion')
+      .send({ producto_no_conforme: [], orden_produccion: [] });
     expect(res.status).toBe(401);
   });
 

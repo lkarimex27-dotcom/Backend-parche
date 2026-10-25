@@ -9,6 +9,7 @@ const crearPedido = z.object({
   nombre: texto(150).min(2),
   telefono: texto(30).min(7),
   direccion: texto(300).min(3),
+  id_barrio: z.coerce.number().int().positive(),
   notas: texto(1000).optional(),
   pago: texto(30).min(1),   // Efectivo, Nequi, Daviplata...
   comprobante: comprobante.optional(),
