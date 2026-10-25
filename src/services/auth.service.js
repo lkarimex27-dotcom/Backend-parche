@@ -5,6 +5,7 @@ const { withTransaction } = require('../config/db');
 const Usuario = require('../models/usuario.model');
 const Permiso = require('../models/permiso.model');
 const AppError = require('../errors/AppError');
+const { enviarBienvenida } = require('../utils/provisional');
 
 const firmarToken = (u) =>
   jwt.sign(
@@ -30,6 +31,9 @@ const registrar = async (d) => {
     }
     return u.id_usuario;
   });
+  // Correo de bienvenida: si no sale, la cuenta igual queda creada (ya eligió su contraseña)
+  enviarBienvenida({ para: d.correo, nombre: d.nombre }).catch((err) =>
+    console.warn(`No se pudo enviar la bienvenida a ${d.correo}:`, err.message));
   return { token: firmarToken({ id_usuario: id, correo: d.correo }), ...(await perfilCompleto(id)) };
 };
 

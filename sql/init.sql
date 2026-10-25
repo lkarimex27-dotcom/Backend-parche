@@ -622,3 +622,14 @@ DELETE FROM insumos_productos i USING gaseosas_insumo g WHERE i.id_insumo_produc
 DELETE FROM categorias c
  WHERE c.nombre_categoria = 'Bebidas' AND c.tipo = 'INSUMO'
    AND NOT EXISTS (SELECT 1 FROM insumos_productos ip WHERE ip.id_categoria = c.id_categoria);
+
+-- 34. EL PAN DE HAMBURGUESA SE MIDE EN PAQUETES: cada paquete trae los dos panes (una hamburguesa), igual que
+-- en sus fichas técnicas. Y en general: una ficha técnica usa la medida de su insumo cuando no se convierten entre
+-- sí (g ↔ kg y ml ↔ L sí), para que el costo y el stock cuadren.
+UPDATE insumos_productos SET medida = 'paq'
+ WHERE tipo = 'INSUMO' AND lower(nombre) = 'pan de hamburguesa' AND medida = 'und';
+UPDATE ficha_tecnica_insumos f SET medida = i.medida
+  FROM insumos_productos i
+ WHERE i.id_insumo_producto = f.id_insumo_producto AND f.medida IS DISTINCT FROM i.medida
+   AND NOT (f.medida IN ('g', 'kg') AND i.medida IN ('g', 'kg'))
+   AND NOT (f.medida IN ('ml', 'L') AND i.medida IN ('ml', 'L'));
