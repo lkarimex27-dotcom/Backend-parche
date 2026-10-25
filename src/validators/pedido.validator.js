@@ -8,8 +8,11 @@ const texto = (max) => z.string().trim().max(max);
 const crearPedido = z.object({
   nombre: texto(150).min(2),
   telefono: texto(30).min(7),
+  tipo_entrega: z.enum(['local', 'domicilio', 'recoger']).default('domicilio'),
   direccion: texto(300).min(3),
-  id_barrio: z.coerce.number().int().positive(),
+  id_barrio: z.coerce.number().int().positive().optional(),
+  nombre_barrio: texto(120).min(2).optional(),
+  distancia_km: z.number().finite().min(0).optional(),
   notas: texto(1000).optional(),
   pago: texto(30).min(1),   // Efectivo, Nequi, Daviplata...
   comprobante: comprobante.optional(),
@@ -21,6 +24,8 @@ const crearPedido = z.object({
       adiciones: z.array(z.object({ nombre: texto(150).min(1), cantidad: z.number().int().positive().max(50) })).max(30).default([]),
     }))
     .min(1, 'El pedido no tiene productos'),
+}).refine((d) => d.tipo_entrega !== 'domicilio' || d.id_barrio !== undefined || d.nombre_barrio !== undefined, {
+  message: 'Selecciona un barrio válido',
 });
 
 const subirComprobante = z.object({ comprobante });

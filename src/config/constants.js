@@ -61,9 +61,15 @@ const ESTIMADOR = {
   DEPARTAMENTO: 'Antioquia',
   PREPARACION_BASE_MINUTOS: 15,
   DESPLAZAMIENTO_CERCANO_MINUTOS: 5,
+  MINUTOS_DOMICILIO_POR_KM: 4,
   CAPACIDAD_COCINA_PEDIDOS: 2,
   MIN_OBSERVACIONES_ZONA: 5,
   HISTORIAL_DIAS: 180,
+  TARIFAS_DOMICILIO: [
+    { hastaKm: 2, costoCop: 4000 },
+    { hastaKm: 4, costoCop: 6000 },
+    { hastaKm: null, costoCop: 8000 },
+  ],
 };
 
 module.exports = {

@@ -32,6 +32,8 @@ Las cuentas de cliente conservan la contraseña que el cliente eligió.
 3. Cada ruta valida contra la BD que algún rol del usuario tenga el privilegio (`VER`, `CREAR`, `EDITAR`, `ELIMINAR`) en el módulo.
    Los permisos se leen en cada petición: si cambias un rol o desactivas a alguien, aplica de inmediato.
 
+Los JWT duran 365 días por defecto (`JWT_EXPIRES_IN` permite cambiarlo). Esta vigencia es compartida por todos los módulos, incluido barrios. Si un token ya venció, inicia sesión de nuevo para recibir uno vigente; cambiar esta duración no renueva tokens emitidos anteriormente.
+
 ## Módulos y rutas
 
 | Módulo del panel | Ruta | Estado |
@@ -61,14 +63,15 @@ de la misma transacción.
 
 ## Barrios y estimación de entrega
 
-`npm run db:init` crea/actualiza el catálogo `barrios`, agrega `id_barrio` y
-`estimacion_inicial` a `pedidos`. Ejecuta también `npm run db:seed` para incorporar
-el módulo y los permisos administrativos `BARRIOS`.
-Los nombres candidatos suministrados para Bello se insertan inactivos: una persona
-administradora debe validar cobertura antes de habilitarlos. No se consideran una
-lista oficial o completa. El tiempo de desplazamiento queda sin configurar salvo
-que el administrador marque explícitamente una zona como cercana (`es_cercano: true`,
-referencia inicial de 5 minutos) o indique su tiempo medido.
+`npm run db:init` crea/actualiza el catálogo `barrios`, habilita los 18 barrios
+suministrados por el negocio y agrega `id_barrio`, `tipo_entrega` y
+`estimacion_inicial` a `pedidos`.
+Ejecuta también `npm run db:seed` para incorporar el módulo y los permisos
+administrativos `BARRIOS`. La lista es el catálogo inicial del negocio, no un
+inventario oficial ni completo. Solo Santa Ana recibe la referencia inicial de
+5 minutos (`es_cercano: true`); los otros tiempos quedan sin configurar hasta que
+se validen y registren datos medidos. El `db:init` es idempotente y no reemplaza
+los tiempos que ya haya configurado una persona administradora.
 
 Endpoints autenticados:
 
@@ -78,25 +81,48 @@ Endpoints autenticados:
 | `GET /api/barrios/admin` | Catálogo completo para administración (`BARRIOS:VER`) |
 | `POST /api/barrios` | Crear candidato inactivo por defecto (`BARRIOS:CREAR`) |
 | `PATCH /api/barrios/:id` | Activar/desactivar o configurar cercanía/tiempo (`BARRIOS:EDITAR`) |
-| `POST /api/pedidos/estimacion` | Estimar con `{ "id_barrio": 1, "direccion": "..." }` |
-| `POST /api/pedidos` | Crear pedido con `id_barrio`; el backend valida y almacena la estimación inicial |
+| `POST /api/pedidos/estimacion` | Estimar domicilio con barrio y `tipo_entrega: "domicilio"`, o cocina con `tipo_entrega: "local"` / `"recoger"` |
+| `POST /api/pedidos` | Crear pedido con modalidad en `tipo_entrega`; solo los domicilios requieren barrio y suman tarifa de envío |
 
 La respuesta exitosa usa el formato general `{ "ok": true, "data": ... }`. La
 estimación contiene `minimumMinutes` y `maximumMinutes` solo cuando hay al menos
 cinco entregas válidas con marcas de salida y entrega para el barrio; incluye la
-mediana histórica del tramo `En camino` → `Entregado`. Los pedidos actuales solo
-registran esos estados en `historial_estados_pedido`, no el fin de preparación,
-por lo que cocina se estima con 15 minutos base y capacidad configurable en
-`src/config/constants.js` (dos pedidos concurrentes inicialmente). La espera se
-estima por lotes y no añade 15 minutos por cada pedido.
+mediana histórica del tramo `En camino` → `Entregado`. La cocina respeta el orden
+de creación PEPS, consulta los estados activos de los pedidos y usa la marca real
+de entrada a `En cocina` para descontar el tiempo transcurrido. Cuando faltan
+marcas, aplica la preparación base configurable de 15 minutos y la capacidad
+configurable en `src/config/constants.js` (dos pedidos concurrentes inicialmente).
+La espera se calcula por espacios de cocina disponibles, no suma 15 minutos por
+cada pedido.
+Para `tipo_entrega: "local"` o `"recoger"`, `estimatedMinutes` incluye la espera y
+preparación de cocina; `deliveryCost` y `components.travelMinutes` son `null`.
+Para domicilios, `estimatedMinutes` también incluye el desplazamiento y
+`deliveryCost` se calcula según distancia. `source` indica `kitchen`, `distance`,
+`history`, `baseline` o `unavailable`, y `isApproximate` advierte cuando la
+estimación no es exacta.
+El domicilio se calcula separadamente según la distancia geocodificada enviada
+por el cliente: hasta 2 km cuesta $4.000, más de 2 y hasta 4 km $6.000, y más de
+4 km $8.000. No hay un límite de distancia para entregar; las tarifas y sus
+rangos se centralizan en `src/config/constants.js`.
+El backend recalcula el valor, guarda `costo_domicilio_cop` por separado y suma
+el costo al total solo para `tipo_entrega: "domicilio"`, sin modificar el
+subtotal de productos. Para `"local"` y `"recoger"` guarda tarifa cero y el total
+es igual al subtotal. En esos dos casos no se requiere barrio ni distancia.
+La consulta de estimación de un domicilio debe incluir la distancia en
+kilómetros para calcular la tarifa. Ejemplo:
+`{ "tipo_entrega": "domicilio", "id_barrio": 1, "direccion": "Calle 1", "distancia_km": 1.5 }`.
+Para tiempo solo de cocina:
+`{ "tipo_entrega": "recoger" }`.
+El checkout consulta la estimación cada 30 segundos para las tres modalidades.
 El tiempo entre fin de preparación y salida no está registrado y no se inventa:
 `components.dispatchWaitMinutes` será `null`, y `isApproximate` permanece en
 `true` incluso cuando el tramo de desplazamiento usa historial.
 
-Sin tiempo de zona ni historial suficiente, la respuesta indica
-`source: "unavailable"`, `estimatedMinutes: null` y un mensaje “Por confirmar”;
-el pedido puede crearse si el barrio sigue activo y dentro de cobertura. La
-estimación no modifica el precio, y el snapshot inicial no se sobrescribe.
+Sin tiempo de zona ni historial suficiente, la estimación de un domicilio puede
+indicar `source: "unavailable"` y `estimatedMinutes: null`; si la tarifa se pudo
+calcular, el pedido aún puede crearse. Para `"local"` y `"recoger"` siempre se
+estima cocina sin exigir barrio. La estimación inicial queda guardada como
+snapshot y no se sobrescribe.
 
 ## Estructura
 

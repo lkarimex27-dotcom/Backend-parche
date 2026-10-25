@@ -19,13 +19,29 @@ describe('consultas del estimador', () => {
     expect(query.mock.calls[0][0]).toContain('ORDER BY lower(nombre)');
   });
 
-  it('limita la carga a pedidos activos que pueden consumir capacidad de cocina', async () => {
-    query.mockResolvedValueOnce({ rows: [{ pedidos_activos: 3 }] });
+  it('resuelve el nombre exacto en el catálogo activo del municipio configurado', async () => {
+    const row = { id_barrio: 8, nombre: 'Santa Ana', activo: true };
+    query.mockResolvedValueOnce({ rows: [row] });
 
-    await expect(Pedido.cargaCocina()).resolves.toBe(3);
+    await expect(Barrio.obtenerActivoPorNombre('Santa Ana')).resolves.toEqual(row);
 
-    expect(query.mock.calls[0][1]).toEqual([['Recibido', 'Confirmado', 'En cocina']]);
-    expect(query.mock.calls[0][0]).toContain('creado_en <= now()');
+    const [sql, params] = query.mock.calls[0];
+    expect(params).toEqual(['Santa Ana', 'Bello', 'Antioquia']);
+    expect(sql).toContain('lower(nombre) = lower($1)');
+    expect(sql).toContain('activo = TRUE');
+  });
+
+  it('recupera la cola de cocina en orden PEPS y sus inicios reales de preparación', async () => {
+    const queue = [{ id_pedido: 3, estado: 'En cocina', inicio_cocina: new Date() }];
+    query.mockResolvedValueOnce({ rows: queue });
+
+    await expect(Pedido.colaCocina()).resolves.toEqual(queue);
+
+    const [sql, params] = query.mock.calls[0];
+    expect(params).toEqual([['Recibido', 'Confirmado', 'En cocina']]);
+    expect(sql).toContain('historial_estados_pedido');
+    expect(sql).toContain('p.produccion_autorizada = TRUE');
+    expect(sql).toContain('ORDER BY p.creado_en ASC, p.id_pedido ASC');
   });
 
   it('usa únicamente pedidos entregados con marcas de tiempo válidas para historial', async () => {
@@ -48,8 +64,11 @@ describe('consultas del estimador', () => {
     await Pedido.crear(client, {
       id_cliente: 5,
       id_barrio: 3,
+      tipo_entrega: 'domicilio',
       estimacion_inicial: initialEstimate,
-      total: 13000,
+      subtotal: 13000,
+      costo_domicilio_cop: 4000,
+      total: 17000,
       nombre: 'Cliente',
       telefono: '3000000000',
       direccion: 'Dirección',
@@ -59,9 +78,13 @@ describe('consultas del estimador', () => {
     });
 
     const [sql, params] = client.query.mock.calls[0];
+    expect(sql).toContain('tipo_entrega, direccion_entrega');
     expect(sql).toContain('id_barrio, estimacion_inicial');
+    expect(params).toContain('domicilio');
     expect(params).toContain(3);
     expect(params).toContain(JSON.stringify(initialEstimate));
-    expect(params).toContain(13000);
+    expect(sql).toContain('costo_domicilio_cop');
+    expect(params).toContain(4000);
+    expect(params).toContain(17000);
   });
 });

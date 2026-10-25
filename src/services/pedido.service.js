@@ -54,9 +54,28 @@ const crear = async (d, idCliente) => {
   const total = lineas.reduce((s, l) => s + l.subtotal, 0);
   const estado = total >= PEDIDO_MONTO_APROBACION ? 'Por confirmar' : 'Recibido';
   const id = await withTransaction(async (c) => {
-    const estimacionInicial = await Estimador.calcular(d.id_barrio, c);
+    const tipoEntrega = d.tipo_entrega ?? 'domicilio';
+    const esDomicilio = tipoEntrega === 'domicilio';
+    const { idBarrio, estimacion: estimacionInicial } =
+      await Estimador.calcular(
+        esDomicilio ? d.id_barrio ?? d.nombre_barrio : undefined,
+        c,
+        d.distancia_km,
+        tipoEntrega,
+      );
+    const costoDomicilio = esDomicilio ? estimacionInicial.deliveryCost : 0;
+    if (esDomicilio && costoDomicilio === null) {
+      throw AppError.badRequest('No se pudo calcular el domicilio. Verifica la dirección y la distancia.');
+    }
     const idPedido = await Pedido.crear(c, {
-      ...d, id_cliente: idCliente, total, estado,
+      ...d,
+      tipo_entrega: tipoEntrega,
+      id_barrio: esDomicilio ? idBarrio : null,
+      id_cliente: idCliente,
+      subtotal: total,
+      costo_domicilio_cop: costoDomicilio,
+      total: total + costoDomicilio,
+      estado,
       estimacion_inicial: estimacionInicial,
       estado_pago: d.pago === 'Efectivo' ? 'Pendiente' : 'Pendiente de verificación',
     });

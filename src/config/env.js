@@ -15,7 +15,7 @@ const env = {
     ]),
   ],
   jwtSecret: process.env.JWT_SECRET,
-  jwtExpiresIn: process.env.JWT_EXPIRES_IN || '30d',
+  jwtExpiresIn: process.env.JWT_EXPIRES_IN || '365d',
   adminEmail: process.env.ADMIN_EMAIL,
   adminPassword: process.env.ADMIN_PASSWORD,
   adminNombre: process.env.ADMIN_NOMBRE || 'Administrador',
