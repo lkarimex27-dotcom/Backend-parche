@@ -11,6 +11,7 @@ const barrio = (overrides = {}) => ({
   activo: true,
   es_cercano: true,
   tiempo_desplazamiento_minutos: null,
+  costo_domicilio_cop: 3500,
   ...overrides,
 });
 
@@ -23,14 +24,18 @@ describe('estimador de pedidos', () => {
     expect(result.estimatedMinutes).toBe(20);
     expect(result.minimumMinutes).toBeNull();
     expect(result.maximumMinutes).toBeNull();
+    expect(result.deliveryCost).toBe(3500);
+    expect(result.costConfigured).toBe(true);
     expect(result.source).toBe('baseline');
     expect(result.isApproximate).toBe(true);
   });
 
   it('no inventa un tiempo de desplazamiento para una zona sin configuración', () => {
-    const result = estimar(barrio({ es_cercano: false }), 0, { observaciones: 0 });
+    const result = estimar(barrio({ es_cercano: false, costo_domicilio_cop: null }), 0, { observaciones: 0 });
 
     expect(result.estimatedMinutes).toBeNull();
+    expect(result.deliveryCost).toBeNull();
+    expect(result.costConfigured).toBe(false);
     expect(result.source).toBe('unavailable');
     expect(result.coverageAvailable).toBe(true);
     expect(result.message).toMatch(/por confirmar/i);

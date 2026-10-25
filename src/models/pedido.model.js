@@ -6,6 +6,7 @@ const SELECT = `
          p.nombre_contacto, p.telefono_contacto, p.direccion_entrega, p.observacion, p.metodo_pago,
          p.estado, p.estado_pago, p.motivo_rechazo_pago, p.comprobante, p.produccion_autorizada,
          p.registros_produccion, p.id_barrio, p.estimacion_inicial,
+         p.subtotal::float AS subtotal, p.costo_domicilio_cop::float AS costo_domicilio_cop,
          p.total::float AS total, p.creado_en,
          COALESCE((SELECT json_agg(json_build_object(
                      'producto', i.nombre, 'cantidad', d.cantidad::float, 'precio_unitario', d.precio_unitario::float,
@@ -35,10 +36,10 @@ const catalogoActivo = async () =>
 const crear = async (c, d) =>
   (await c.query(
     `INSERT INTO pedidos (id_cliente, estado, nombre_contacto, telefono_contacto, direccion_entrega, observacion,
-                          metodo_pago, estado_pago, comprobante, subtotal, total, id_barrio, estimacion_inicial)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $10, $11, $12) RETURNING id_pedido`,
+                          metodo_pago, estado_pago, comprobante, subtotal, costo_domicilio_cop, total, id_barrio, estimacion_inicial)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING id_pedido`,
     [d.id_cliente, d.estado, d.nombre, d.telefono, d.direccion, d.notas ?? null, d.pago, d.estado_pago,
-     d.comprobante ?? null, d.total, d.id_barrio, JSON.stringify(d.estimacion_inicial)]
+     d.comprobante ?? null, d.subtotal, d.costo_domicilio_cop, d.total, d.id_barrio, JSON.stringify(d.estimacion_inicial)]
   )).rows[0].id_pedido;
 
 const crearDetalle = (c, idPedido, it) =>
