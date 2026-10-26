@@ -22,8 +22,8 @@ const cambiarContrasena = asyncHandler(async (req, res) => {
   await service.cambiarContrasena(req.user.id, req.body);
   res.status(204).send();
 });
-
-
+const cambiarContrasenaInicial = asyncHandler(async (req, res) =>
+  res.json({ ok: true, data: await service.cambiarContrasenaInicial(req.user.id, req.body) }));
 
 const recuperar = asyncHandler(async (req, res) => {
   await recuperacion.solicitar(req.body);
@@ -35,9 +35,6 @@ const restablecer = asyncHandler(async (req, res) => {
   await recuperacion.restablecer(req.body);
   res.status(204).send();
 });
-
-const cambiarContrasenaInicial = asyncHandler(async (req, res) =>
-  res.json({ ok: true, data: await service.cambiarContrasenaInicial(req.user.id, req.body) }));
 
 module.exports = {
   registro,

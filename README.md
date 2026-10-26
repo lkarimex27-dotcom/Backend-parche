@@ -24,6 +24,10 @@ caracteres e incluir una mayúscula, una minúscula y un número. El servidor la
 usuarios de personal, devuelve la clave temporal solo en la respuesta de alta y exige cambiarla
 en `PATCH /api/auth/me/contrasena-inicial` antes de permitir cualquier otra ruta autenticada.
 Las cuentas de cliente conservan la contraseña que el cliente eligió.
+El selector de entrega obtiene los barrios habilitados desde `GET /api/barrios`;
+la ruta requiere sesión y devuelve el catálogo de Bello bajo `data`.
+El checkout también consulta `POST /api/pedidos/estimacion` para calcular el
+tiempo y, en domicilios, el costo de envío según la distancia.
 
 ## Cómo se usa la seguridad
 

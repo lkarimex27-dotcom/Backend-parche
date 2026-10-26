@@ -87,6 +87,7 @@ router.use('/consumos-produccion', require('./consumo.routes'));      // baja el
 
 // Ventas
 router.use('/clientes', require('./cliente.routes'));
+router.use('/barrios', require('./barrio.routes'));
 router.use('/pedidos', require('./pedido.routes'));
 router.use('/barrios', require('./barrio.routes'));
 router.use('/pedidos-panel', panelRoutes(PANEL.pedidos_panel));     // pedidos creados a mano en el panel

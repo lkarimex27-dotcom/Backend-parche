@@ -3,7 +3,7 @@ const env = require('../config/env');
 const Usuario = require('../models/usuario.model');
 const { withTransaction } = require('../config/db');
 const AppError = require('../errors/AppError');
-const { contrasenaProvisional, enviarProvisional } = require('../utils/provisional');
+const { enviarProvisional } = require('../utils/provisional');
 
 const ROUNDS = 10;
 
@@ -19,34 +19,63 @@ const asegurarRoles = (ok) => {
   if (!ok) throw AppError.badRequest('Alguno de los roles indicados no existe');
 };
 
-
 const esSuperAdmin = (correo) => String(correo || '').trim().toLowerCase() === env.superAdminEmail;
 
 const normalizarRol = (rol) =>
   rol.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9]+/g, '_').toUpperCase();
 
-// Cuenta creada por el admin: le llega al correo una contraseña provisional y debe cambiarla al entrar
 const crear = async (d) => {
   const esCliente = d.roles.every((rol) => normalizarRol(rol) === 'CLIENTE');
   if (!esCliente && normalizarRol(d.tipo_documento || '') === 'TARJETA_DE_IDENTIDAD') {
     throw AppError.badRequest('La tarjeta de identidad solo está permitida para clientes.');
   }
-  const provisional = contrasenaProvisional();
-  const hash = await bcrypt.hash(provisional, ROUNDS);
+  const rolTemporal = d.roles.find((rol) => normalizarRol(rol) !== 'CLIENTE');
+  const contrasenaInicial = esCliente
+    ? d.contrasena
+    : rolTemporal && env.defaultPasswords[`DEFAULT_PASSWORD_${normalizarRol(rolTemporal)}`];
+  if (!contrasenaInicial) {
+    throw AppError.badRequest(
+      esCliente
+        ? 'La contraseña es obligatoria para las cuentas de cliente.'
+        : `Configura DEFAULT_PASSWORD_${normalizarRol(rolTemporal || d.roles[0])} en el entorno del servidor.`
+    );
+  }
+  if (!esCliente) {
+    const configuredPasswords = Object.values(env.defaultPasswords).filter(Boolean);
+    const isStrong =
+      contrasenaInicial.length >= 8 &&
+      contrasenaInicial.length <= 72 &&
+      /[A-Z]/.test(contrasenaInicial) &&
+      /[a-z]/.test(contrasenaInicial) &&
+      /\d/.test(contrasenaInicial);
+    if (!isStrong) {
+      throw AppError.badRequest(
+        'La contraseña temporal configurada para este rol debe cumplir la política de seguridad.'
+      );
+    }
+    if (new Set(configuredPasswords).size !== configuredPasswords.length) {
+      throw AppError.badRequest(
+        'Configura una contraseña temporal diferente para cada rol de personal.'
+      );
+    }
+  }
+  const requiereCambioContrasena = !esCliente;
+  const hash = await bcrypt.hash(contrasenaInicial, ROUNDS);
   const id = await withTransaction(async (c) => {
     const u = await Usuario.crearUsuario(c, {
       correo: d.correo,
       hash,
       estado: d.estado,
-      requiereCambioContrasena: true,
+      requiereCambioContrasena,
       // Solo admin@minifood.com es superadministrador; cualquier otro administrador es normal
       esAdministradorPrincipal: esSuperAdmin(d.correo),
     });
     // Con rol Cliente es una persona tipo CLIENTE: así aparece también en el módulo Clientes
     await Usuario.crearPersona(c, { id_usuario: u.id_usuario, ...d, ...(esCliente ? { tipo: 'CLIENTE' } : {}) });
     asegurarRoles(await Usuario.reemplazarRoles(c, u.id_usuario, d.roles));
-    // Dentro de la transacción: si el correo no sale, el usuario no se crea
-    await enviarProvisional({ para: d.correo, nombre: d.nombre, contrasena: provisional });
+    if (requiereCambioContrasena) {
+      await enviarProvisional({ para: d.correo, nombre: d.nombre, contrasena: contrasenaInicial });
+    }
     return u.id_usuario;
   });
   return obtener(id);
@@ -54,7 +83,6 @@ const crear = async (d) => {
 
 const actualizar = async (id, d, idQuienEdita) => {
   if (id === idQuienEdita && d.estado === 'INACTIVO') throw AppError.badRequest('No puedes desactivar tu propio usuario');
-
   const usuario = await obtener(id);
   const roles = d.roles || usuario.roles || [];
   if (
