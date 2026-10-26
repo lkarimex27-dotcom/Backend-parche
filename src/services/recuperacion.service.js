@@ -7,6 +7,7 @@ const { plantilla, parrafo, recuadro } = require('../utils/plantillaCorreo');
 const AppError = require('../errors/AppError');
 
 const MINUTOS = 15;
+const MINUTOS_VERIFICACION = 10;
 const MAX_INTENTOS = 5;
 const hash = (codigo) => crypto.createHash('sha256').update(String(codigo)).digest('hex');
 const iguales = (a, b) => a.length === b.length && crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b));
@@ -37,18 +38,33 @@ const solicitar = async ({ correo }) => {
   }
 };
 
-// Cambia la contraseña si el código es correcto, está vigente y no superó los intentos
-const restablecer = async ({ correo, codigo, nueva }) => {
-  const invalido = AppError.badRequest('El código es incorrecto o ya venció. Pide uno nuevo.');
+// Verifica el PIN por separado y emite un token temporal para el formulario de nueva contraseña.
+const verificar = async ({ correo: correoEntrada, codigo }) => {
+  const correo = correoEntrada.trim().toLowerCase();
   const u = await Usuario.obtenerParaLogin(correo);
   const r = u && (await Recuperacion.obtener(u.id_usuario));
+  const invalido = AppError.badRequest('El código es incorrecto o ya venció. Pide uno nuevo.');
   if (!r || !r.vigente || r.intentos >= MAX_INTENTOS) throw invalido;
   if (!iguales(hash(codigo), r.codigo_hash)) {
     await Recuperacion.sumarIntento(u.id_usuario);
     throw invalido;
   }
+
+  const token = crypto.randomBytes(32).toString('hex');
+  await Recuperacion.marcarVerificado(u.id_usuario, hash(token), MINUTOS_VERIFICACION);
+  return { token };
+};
+
+// Cambia la contraseña solo con el token emitido tras validar el PIN.
+const restablecer = async ({ correo: correoEntrada, token, nueva }) => {
+  const correo = correoEntrada.trim().toLowerCase();
+  const invalido = AppError.badRequest('El código es incorrecto o ya venció. Pide uno nuevo.');
+  const u = await Usuario.obtenerParaLogin(correo);
+  const r = u && (await Recuperacion.obtener(u.id_usuario));
+  if (!r || !r.vigente || r.intentos >= MAX_INTENTOS) throw invalido;
+  if (!r.verificacion_vigente || !r.verificacion_hash || !iguales(hash(token), r.verificacion_hash)) throw invalido;
   await Usuario.cambiarContrasena(u.id_usuario, await bcrypt.hash(nueva, 10));
   await Recuperacion.borrar(u.id_usuario);
 };
 
-module.exports = { solicitar, restablecer };
+module.exports = { solicitar, verificar, restablecer };

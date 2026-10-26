@@ -1,5 +1,5 @@
 -- =====================================================
--- MINIFOOD - Esquema para PostgreSQL (Neon) - 26 tablas
+-- MINIFOOD - Esquema para PostgreSQL (Neon) - 27 tablas
 -- Convertido desde el script MySQL/SQL Server original.
 -- En Neon ya existe la base de datos (neondb), por eso no hay CREATE DATABASE / USE.
 -- Es idempotente: se puede ejecutar varias veces (npm run db:init).
@@ -533,8 +533,25 @@ CREATE TABLE IF NOT EXISTS recuperaciones_contrasena (
     expira       TIMESTAMPTZ NOT NULL,
     intentos     INT NOT NULL DEFAULT 0,
     creado_en    TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    verificacion_hash VARCHAR(64),
+    verificacion_expira TIMESTAMPTZ,
 
     CONSTRAINT fk_recuperacion_usuario FOREIGN KEY (id_usuario) REFERENCES usuarios(id_usuario) ON DELETE CASCADE
+);
+ALTER TABLE recuperaciones_contrasena ADD COLUMN IF NOT EXISTS verificacion_hash VARCHAR(64);
+ALTER TABLE recuperaciones_contrasena ADD COLUMN IF NOT EXISTS verificacion_expira TIMESTAMPTZ;
+
+CREATE TABLE IF NOT EXISTS codigos_registro (
+   correo          VARCHAR(255) PRIMARY KEY,
+   codigo_hash     VARCHAR(64) NOT NULL,
+   contrasena_hash VARCHAR(255) NOT NULL,
+   nombre          VARCHAR(150) NOT NULL,
+   tipo_documento  VARCHAR(30),
+   documento       VARCHAR(50),
+   telefono        VARCHAR(30),
+   expira          TIMESTAMPTZ NOT NULL,
+   intentos        INT NOT NULL DEFAULT 0,
+   creado_en       TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Cliente mostrador: anónimo para registrar ventas a quien no quiere dar sus datos (no se edita ni se anula)
