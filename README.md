@@ -52,11 +52,13 @@ tiempo y, en domicilios, el costo de envío según la distancia.
 | Órdenes de Prod. | `/api/ordenes-produccion` | Panel sincronizado; reposiciones transaccionales |
 | Prod. No Conforme | `/api/productos-no-conformes` | Panel sincronizado; vínculo de reposición |
 | Clientes | `/api/clientes` (solo lectura) | Listo |
+| Domicilios | `/api/domicilios` (CRUD de direcciones asociadas a pedidos) | Listo |
 | Pedidos | `/api/pedidos` | Pendiente |
 | Ventas | `/api/ventas` | Pendiente |
 | Devoluciones | `/api/devoluciones` | Pendiente |
 
 Las tablas de los módulos pendientes ya existen en `sql/init.sql`.
+Los cambios de `/api/domicilios` se guardan en la dirección del pedido, por lo que también aparecen en las respuestas de `/api/pedidos/mios` que consulta el cliente. El CRUD requiere los privilegios `VER`, `CREAR`, `EDITAR` y `ELIMINAR` del módulo `DOMICILIOSS`.
 Al registrar un producto no conforme que genera reposición, el panel usa
 `POST /api/productos-no-conformes/con-reposicion`: registra la orden nueva y el
 producto no conforme en una transacción, los vincula en la base de datos y,
