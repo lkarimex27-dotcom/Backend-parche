@@ -59,4 +59,14 @@ const actualizar = async (id, d) => {
   )).rows[0] || null;
 };
 
-module.exports = { listarDisponibles, listarTodos, obtenerActivo, crear, actualizar };
+const desactivar = async (id) =>
+  (await query(
+    `UPDATE barrios SET activo = FALSE
+      WHERE id_barrio = $1
+        AND lower(municipio) = lower($2)
+        AND lower(departamento) = lower($3)
+      RETURNING id_barrio`,
+    [id, ESTIMADOR.MUNICIPIO, ESTIMADOR.DEPARTAMENTO]
+  )).rows[0] || null;
+
+module.exports = { listarDisponibles, listarTodos, obtenerActivo, crear, actualizar, desactivar };

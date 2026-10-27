@@ -1,5 +1,8 @@
 jest.mock('../src/models/pedido.model');
 jest.mock('../src/models/barrio.model');
+jest.mock('../src/models/insumoProducto.model', () => ({
+  gaseosas: jest.fn().mockResolvedValue([]),
+}));
 jest.mock('../src/config/db', () => ({
   withTransaction: jest.fn((fn) => fn({})),
 }));
