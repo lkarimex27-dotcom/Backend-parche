@@ -37,6 +37,8 @@ const actualizar = async (tipo, id, datos) => {
   }
   await validar(tipo, datos);
   if (!(await Modelo.actualizar(tipo, id, datos))) throw AppError.notFound(`${NOMBRE[tipo]} no encontrado`);
+  // Cambió la medida de un insumo: sus fichas técnicas la siguen (ej. pan en "und" → "paq")
+  if (tipo === 'INSUMO' && datos.medida) await Modelo.alinearMedidaFichas(id, datos.medida);
   return obtener(tipo, id);
 };
 

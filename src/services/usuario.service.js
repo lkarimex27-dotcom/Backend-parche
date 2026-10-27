@@ -70,7 +70,8 @@ const crear = async (d) => {
       // Solo admin@minifood.com es superadministrador; cualquier otro administrador es normal
       esAdministradorPrincipal: esSuperAdmin(d.correo),
     });
-    await Usuario.crearPersona(c, { id_usuario: u.id_usuario, ...d });
+    // Con rol Cliente es una persona tipo CLIENTE: así aparece también en el módulo Clientes
+    await Usuario.crearPersona(c, { id_usuario: u.id_usuario, ...d, ...(esCliente ? { tipo: 'CLIENTE' } : {}) });
     asegurarRoles(await Usuario.reemplazarRoles(c, u.id_usuario, d.roles));
     if (requiereCambioContrasena) {
       await enviarProvisional({ para: d.correo, nombre: d.nombre, contrasena: contrasenaInicial });

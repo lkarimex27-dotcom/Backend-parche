@@ -1,0 +1,75 @@
+const crypto = require('crypto');
+const bcrypt = require('bcryptjs');
+const Usuario = require('../models/usuario.model');
+const Registro = require('../models/registro.model');
+const Auth = require('./auth.service');
+const { enviarCorreo } = require('../utils/mailer');
+const AppError = require('../errors/AppError');
+
+const MINUTOS = 15;
+const MAX_INTENTOS = 5;
+const hash = (codigo) => crypto.createHash('sha256').update(String(codigo)).digest('hex');
+const iguales = (a, b) => a.length === b.length && crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b));
+
+const solicitar = async (datos) => {
+  const correo = datos.correo.trim().toLowerCase();
+  if (await Usuario.obtenerParaLogin(correo)) {
+    throw AppError.conflict('Ya existe una cuenta con este correo.');
+  }
+
+  const pendiente = await Registro.obtener(correo);
+  if (pendiente?.reciente) {
+    throw AppError.badRequest('Ya enviamos un código hace poco. Revisa tu correo e inténtalo de nuevo en un minuto.');
+  }
+
+  const codigo = String(crypto.randomInt(0, 1_000_000)).padStart(6, '0');
+  const contrasenaHash = await bcrypt.hash(datos.contrasena, 10);
+  const registro = {
+    correo,
+    nombre: datos.nombre.trim(),
+    tipo_documento: datos.tipo_documento,
+    documento: datos.documento,
+    telefono: datos.telefono,
+  };
+  await Registro.guardar(registro, hash(codigo), contrasenaHash, MINUTOS);
+  try {
+    await enviarCorreo({
+      para: correo,
+      asunto: 'Confirma tu correo de El Parche Mini Burguer',
+      html: `<div style="font-family:Arial,sans-serif;max-width:420px">
+        <h2 style="color:#C9962B">El Parche Mini Burguer</h2>
+        <p>Usa este código de 6 dígitos para terminar de crear tu cuenta:</p>
+        <p style="font-size:32px;font-weight:bold;letter-spacing:8px">${codigo}</p>
+        <p>Vence en ${MINUTOS} minutos. Si no solicitaste una cuenta, ignora este correo.</p>
+      </div>`,
+    });
+  } catch (error) {
+    await Registro.borrar(correo);
+    throw error;
+  }
+};
+
+const verificar = async ({ correo: correoEntrada, codigo }) => {
+  const correo = correoEntrada.trim().toLowerCase();
+  const pendiente = await Registro.obtener(correo);
+  const invalido = AppError.badRequest('El código es incorrecto o ya venció. Solicita uno nuevo.');
+  if (!pendiente || !pendiente.vigente || pendiente.intentos >= MAX_INTENTOS) throw invalido;
+  if (!iguales(hash(codigo), pendiente.codigo_hash)) {
+    await Registro.sumarIntento(correo);
+    throw invalido;
+  }
+
+  const cuenta = await Registro.consumir(correo, pendiente.codigo_hash);
+  if (!cuenta) throw invalido;
+
+  return Auth.registrarVerificado({
+    correo: cuenta.correo,
+    contrasena_hash: cuenta.contrasena_hash,
+    nombre: cuenta.nombre,
+    tipo_documento: cuenta.tipo_documento,
+    documento: cuenta.documento,
+    telefono: cuenta.telefono,
+  });
+};
+
+module.exports = { solicitar, verificar };

@@ -62,16 +62,26 @@ describe('Recuperar contraseña', () => {
     expect(res.status).toBe(400);
   });
 
-  it('restablecer exige un código de 6 dígitos y una contraseña de 8+', async () => {
+  it('restablecer exige un PIN validado previamente y una contraseña de 8+', async () => {
     const res = await request(app)
       .post('/api/auth/restablecer')
       .send({ correo: 'ana@correo.com', codigo: '12ab', nueva: 'corta' });
     expect(res.status).toBe(400);
     expect(res.body.detalles).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ campo: 'codigo' }),
+        expect.objectContaining({ campo: 'token' }),
         expect.objectContaining({ campo: 'nueva' }),
       ])
+    );
+  });
+
+  it('verificar recuperación exige un PIN de 6 dígitos', async () => {
+    const res = await request(app)
+      .post('/api/auth/recuperar/verificar')
+      .send({ correo: 'ana@correo.com', codigo: '12ab' });
+    expect(res.status).toBe(400);
+    expect(res.body.detalles).toEqual(
+      expect.arrayContaining([expect.objectContaining({ campo: 'codigo' })])
     );
   });
 });

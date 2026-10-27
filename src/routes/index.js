@@ -90,6 +90,7 @@ router.use('/clientes', require('./cliente.routes'));
 router.use('/domicilios', require('./domicilio.routes'));
 router.use('/barrios', require('./barrio.routes'));
 router.use('/pedidos', require('./pedido.routes'));
+router.use('/barrios', require('./barrio.routes'));
 router.use('/pedidos-panel', panelRoutes(PANEL.pedidos_panel));     // pedidos creados a mano en el panel
 router.use('/ventas', panelRoutes(PANEL.ventas));
 router.use('/devoluciones', panelRoutes(PANEL.devoluciones));

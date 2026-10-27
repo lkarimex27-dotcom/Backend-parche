@@ -23,6 +23,12 @@ const registro = z.object({
   telefono: z.string().trim().max(30).optional(),
 });
 
+const solicitarRegistro = registro;
+const verificarCodigo = z.object({
+  correo,
+  codigo: z.string().trim().regex(/^\d{6}$/, 'El código tiene 6 dígitos'),
+});
+
 // Perfil propio (cliente o personal)
 const perfil = z
   .object({
@@ -37,9 +43,27 @@ const perfil = z
 
 const cambioContrasena = z.object({ actual: z.string().min(1).max(72), nueva: contrasena });
 const cambioContrasenaInicial = z.object({ nueva: contrasena });
-// Olvidé mi contraseña: pedir el código y usarlo
+
+
+// Recuperación: el PIN se valida antes de emitir el token para cambiar la contraseña.
 const recuperar = z.object({ correo });
-const restablecer = z.object({ correo, codigo: z.string().trim().regex(/^\d{6}$/, 'El código tiene 6 dígitos'), nueva: contrasena });
+const restablecer = z.object({
+  correo,
+  token: z.string().trim().min(32).max(128),
+  nueva: contrasena,
+});
 
 
-module.exports = { login, registro, contrasena, perfil, cambioContrasena, cambioContrasenaInicial, recuperar, restablecer };
+
+module.exports = {
+  login,
+  registro,
+  solicitarRegistro,
+  verificarCodigo,
+  contrasena,
+  perfil,
+  cambioContrasena,
+  cambioContrasenaInicial,
+  recuperar,
+  restablecer,
+};
