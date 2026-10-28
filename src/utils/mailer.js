@@ -15,11 +15,16 @@ const adjuntos = (html) =>
     .filter((f) => html.includes(`cid:${path.parse(f).name}"`))
     .map((f) => ({ filename: f, path: path.join(IMAGENES, f), cid: path.parse(f).name }));
 
-const enviarCorreo = async ({ para, asunto, html }) => {
+const enviarCorreo = async ({ para, asunto, html, attachments = [] }) => {
   if (!env.mailUser || !env.mailPass) throw new AppError('El envío de correos no está configurado (MAIL_USER / MAIL_PASS)', 503);
-  await transporte().sendMail({
-    from: `"El Parche Mini Burguer" <${env.mailUser}>`, to: para, subject: asunto, html, attachments: adjuntos(html),
-  });
+  const correo = { from: `"El Parche Mini Burguer" <${env.mailUser}>`, to: para, subject: asunto, html };
+  const todos = [...adjuntos(html), ...attachments];
+  if (todos.length) correo.attachments = todos;
+  const resultado = await transporte().sendMail(correo);
+  if (!resultado.accepted?.length) {
+    throw new AppError('El proveedor de correo no aceptó al destinatario.', 502);
+  }
+  return resultado;
 };
 
 module.exports = { enviarCorreo, adjuntos };

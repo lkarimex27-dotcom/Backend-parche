@@ -1,4 +1,5 @@
 process.env.JWT_SECRET = 'secreto_de_pruebas_secreto_de_pruebas_123';
+process.env.DEFAULT_PASSWORD_CAJERO = 'CajeroTemporal2026';
 
 // Sin base de datos ni Gmail: se simulan la cuenta, la persona, los roles y el envío del correo
 jest.mock('../src/config/db', () => ({ withTransaction: (fn) => fn({}) }));
@@ -26,7 +27,10 @@ describe('Usuario creado desde el admin (módulo Usuarios)', () => {
     const { para, asunto, html } = enviarCorreo.mock.calls[0][0];
     expect(para).toBe('cajero@parche.co');
     expect(asunto).toMatch(/Bienvenido/);
-    const provisional = /letter-spacing:3px">([^<]+)</.exec(html)[1];
+    const provisional = /letter-spacing:9px;">([^<]+)<\/span>/.exec(html)[1];
+    expect(provisional).toBe(process.env.DEFAULT_PASSWORD_CAJERO);
+    expect(html).toContain('¡Hola, Pedro!');
+    expect(html).toContain('Entra con <strong>cajero@parche.co</strong>.');
 
     const cuenta = Usuario.crearUsuario.mock.calls[0][1];
     expect(cuenta.requiereCambioContrasena).toBe(true);
@@ -42,7 +46,7 @@ describe('Usuario creado desde el admin (módulo Usuarios)', () => {
 
 describe('Usuario con rol Cliente creado desde Usuarios', () => {
   it('queda como persona tipo CLIENTE (aparece también en el módulo Clientes)', async () => {
-    await service.crear({ nombre: 'Luz Loaiza', correo: 'luz@correo.co', roles: ['CLIENTE'] });
+    await service.crear({ nombre: 'Luz Loaiza', correo: 'luz@correo.co', roles: ['CLIENTE'], contrasena: 'ClienteTemporal2026' });
     expect(Usuario.crearPersona.mock.calls.at(-1)[1].tipo).toBe('CLIENTE');
   });
 });

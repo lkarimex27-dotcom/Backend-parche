@@ -45,12 +45,18 @@ describe('Registro con verificación de correo', () => {
     });
 
     const [, codigoHash, contrasenaHash] = Registro.guardar.mock.calls[0];
-    const html = enviarCorreo.mock.calls[0][0].html;
-    const codigo = html.match(/>(\d{6})</)[1];
+    const correo = enviarCorreo.mock.calls[0][0];
+    const html = correo.html;
+    const codigo = html.match(/letter-spacing:8px;[^>]*>(\d{6})</)[1];
 
     expect(codigoHash).toBe(hash(codigo));
     expect(codigoHash).not.toBe(codigo);
     await expect(bcrypt.compare('ClaveSegura1', contrasenaHash)).resolves.toBe(true);
+    expect(correo.asunto).toBe('Confirma tu correo de El Parche Mini Burguer');
+    // Encabezado «¡Hola! CONFIRMA TU CORREO» (imagen adjunta) y el aviso de vencimiento
+    expect(html).toContain('src="cid:hero-confirmacion"');
+    expect(html).toContain('Vence en 15 minutos. Si no solicitaste una cuenta, ignora este correo.');
+    expect(html).not.toContain('recuperar la contraseña');
   });
 
   it('rechaza un PIN incorrecto y registra el intento', async () => {

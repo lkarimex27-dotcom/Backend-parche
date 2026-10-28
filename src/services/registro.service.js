@@ -5,6 +5,7 @@ const Registro = require('../models/registro.model');
 const Auth = require('./auth.service');
 const { enviarCorreo } = require('../utils/mailer');
 const AppError = require('../errors/AppError');
+const { plantilla, parrafo, recuadro } = require('../utils/plantillaCorreo');
 
 const MINUTOS = 15;
 const MAX_INTENTOS = 5;
@@ -36,12 +37,13 @@ const solicitar = async (datos) => {
     await enviarCorreo({
       para: correo,
       asunto: 'Confirma tu correo de El Parche Mini Burguer',
-      html: `<div style="font-family:Arial,sans-serif;max-width:420px">
-        <h2 style="color:#C9962B">El Parche Mini Burguer</h2>
-        <p>Usa este código de 6 dígitos para terminar de crear tu cuenta:</p>
-        <p style="font-size:32px;font-weight:bold;letter-spacing:8px">${codigo}</p>
-        <p>Vence en ${MINUTOS} minutos. Si no solicitaste una cuenta, ignora este correo.</p>
-      </div>`,
+      html: plantilla({
+        titulo: 'Confirma tu correo',
+        hero: 'confirmacion',
+        contenido:
+          recuadro('Tu código', codigo, 8) +
+          parrafo(`Vence en ${MINUTOS} minutos. Si no solicitaste una cuenta, ignora este correo.`),
+      }),
     });
   } catch (error) {
     await Registro.borrar(correo);

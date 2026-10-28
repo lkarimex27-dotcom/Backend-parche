@@ -29,9 +29,16 @@ const crearCliente = async (d, hash) => {
     }
     return u.id_usuario;
   });
-  // Correo de bienvenida: si no sale, la cuenta igual queda creada (ya eligió su contraseña)
-  enviarBienvenida({ para: d.correo, nombre: d.nombre }).catch((err) =>
-    console.warn(`No se pudo enviar la bienvenida a ${d.correo}:`, err.message));
+  try {
+    await enviarBienvenida({ para: d.correo, nombre: d.nombre });
+  } catch (error) {
+    const codigo = typeof error?.code === 'string'
+      ? error.code
+      : Number.isInteger(error?.statusCode)
+        ? `SMTP_${error.statusCode}`
+        : 'UNKNOWN';
+    console.error('La cuenta se creó, pero falló el envío del correo de bienvenida.', { codigo });
+  }
   return { token: firmarToken({ id_usuario: id, correo: d.correo }), ...(await perfilCompleto(id)) };
 };
 

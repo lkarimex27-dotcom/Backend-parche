@@ -31,7 +31,7 @@ describe('Cliente que crea su cuenta en la web', () => {
 
   it('si el correo no sale, la cuenta igual queda creada', async () => {
     enviarCorreo.mockRejectedValueOnce(new Error('Gmail no responde'));
-    const aviso = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    const aviso = jest.spyOn(console, 'error').mockImplementation(() => {});
     await expect(service.registrar(datos)).resolves.toHaveProperty('token');
     await new Promise((r) => setImmediate(r));
     expect(aviso).toHaveBeenCalled();
