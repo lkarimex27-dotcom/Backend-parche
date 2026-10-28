@@ -36,6 +36,10 @@ const obtenerParaLogin = async (correo) =>
     [correo]
   )).rows[0] || null;
 
+// Persona (con o sin cuenta) que ya tiene ese documento: el documento es único en personas
+const documentoEnUso = async (documento) =>
+  !!documento && (await pool.query('SELECT 1 FROM personas WHERE documento = $1 LIMIT 1', [String(documento).trim()])).rowCount > 0;
+
 const crearUsuario = async (c, { correo, hash, estado, requiereCambioContrasena = false, esAdministradorPrincipal = false }) =>
   (await exec(c).query(
     `INSERT INTO usuarios (correo, contrasena, estado, requiere_cambio_contrasena, es_administrador_principal)
@@ -153,7 +157,7 @@ const eliminar = async (c, id) => {
 
 module.exports = {
   actualizarPerfil, cambiarContrasena, cambiarContrasenaInicial, obtenerHash,
-  listar, obtenerPorId, obtenerParaLogin, crearUsuario, crearPersona,
+  listar, obtenerPorId, obtenerParaLogin, documentoEnUso, crearUsuario, crearPersona,
   actualizarUsuario, actualizarPersona, reemplazarRoles, obtenerAdministradorPrincipal,
   reasignarRegistros, eliminar,
 };

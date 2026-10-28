@@ -17,6 +17,10 @@ const solicitar = async (datos) => {
   if (await Usuario.obtenerParaLogin(correo)) {
     throw AppError.conflict('Ya existe una cuenta con este correo.');
   }
+  // Antes de enviar el código: si el documento ya es de otra persona, la cuenta no se podría crear al verificarlo
+  if (await Usuario.documentoEnUso(datos.documento)) {
+    throw AppError.conflict('Ya hay una persona registrada con este número de documento. Si es tuyo, inicia sesión o recupera tu contraseña.');
+  }
 
   const pendiente = await Registro.obtener(correo);
   if (pendiente?.reciente) {
