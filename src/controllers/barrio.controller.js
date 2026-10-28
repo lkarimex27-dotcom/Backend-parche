@@ -13,5 +13,10 @@ const actualizar = asyncHandler(async (req, res) => {
   if (!barrio) throw AppError.notFound('Barrio no encontrado');
   res.json({ ok: true, data: barrio });
 });
+const eliminar = asyncHandler(async (req, res) => {
+  const barrio = await Barrio.desactivar(req.params.id);
+  if (!barrio) throw AppError.notFound('Barrio no encontrado');
+  res.status(204).send();
+});
 
-module.exports = { listar, listarTodos, crear, actualizar };
+module.exports = { listar, listarTodos, crear, actualizar, eliminar };

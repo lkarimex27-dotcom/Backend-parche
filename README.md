@@ -26,8 +26,8 @@ en `PATCH /api/auth/me/contrasena-inicial` antes de permitir cualquier otra ruta
 Las cuentas de cliente conservan la contraseña que el cliente eligió.
 El selector de entrega obtiene los barrios habilitados desde `GET /api/barrios`;
 la ruta requiere sesión y devuelve el catálogo de Bello bajo `data`.
-El checkout también consulta `POST /api/pedidos/estimacion` para calcular el
-tiempo y, en domicilios, el costo de envío según la distancia.
+El checkout consulta `POST /api/pedidos/estimacion` para calcular el tiempo y
+obtener el precio de domicilio configurado para el barrio seleccionado.
 
 ## Cómo se usa la seguridad
 
@@ -66,11 +66,13 @@ y las columnas de verificación de recuperación.
 | Órdenes de Prod. | `/api/ordenes-produccion` | Panel sincronizado; reposiciones transaccionales |
 | Prod. No Conforme | `/api/productos-no-conformes` | Panel sincronizado; vínculo de reposición |
 | Clientes | `/api/clientes` (solo lectura) | Listo |
+| Domicilios | `/api/barrios/admin` (configuración de cobertura, tiempos y costos) | CRUD listo |
 | Pedidos | `/api/pedidos` | Pendiente |
 | Ventas | `/api/ventas` | Pendiente |
 | Devoluciones | `/api/devoluciones` | Pendiente |
 
 Las tablas de los módulos pendientes ya existen en `sql/init.sql`.
+El endpoint `/api/domicilios` conserva el CRUD de direcciones asociadas a pedidos y sus cambios aparecen en `/api/pedidos/mios`. La configuración del módulo Domicilios se administra por `/api/barrios/admin` y requiere los privilegios `VER`, `CREAR`, `EDITAR` y `ELIMINAR` del módulo `BARRIOS`.
 Al registrar un producto no conforme que genera reposición, el panel usa
 `POST /api/productos-no-conformes/con-reposicion`: registra la orden nueva y el
 producto no conforme en una transacción, los vincula en la base de datos y,
@@ -94,12 +96,13 @@ Endpoints autenticados:
 |---|---|
 | `GET /api/barrios?buscar=ana` | Barrios activos de Bello, búsqueda parcial sin distinguir mayúsculas |
 | `GET /api/barrios/admin` | Catálogo completo para administración (`BARRIOS:VER`) |
-| `POST /api/barrios` | Crear candidato inactivo por defecto (`BARRIOS:CREAR`) |
-| `PATCH /api/barrios/:id` | Activar/desactivar o configurar cercanía, tiempo y `costo_domicilio_cop` (`BARRIOS:EDITAR`) |
+| `POST /api/barrios/admin` | Crear barrio (`BARRIOS:CREAR`) |
+| `PATCH /api/barrios/admin/:id` | Editar cobertura, cercanía, tiempo y `costo_domicilio_cop` (`BARRIOS:EDITAR`) |
+| `DELETE /api/barrios/admin/:id` | Desactivar barrio sin borrar referencias históricas (`BARRIOS:ELIMINAR`) |
 | `POST /api/pedidos/estimacion` | Estimar con `{ "id_barrio": 1, "direccion": "..." }` |
 | `POST /api/pedidos` | Crear pedido con `id_barrio`; el backend valida y almacena la estimación inicial |
 
-Configura `costo_domicilio_cop` por barrio mediante `PATCH /api/barrios/:id`.
+Configura `costo_domicilio_cop` por barrio mediante `PATCH /api/barrios/admin/:id`.
 No se asigna una tarifa predeterminada: si el barrio no tiene costo configurado,
 la estimación devuelve `deliveryCost: null` y el pedido no se crea. Cuando la
 tarifa está configurada, el backend suma el costo al subtotal y persiste el
