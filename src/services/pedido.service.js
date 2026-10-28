@@ -62,6 +62,8 @@ const crear = async (d, idCliente) => {
         c,
         d.distancia_km,
         tipoEntrega,
+        d.items,
+        d.ubicacion,
       );
     const costoDomicilio = esDomicilio ? estimacionInicial.deliveryCost : 0;
     if (esDomicilio && costoDomicilio === null) {

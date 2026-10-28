@@ -4,7 +4,7 @@ jest.mock('../src/models/pedido.model');
 const Barrio = require('../src/models/barrio.model');
 const Pedido = require('../src/models/pedido.model');
 const {
-  calcular, calcularCostoDomicilio, calcularTiempoDomicilio, calcularEsperaCocina, estimar,
+  calcular, calcularCostoDomicilio, calcularDistanciaKm, calcularTiempoDomicilio, calcularEsperaCocina, estimar,
 } = require('../src/services/estimador.service');
 
 const barrio = (overrides = {}) => ({
@@ -19,7 +19,7 @@ const barrio = (overrides = {}) => ({
 describe('estimador de pedidos', () => {
   beforeEach(() => jest.clearAllMocks());
 
-  it('calcula el tiempo de domicilio por kilómetros a 15 km/h', () => {
+  it('calcula el tiempo de domicilio por distancia en línea recta', () => {
     const result = estimar(barrio(), [], { observaciones: 0 }, 1.5);
 
     expect(result.estimatedMinutes).toBe(21);
@@ -28,27 +28,51 @@ describe('estimador de pedidos', () => {
     expect(result.maximumMinutes).toBeNull();
     expect(result.source).toBe('distance');
     expect(result.isApproximate).toBe(true);
+    expect(result.distanceKm).toBe(1.5);
+    expect(result.distanceMethod).toBe('straight_line_estimate');
     expect(result.components).toMatchObject({
       kitchenWaitMinutes: 0,
       preparationMinutes: 15,
       travelMinutes: 6,
     });
+  });
+
+  it('calcula la distancia desde las coordenadas del domicilio en el backend', () => {
+    expect(calcularDistanciaKm({ lat: 6.3295, lon: -75.5627 })).toBe(0);
+    expect(calcularDistanciaKm({ lat: 6.3295, lon: -75.5627 + 0.01 })).toBeGreaterThan(1);
+    expect(calcularDistanciaKm({ lat: Number.NaN, lon: -75.5627 })).toBeNull();
+    expect(calcularDistanciaKm({ lat: 6.3295, lon: 181 })).toBeNull();
     expect(calcularTiempoDomicilio(0)).toBe(1);
     expect(calcularTiempoDomicilio(2.1)).toBe(9);
   });
 
-  it('calcula domicilio por bandas y conserva la tarifa más alta sin límite de distancia', () => {
+  it.each([
+    [0, 4000], [1, 4000], [2, 4000],
+    [2.1, 6000], [2.5, 6000], [4, 6000], [5, 6000],
+    [5.1, 8000], [6, 8000], [8, 8000],
+    [8.1, 10000], [9, 10000], [11, 10000],
+    [11.1, 12000], [12, 12000], [14, 12000],
+    [14.1, 14000],
+  ])('calcula el costo correcto a %s km', (distancia, costo) => {
+    expect(calcularCostoDomicilio(distancia)).toBe(costo);
+  });
+
+  it('cobra el tramo adicional por cualquier distancia superior al límite exacto', () => {
+    expect(calcularCostoDomicilio(5.000000000001)).toBe(8000);
+    expect(calcularCostoDomicilio(8.000000000001)).toBe(10000);
+  });
+
+  it('rechaza distancias ausentes, inválidas y costos fuera del rango seguro', () => {
     expect(calcularCostoDomicilio(0)).toBe(4000);
-    expect(calcularCostoDomicilio(2)).toBe(4000);
-    expect(calcularCostoDomicilio(2.01)).toBe(6000);
-    expect(calcularCostoDomicilio(4)).toBe(6000);
-    expect(calcularCostoDomicilio(4.01)).toBe(8000);
-    expect(calcularCostoDomicilio(5)).toBe(8000);
-    expect(calcularCostoDomicilio(5.01)).toBe(8000);
-    expect(calcularCostoDomicilio(25)).toBe(8000);
-    expect(calcularCostoDomicilio(250)).toBe(8000);
     expect(calcularCostoDomicilio(undefined)).toBeNull();
     expect(calcularCostoDomicilio(null)).toBeNull();
+    expect(calcularCostoDomicilio('5')).toBeNull();
+    expect(calcularCostoDomicilio(Number.NaN)).toBeNull();
+    expect(calcularCostoDomicilio(Number.POSITIVE_INFINITY)).toBeNull();
+    expect(calcularCostoDomicilio(-1)).toBeNull();
+    expect(calcularCostoDomicilio(Number.MAX_VALUE)).toBeNull();
+    expect(calcularTiempoDomicilio(null)).toBeNull();
+    expect(calcularTiempoDomicilio('3')).toBeNull();
   });
 
   it('calcula el tiempo por distancia en barrios sin configuración propia', () => {
@@ -101,6 +125,24 @@ describe('estimador de pedidos', () => {
     expect(calcularEsperaCocina(pedidos, ahora)).toBe(15);
   });
 
+  it('calcula preparación y carga de cocina según unidades, no líneas del pedido', () => {
+    const items = [
+      { producto: 'Mini', cantidad: 2 },
+      { producto: 'Papas', cantidad: 1 },
+      { producto: 'Bebida', cantidad: 1 },
+    ];
+    const result = estimar(barrio(), [], { observaciones: 0 }, 1, items);
+    const queue = [
+      { id_pedido: 1, estado: 'Recibido', unidades: 2 },
+      { id_pedido: 2, estado: 'Recibido', unidades: 1 },
+      { id_pedido: 3, estado: 'Cancelado', unidades: 100 },
+    ];
+
+    expect(result.estimatedMinutes).toBe(64);
+    expect(result.components.preparationMinutes).toBe(60);
+    expect(calcularEsperaCocina(queue)).toBe(15);
+  });
+
   it('no descuenta preparación transcurrida cuando falta su marca de inicio', () => {
     const ahora = Date.parse('2026-10-24T12:00:00Z');
     const pedidos = [
@@ -118,7 +160,6 @@ describe('estimador de pedidos', () => {
       mediana: 10,
       p75: 13.8,
     });
-
     expect(result).toMatchObject({
       minimumMinutes: 22,
       estimatedMinutes: 25,
@@ -126,6 +167,20 @@ describe('estimador de pedidos', () => {
       source: 'history',
       observations: 5,
     });
+  });
+
+  it('prefiere el historial suficiente del barrio para el tiempo de desplazamiento', () => {
+    const result = estimar(barrio({ es_cercano: false }), [], {
+      observaciones: 5,
+      p25: 7,
+      mediana: 10,
+      p75: 13,
+    }, 3);
+
+    expect(result.estimatedMinutes).toBe(25);
+    expect(result.source).toBe('history');
+    expect(result.deliveryCost).toBe(6000);
+    expect(result.distanceKm).toBe(3);
   });
 
   it('ignora estadísticas insuficientes o inconsistentes y usa el tiempo configurado', () => {

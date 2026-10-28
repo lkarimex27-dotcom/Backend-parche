@@ -48,7 +48,7 @@ describe('integración de la estimación inicial al crear un pedido', () => {
       telefono: '3000000000',
       direccion: 'Calle 1',
       id_barrio: 2,
-      distancia_km: 1.5,
+      ubicacion: { lat: 6.3295, lon: -75.55 },
       pago: 'Efectivo',
       items: [{ producto: 'Mini', cantidad: 1, salsas: [], adiciones: [] }],
     }, 7);
@@ -57,13 +57,14 @@ describe('integración de la estimación inicial al crear un pedido', () => {
     expect(client).toEqual({});
     expect(payload.id_barrio).toBe(2);
     expect(payload.estimacion_inicial).toMatchObject({
-      estimatedMinutes: 21,
       source: 'distance',
       zone: 'Santa Ana',
+      distanceMethod: 'straight_line_estimate',
     });
     expect(payload.estimacion_inicial).not.toHaveProperty('idBarrio');
     expect(payload.subtotal).toBe(13000);
     expect(payload.costo_domicilio_cop).toBe(4000);
+    expect(Pedido.crear.mock.calls[0][1].estimacion_inicial.distanceKm).toBeGreaterThan(1);
     expect(payload.total).toBe(17000);
     expect(Pedido.crearDetalle).toHaveBeenCalledWith(client, 22, expect.objectContaining({
       subtotal: 13000,
@@ -102,6 +103,42 @@ describe('integración de la estimación inicial al crear un pedido', () => {
     const [, payload] = Pedido.crear.mock.calls[0];
     expect(payload.costo_domicilio_cop).toBe(8000);
     expect(payload.total).toBe(21000);
+  });
+
+  it('aplica la tarifa incremental por distancia y conserva las unidades en la estimación guardada', async () => {
+    await service.crear({
+      nombre: 'Cliente',
+      telefono: '3000000000',
+      direccion: 'Calle 1',
+      id_barrio: 2,
+      distancia_km: 8.1,
+      costo_domicilio_cop: 1,
+      pago: 'Efectivo',
+      items: [{ producto: 'Mini', cantidad: 2, salsas: [], adiciones: [] }],
+    }, 7);
+
+    const [, payload] = Pedido.crear.mock.calls[0];
+    expect(payload.costo_domicilio_cop).toBe(10000);
+    expect(payload.total).toBe(36000);
+    expect(payload.estimacion_inicial).toMatchObject({
+      distanceKm: 8.1,
+      distanceMethod: 'straight_line_estimate',
+      components: {
+        preparationMinutes: 30,
+      },
+    });
+  });
+
+  it('no inventa un costo cuando no se pudo calcular la distancia', async () => {
+    await expect(service.crear({
+      nombre: 'Cliente',
+      telefono: '3000000000',
+      direccion: 'Calle 1',
+      id_barrio: 2,
+      pago: 'Efectivo',
+      items: [{ producto: 'Mini', cantidad: 1, salsas: [], adiciones: [] }],
+    }, 7)).rejects.toThrow('No se pudo calcular el domicilio');
+    expect(Pedido.crear).not.toHaveBeenCalled();
   });
 
   it.each(['local', 'recoger'])('estima solo cocina y no cobra domicilio para pedidos tipo %s', async (tipoEntrega) => {

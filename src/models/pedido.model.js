@@ -4,10 +4,15 @@ const { ESTIMADOR } = require('../config/constants');
 const SELECT = `
   SELECT p.id_pedido, p.id_cliente, u.correo, COALESCE(pe.nombre, p.nombre_contacto) AS cliente,
          p.nombre_contacto, p.telefono_contacto, p.tipo_entrega, p.direccion_entrega, p.observacion, p.metodo_pago,
+         json_build_object(
+           'nombre', COALESCE(p.nombre_contacto, pe.nombre),
+           'telefono', p.telefono_contacto
+         ) AS destinatario,
          p.estado, p.estado_pago, p.motivo_rechazo_pago, p.comprobante, p.produccion_autorizada,
          p.registros_produccion, p.id_barrio, p.estimacion_inicial,
          p.subtotal::float AS subtotal, p.costo_domicilio_cop::float AS costo_domicilio_cop,
          p.total::float AS total, p.creado_en,
+         b.nombre AS barrio,
          COALESCE((SELECT json_agg(json_build_object(
                      'producto', i.nombre, 'cantidad', d.cantidad::float, 'precio_unitario', d.precio_unitario::float,
                      'detalle', d.observacion::json) ORDER BY d.id_pedido_detalle)
@@ -15,6 +20,7 @@ const SELECT = `
                     WHERE d.id_pedido = p.id_pedido), '[]'::json) AS items
     FROM pedidos p
     JOIN usuarios u ON u.id_usuario = p.id_cliente
+    LEFT JOIN barrios b ON b.id_barrio = p.id_barrio
     LEFT JOIN personas pe ON pe.id_usuario = p.id_cliente`;
 
 const listar = async () => (await query(`${SELECT} ORDER BY p.creado_en DESC`)).rows;
@@ -68,7 +74,7 @@ const actualizar = (c, id, d) => {
 
 const colaCocina = async (c) =>
   (await (c || { query }).query(
-    `SELECT p.id_pedido, p.estado, p.creado_en,
+    `SELECT p.id_pedido, p.estado, p.creado_en, COALESCE(productos.unidades, 0)::float AS unidades,
             CASE WHEN p.estado = 'En cocina' THEN (
               SELECT max(h.fecha)
                 FROM historial_estados_pedido h
@@ -77,6 +83,11 @@ const colaCocina = async (c) =>
                  AND h.fecha <= now()
             ) ELSE NULL END AS inicio_cocina
        FROM pedidos p
+       LEFT JOIN LATERAL (
+         SELECT SUM(d.cantidad) AS unidades
+           FROM pedido_detalle d
+          WHERE d.id_pedido = p.id_pedido
+       ) productos ON TRUE
       WHERE (
           p.estado = ANY($1::text[])
           OR (p.estado = 'Por confirmar' AND p.produccion_autorizada = TRUE)

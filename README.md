@@ -85,6 +85,8 @@ Endpoints autenticados:
 | `POST /api/pedidos` | Crear pedido con modalidad en `tipo_entrega`; solo los domicilios requieren barrio y suman tarifa de envío |
 
 La respuesta exitosa usa el formato general `{ "ok": true, "data": ... }`. La
+configuración de barrios del panel también acepta `POST /api/barrios/admin` y
+`PATCH /api/barrios/admin/:id`, las rutas que usa el frontend.
 estimación contiene `minimumMinutes` y `maximumMinutes` solo cuando hay al menos
 cinco entregas válidas con marcas de salida y entrega para el barrio; incluye la
 mediana histórica del tramo `En camino` → `Entregado`. La cocina respeta el orden
@@ -92,25 +94,31 @@ de creación PEPS, consulta los estados activos de los pedidos y usa la marca re
 de entrada a `En cocina` para descontar el tiempo transcurrido. Cuando faltan
 marcas, aplica la preparación base configurable de 15 minutos y la capacidad
 configurable en `src/config/constants.js` (dos pedidos concurrentes inicialmente).
-La espera se calcula por espacios de cocina disponibles, no suma 15 minutos por
-cada pedido.
+La preparación del pedido actual es de 15 minutos por unidad solicitada. La cola
+usa las cantidades agregadas de cada pedido activo y distribuye el trabajo entre
+los espacios de cocina configurados; excluye pedidos cancelados y entregados.
 Para `tipo_entrega: "local"` o `"recoger"`, `estimatedMinutes` incluye la espera y
 preparación de cocina; `deliveryCost` y `components.travelMinutes` son `null`.
 Para domicilios, `estimatedMinutes` también incluye el desplazamiento y
-`deliveryCost` se calcula según distancia. `source` indica `kitchen`, `distance`,
-`history`, `baseline` o `unavailable`, y `isApproximate` advierte cuando la
-estimación no es exacta.
-El domicilio se calcula separadamente según la distancia geocodificada enviada
-por el cliente: hasta 2 km cuesta $4.000, más de 2 y hasta 4 km $6.000, y más de
-4 km $8.000. No hay un límite de distancia para entregar; las tarifas y sus
-rangos se centralizan en `src/config/constants.js`.
+`deliveryCost` se calcula separadamente. La respuesta incluye `distanceKm`,
+`distanceMethod: "straight_line_estimate"`, `zone`, `components` e `isApproximate`.
+Si hay al menos cinco entregas válidas del barrio en los últimos 180 días, la
+mediana histórica determina el desplazamiento y los percentiles informan el
+rango. En caso contrario, se usa la distancia aproximada en línea recta a
+15 km/h o el tiempo inicial configurado para un barrio cercano.
+El domicilio se calcula con la distancia aproximada geocodificada por el
+cliente: hasta 2 km cuesta $4.000; más de 2 y hasta 5 km, $6.000; después de
+5 km se suman $2.000 por cada tramo adicional de 3 km iniciado. Así, 5,1 km
+cuestan $8.000 y 8,1 km cuestan $10.000. La fórmula y los parámetros se
+centralizan en `src/config/constants.js`. No se utiliza distancia vial real:
+la respuesta identifica que la distancia es aproximada.
 El backend recalcula el valor, guarda `costo_domicilio_cop` por separado y suma
 el costo al total solo para `tipo_entrega: "domicilio"`, sin modificar el
 subtotal de productos. Para `"local"` y `"recoger"` guarda tarifa cero y el total
 es igual al subtotal. En esos dos casos no se requiere barrio ni distancia.
-La consulta de estimación de un domicilio debe incluir la distancia en
-kilómetros para calcular la tarifa. Ejemplo:
-`{ "tipo_entrega": "domicilio", "id_barrio": 1, "direccion": "Calle 1", "distancia_km": 1.5 }`.
+La consulta de estimación de un domicilio debe incluir el barrio, la distancia
+calculada y las unidades del carrito para cotizar el tiempo. Ejemplo:
+`{ "tipo_entrega": "domicilio", "id_barrio": 1, "direccion": "Calle 1", "distancia_km": 1.5, "items": [{ "producto": "Mini", "cantidad": 2 }] }`.
 Para tiempo solo de cocina:
 `{ "tipo_entrega": "recoger" }`.
 El checkout consulta la estimación cada 30 segundos para las tres modalidades.
@@ -119,8 +127,11 @@ El tiempo entre fin de preparación y salida no está registrado y no se inventa
 `true` incluso cuando el tramo de desplazamiento usa historial.
 
 Sin tiempo de zona ni historial suficiente, la estimación de un domicilio puede
-indicar `source: "unavailable"` y `estimatedMinutes: null`; si la tarifa se pudo
-calcular, el pedido aún puede crearse. Para `"local"` y `"recoger"` siempre se
+indicar `source: "unavailable"` y `estimatedMinutes: null`. No se inventa una
+distancia ni un costo: si no se recibe una distancia finita y no negativa, el
+costo queda `null` y el pedido a domicilio no se crea. Aunque la estimación
+previa la solicita el frontend, el servidor calcula la tarifa definitiva y no
+acepta el costo enviado por el cliente. Para `"local"` y `"recoger"` siempre se
 estima cocina sin exigir barrio. La estimación inicial queda guardada como
 snapshot y no se sobrescribe.
 

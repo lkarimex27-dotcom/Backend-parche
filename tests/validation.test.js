@@ -20,6 +20,25 @@ describe('Validaciones de correo en CRUD', () => {
       expect(estimar.safeParse({ id_barrio: 1 }).success).toBe(true);
       expect(estimar.safeParse({ id_barrio: 1, distancia_km: 2.5 }).success).toBe(true);
       expect(estimar.safeParse({ id_barrio: 1, distancia_km: 250 }).success).toBe(true);
+      expect(estimar.safeParse({
+        id_barrio: 1,
+        distancia_km: 8.1,
+        items: [{ producto: 'Mini', cantidad: 2 }],
+      }).success).toBe(true);
+      expect(estimar.safeParse({
+        nombre_barrio: 'Santa Ana',
+        ubicacion: { lat: 6.3, lon: -75.5 },
+      }).success).toBe(true);
+      expect(estimar.safeParse({
+        nombre_barrio: 'Santa Ana',
+        ubicacion: { lat: 91, lon: -75.5 },
+      }).success).toBe(false);
+      expect(estimar.safeParse({ id_barrio: 1, distancia_km: null }).success).toBe(false);
+      expect(estimar.safeParse({ id_barrio: 1, distancia_km: '2' }).success).toBe(false);
+      expect(estimar.safeParse({
+        id_barrio: 1,
+        items: [{ producto: 'Mini', cantidad: 0 }],
+      }).success).toBe(false);
       expect(estimar.safeParse({}).success).toBe(false);
       expect(estimar.safeParse({ id_barrio: 1, distancia_km: -1 }).success).toBe(false);
 
@@ -32,6 +51,11 @@ describe('Validaciones de correo en CRUD', () => {
       };
       expect(crearPedido.safeParse({
         ...pedidoBase, nombre_barrio: 'Santa Ana', distancia_km: 2.5,
+      }).success).toBe(true);
+      expect(crearPedido.safeParse({
+        ...pedidoBase,
+        nombre_barrio: 'Santa Ana',
+        ubicacion: { lat: 6.3, lon: -75.5 },
       }).success).toBe(true);
       expect(crearPedido.safeParse({
         ...pedidoBase, nombre_barrio: 'Santa Ana', distancia_km: 250,

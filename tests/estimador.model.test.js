@@ -41,6 +41,8 @@ describe('consultas del estimador', () => {
     expect(params).toEqual([['Recibido', 'Confirmado', 'En cocina']]);
     expect(sql).toContain('historial_estados_pedido');
     expect(sql).toContain('p.produccion_autorizada = TRUE');
+    expect(sql).toContain('SUM(d.cantidad)');
+    expect(sql).toContain('pedido_detalle');
     expect(sql).toContain('ORDER BY p.creado_en ASC, p.id_pedido ASC');
   });
 

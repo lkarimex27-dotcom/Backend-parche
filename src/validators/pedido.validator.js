@@ -4,6 +4,10 @@ const idParam = z.object({ id: z.coerce.number().int().positive() });
 // Comprobante: imagen en data URL (la app la reduce a 1000 px en JPEG)
 const comprobante = z.string().regex(/^data:image\/(jpeg|png|webp);base64,/, 'El comprobante debe ser una imagen').max(900_000);
 const texto = (max) => z.string().trim().max(max);
+const ubicacion = z.object({
+  lat: z.number().finite().min(-90).max(90),
+  lon: z.number().finite().min(-180).max(180),
+});
 
 const crearPedido = z.object({
   nombre: texto(150).min(2),
@@ -13,6 +17,7 @@ const crearPedido = z.object({
   id_barrio: z.coerce.number().int().positive().optional(),
   nombre_barrio: texto(120).min(2).optional(),
   distancia_km: z.number().finite().min(0).optional(),
+  ubicacion: ubicacion.optional(),
   notas: texto(1000).optional(),
   pago: texto(30).min(1),   // Efectivo, Nequi, Daviplata...
   comprobante: comprobante.optional(),

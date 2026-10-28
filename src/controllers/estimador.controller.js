@@ -7,6 +7,8 @@ const estimar = asyncHandler(async (req, res) => {
     undefined,
     req.body.distancia_km,
     req.body.tipo_entrega ?? 'domicilio',
+    req.body.items,
+    req.body.ubicacion,
   );
   res.json({ ok: true, data: estimacion });
 });
