@@ -27,6 +27,7 @@ const solicitar = async ({ correo }) => {
       html: plantilla({
         titulo: 'Recupera tu contraseña',
         hero: 'codigo',
+        ayuda: false,
         contenido:
           recuadro('Tu código', codigo, 8) +
           parrafo(`Vence en ${MINUTOS} minutos. Si no fuiste tú, ignora este correo; tu contraseña no cambia.`),

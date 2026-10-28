@@ -16,7 +16,8 @@ const img = (nombre, ancho, alto, alt, estilo = '') =>
 
 // Correo con la marca de El Parche. Va en tablas y estilos en línea porque así lo pide Gmail/Outlook.
 // `hero`: encabezado con la hamburguesa ('codigo' | 'provisional' | 'bienvenida'); `contenido`: HTML ya armado.
-const plantilla = ({ titulo, hero, contenido, boton, nota }) => `<!doctype html>
+// ayuda: false quita «Si necesitas ayuda… ¡estamos para ti!»
+const plantilla = ({ titulo, hero, contenido, boton, nota, ayuda = true }) => `<!doctype html>
 <html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${escapar(titulo)}</title></head>
 <body style="margin:0;padding:0;background:#F3EFE6;font-family:Arial,Helvetica,sans-serif">
@@ -28,10 +29,10 @@ const plantilla = ({ titulo, hero, contenido, boton, nota }) => `<!doctype html>
     ${boton ? `<tr><td align="center" style="padding:24px 24px 0">
       <a href="${escapar(boton.url)}" style="display:inline-block;background:${OSCURO};color:${MOSTAZA};text-decoration:none;font-weight:bold;font-size:15px;padding:14px 34px;border-radius:999px">${escapar(boton.texto)}</a>
     </td></tr>` : ''}
-    <tr><td align="center" style="padding:26px 24px 8px;font-size:18px;line-height:1.5;color:${TEXTO}">
+    ${ayuda ? `<tr><td align="center" style="padding:26px 24px 8px;font-size:18px;line-height:1.5;color:${TEXTO}">
       Si necesitas ayuda o tienes alguna duda,<br><strong style="color:${OSCURO}">¡estamos para ti!</strong>
     </td></tr>
-    <tr><td align="center" style="padding:0 24px 20px">${img('subrayado', 180, 11, '')}</td></tr>
+    <tr><td align="center" style="padding:0 24px 20px">${img('subrayado', 180, 11, '')}</td></tr>` : '<tr><td style="height:20px"></td></tr>'}
     ${nota ? `<tr><td style="padding:0 28px 22px;font-size:12px;line-height:1.5;color:${SUAVE};text-align:center">${nota}</td></tr>` : ''}
     <tr><td>${img('pie', 600, 0, 'El Parche Mini Burguer · ¡Tu antojo sigue en pie!', 'width:100%;max-width:600px;height:auto')}</td></tr>
   </table>

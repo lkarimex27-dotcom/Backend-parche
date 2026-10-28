@@ -35,6 +35,7 @@ describe('Olvidé mi contraseña no revela qué correos tienen cuenta', () => {
     expect(correo.asunto).toBe('Tu código para recuperar la contraseña');
     // Encabezado «¡Hola! RECUPERA TU CONTRASEÑA» (imagen adjunta)
     expect(correo.html).toContain('src="cid:hero-codigo"');
+    expect(correo.html).not.toContain('estamos para ti');
     expect(correo.html).toContain('Vence en 15 minutos. Si no fuiste tú, ignora este correo; tu contraseña no cambia.');
   });
 

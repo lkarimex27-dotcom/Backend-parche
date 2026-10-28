@@ -5,6 +5,7 @@ const bcrypt = require('bcryptjs');
 
 jest.mock('../src/models/usuario.model', () => ({
   obtenerParaLogin: jest.fn(async () => null),
+  documentoEnUso: jest.fn(async (documento) => documento === '1054864910'),
 }));
 jest.mock('../src/models/registro.model', () => ({
   obtener: jest.fn(),
@@ -35,6 +36,14 @@ describe('Registro con verificación de correo', () => {
     Registro.consumir.mockResolvedValue(null);
     Registro.borrar.mockResolvedValue(undefined);
     enviarCorreo.mockResolvedValue(undefined);
+  });
+
+  it('no envía el código si el documento ya es de otra persona (la cuenta no se podría crear)', async () => {
+    await expect(service.solicitar({
+      correo: 'nueva@correo.com', contrasena: 'ClaveSegura1', nombre: 'Luz', documento: '1054864910',
+    })).rejects.toThrow('Ya hay una persona registrada con este número de documento');
+    expect(enviarCorreo).not.toHaveBeenCalled();
+    expect(Registro.guardar).not.toHaveBeenCalled();
   });
 
   it('envía un PIN de seis dígitos y guarda solo los hashes', async () => {
