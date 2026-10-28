@@ -25,10 +25,24 @@ describe('Cliente creado desde el admin', () => {
     await service.crear({ nombre: 'Ana', correo: 'ana@correo.co', documento: '1020304050' });
 
     expect(enviarCorreo).toHaveBeenCalledTimes(1);
-    const { para, asunto, html } = enviarCorreo.mock.calls[0][0];
+    const { para, asunto, html, attachments } = enviarCorreo.mock.calls[0][0];
     expect(para).toBe('ana@correo.co');
     expect(asunto).toMatch(/Bienvenido/);
-    const provisional = /letter-spacing:3px">([^<]+)</.exec(html)[1];
+    const provisional = /letter-spacing:9px;">([^<]+)<\/span>/.exec(html)[1];
+    expect(html).toContain('¡BIENVENIDO!');
+    expect(html).toContain('YA ERES DEL');
+    expect(html).toContain('¡Hola, Ana!');
+    expect(html).toContain('CONTRASEÑA PROVISIONAL');
+    expect(html).toContain('Te creamos una cuenta en <strong>El Parche Mini Burguer</strong>.');
+    expect(html).toContain('Entra con <strong>ana@correo.co</strong>.');
+    expect(html).toContain('href="https://mini-burguer-lw8q.vercel.app"');
+    expect(html).toContain('¡Tu antojo sigue en pie!');
+    expect(html).toContain('Si no esperabas este correo, contacta al administrador de la plataforma');
+    expect(html).not.toContain('recuperar la contraseña');
+    expect(html).toContain('background="https://mini-burguer-lw8q.vercel.app/email/recovery-burger.jpg"');
+    expect(html).toContain('<v:fill type="frame" src="https://mini-burguer-lw8q.vercel.app/email/recovery-burger.jpg"');
+    expect(html).toContain('src="https://mini-burguer-lw8q.vercel.app/email/el-parche-logo.png"');
+    expect(attachments).toBeUndefined();
 
     const cuenta = Usuario.crearUsuario.mock.calls[0][1];
     expect(cuenta.requiereCambioContrasena).toBe(true);

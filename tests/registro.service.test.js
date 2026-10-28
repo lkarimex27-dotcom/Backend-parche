@@ -45,12 +45,30 @@ describe('Registro con verificación de correo', () => {
     });
 
     const [, codigoHash, contrasenaHash] = Registro.guardar.mock.calls[0];
-    const html = enviarCorreo.mock.calls[0][0].html;
-    const codigo = html.match(/>(\d{6})</)[1];
+    const correo = enviarCorreo.mock.calls[0][0];
+    const html = correo.html;
+    const codigo = html.match(/letter-spacing:9px;">(\d{6})<\/span>/)[1];
 
     expect(codigoHash).toBe(hash(codigo));
     expect(codigoHash).not.toBe(codigo);
     await expect(bcrypt.compare('ClaveSegura1', contrasenaHash)).resolves.toBe(true);
+    expect(correo.asunto).toBe('Confirma tu correo de El Parche Mini Burguer');
+    expect(html).toContain('<span style="display:block;">CONFIRMA</span>');
+    expect(html).toContain('<span style="display:block;color:#d5a017;">TU CORREO</span>');
+    expect(html).not.toContain('Un último paso para entrar al parche.');
+    expect(html).toContain('¡Hola!');
+    expect(html).toContain('Gracias por registrarte en <strong>El Parche Mini Burguer</strong>.');
+    expect(html).not.toContain('CÓDIGO DE CONFIRMACIÓN');
+    expect(html).toContain(`Este código vence en 15 minutos. Si no solicitaste crear una cuenta, ignora este correo.`);
+    expect(html).not.toContain('recuperar la contraseña');
+    expect(html).not.toContain('cambiar la contraseña');
+    expect(html).toContain('background="https://mini-burguer-lw8q.vercel.app/email/recovery-burger.jpg"');
+    expect(html).toContain('<v:fill type="frame" src="https://mini-burguer-lw8q.vercel.app/email/recovery-burger.jpg"');
+    expect(html).toContain('src="https://mini-burguer-lw8q.vercel.app/email/el-parche-logo.png"');
+    expect(html).toContain('¡Tu antojo sigue en pie!');
+    expect(correo.attachments).toBeUndefined();
+    expect(html).not.toContain('cid:recovery-burger');
+    expect(html).not.toContain('cid:el-parche-logo');
   });
 
   it('rechaza un PIN incorrecto y registra el intento', async () => {
