@@ -1,5 +1,6 @@
 const Pedido = require('../models/pedido.model');
 const InsumoProducto = require('../models/insumoProducto.model');
+const Barrio = require('../models/barrio.model');
 const { withTransaction } = require('../config/db');
 const { PEDIDO_MONTO_APROBACION } = require('../config/constants');
 const AppError = require('../errors/AppError');
@@ -52,10 +53,11 @@ const cotizar = (items, catalogo, gaseosas = []) => {
 
 const crear = async (d, idCliente) => {
   const lineas = cotizar(d.items, await Pedido.catalogoActivo(), await InsumoProducto.gaseosas());
-  const total = lineas.reduce((s, l) => s + l.subtotal, 0);
-  const estado = total >= PEDIDO_MONTO_APROBACION ? 'Por confirmar' : 'Recibido';
+  const subtotal = lineas.reduce((s, l) => s + l.subtotal, 0);
   const id = await withTransaction(async (c) => {
-    const estimacionInicial = await Estimador.calcular(d.id_barrio, c);
+    const barrio = await Barrio.obtenerActivo(d.id_barrio, c, true);
+    if (!barrio) throw AppError.badRequest('El barrio no está activo o se encuentra fuera de cobertura');
+    const estimacionInicial = await Estimador.calcular(d.id_barrio, c, barrio);
     if (estimacionInicial.deliveryCost === null) {
       throw AppError.conflict('Costo de domicilio por confirmar para este barrio.');
     }
