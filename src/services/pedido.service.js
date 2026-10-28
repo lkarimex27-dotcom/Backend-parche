@@ -4,6 +4,7 @@ const { withTransaction } = require('../config/db');
 const { PEDIDO_MONTO_APROBACION } = require('../config/constants');
 const AppError = require('../errors/AppError');
 const Estimador = require('./estimador.service');
+const VentaPedido = require('./ventaPedido.service');
 
 const normalizar = (s) => String(s).normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toLowerCase();
 
@@ -86,12 +87,19 @@ const subirComprobante = async (id, comprobante, idCliente) => {
   return obtener(id);
 };
 
-// Panel: cambia estado, pago y autorización de producción (deja historial si cambia el estado)
+// Panel: cambia estado, pago y autorización de producción (deja historial si cambia el estado).
+// Al quedar «Pagado» se crea su venta (una sola), y la venta sigue el estado del pedido.
 const actualizar = async (id, d, idUsuario) => {
   await withTransaction(async (c) => {
     const p = await obtener(id, c);
     await Pedido.actualizar(c, id, d);
-    if (d.estado && d.estado !== p.estado) await Pedido.registrarEstado(c, id, d.estado, idUsuario);
+    if (d.estado && d.estado !== p.estado) {
+      await Pedido.registrarEstado(c, id, d.estado, idUsuario);
+      await VentaPedido.reflejarEstado(c, id, d.estado);
+    }
+    if (d.estado_pago === 'Pagado' && p.estado_pago !== 'Pagado') {
+      await VentaPedido.asegurarVenta(c, await obtener(id, c), idUsuario);
+    }
   });
   return obtener(id);
 };

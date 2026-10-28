@@ -21,13 +21,14 @@ const enviarProvisional = ({ para, nombre, contrasena }) =>
     para,
     asunto: 'Bienvenido a El Parche: tu contraseña provisional',
     html: plantilla({
-      titulo: `¡Hola, ${nombre}!`,
+      titulo: 'Ya tienes tu cuenta en El Parche',
+      hero: 'provisional',
       contenido:
-        parrafo('Te creamos una cuenta en <strong>El Parche Mini Burguer</strong>. Para entrar usa este correo y la contraseña provisional:') +
+        parrafo(`¡Hola, <strong>${escapar(nombre)}</strong>! Te creamos una cuenta en El Parche Mini Burguer.`) +
         recuadro('Contraseña provisional', contrasena, 3) +
         lista([
           `Entra con <strong>${escapar(para)}</strong>.`,
-          'Escribe la contraseña provisional tal como aparece (distingue mayúsculas).',
+          'Escribe la contraseña tal como aparece (distingue mayúsculas).',
           'Te pediremos que elijas una contraseña propia y listo.',
         ]),
       boton: { texto: 'Iniciar sesión', url: urlApp() },
@@ -41,12 +42,13 @@ const enviarBienvenida = ({ para, nombre }) =>
     para,
     asunto: '¡Bienvenido a El Parche Mini Burguer! 🍔',
     html: plantilla({
-      titulo: `¡Bienvenido, ${nombre}!`,
+      titulo: '¡Bienvenido! Ya eres del parche',
+      hero: 'bienvenida',
       contenido:
-        parrafo('Tu cuenta en <strong>El Parche Mini Burguer</strong> quedó lista. Ya puedes pedir tus favoritas sin volver a escribir tus datos.') +
+        parrafo(`¡Hola, <strong>${escapar(nombre)}</strong>! Ya puedes pedir tus favoritas sin volver a escribir tus datos.`) +
         lista([
           'Hamburguesas, perros y salchipapas preparados al momento.',
-          'Personaliza tu pedido con hasta 4 salsas gratis, adiciones y bebidas.',
+          'Personaliza tu pedido con salsas gratis, adiciones y bebidas.',
           'Domicilio en Bello o recoge en el local, y sigue el estado de tu pedido.',
         ]),
       boton: { texto: 'Ver el menú y pedir', url: urlApp() },

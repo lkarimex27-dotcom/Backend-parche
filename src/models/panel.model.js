@@ -74,4 +74,4 @@ const valor = async (cfg, id, columna) =>
 const existe = async (cfg, columna, v) =>
   (await query(`SELECT 1 FROM ${cfg.tabla} WHERE ${columna} = $1 LIMIT 1`, [v])).rowCount > 0;
 
-module.exports = { listar, crear, actualizar, eliminar, valor, existe };
+module.exports = { listar, crear, crearConCliente, actualizar, eliminar, valor, existe };

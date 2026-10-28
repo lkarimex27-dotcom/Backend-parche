@@ -28,7 +28,7 @@ describe('Cliente creado desde el admin', () => {
     const { para, asunto, html } = enviarCorreo.mock.calls[0][0];
     expect(para).toBe('ana@correo.co');
     expect(asunto).toMatch(/Bienvenido/);
-    const provisional = /letter-spacing:3px">([^<]+)</.exec(html)[1];
+    const provisional = /letter-spacing:3px;[^>]*>([^<]+)</.exec(html)[1];
 
     const cuenta = Usuario.crearUsuario.mock.calls[0][1];
     expect(cuenta.requiereCambioContrasena).toBe(true);

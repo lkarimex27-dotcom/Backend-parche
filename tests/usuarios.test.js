@@ -50,10 +50,10 @@ describe('PATCH /api/usuarios/:id', () => {
       ).toBe(false);
     });
 
-    it('requiere contraseña para clientes y permite omitirla para personal', () => {
+    it('permite omitir la contraseña (al cliente le llega una provisional por correo) y al personal', () => {
       expect(
         usuarioValidator.crearUsuario.safeParse({ ...usuarioBase, contrasena: undefined }).success
-      ).toBe(false);
+      ).toBe(true);
       expect(
         usuarioValidator.crearUsuario.safeParse({
           ...usuarioBase,

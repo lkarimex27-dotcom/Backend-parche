@@ -25,7 +25,7 @@ describe('Cliente que crea su cuenta en la web', () => {
     const { para, asunto, html } = enviarCorreo.mock.calls[0][0];
     expect(para).toBe('sofi@correo.co');
     expect(asunto).toMatch(/Bienvenido/);
-    expect(html).toContain('¡Bienvenido, Sofía!');
+    expect(html).toContain('¡Hola, <strong>Sofía</strong>!');
     expect(html).not.toContain('MiClave2026');
   });
 
