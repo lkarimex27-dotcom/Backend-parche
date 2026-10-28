@@ -26,24 +26,16 @@ describe('Olvidé mi contraseña no revela qué correos tienen cuenta', () => {
     expect(enviarCorreo).toHaveBeenCalledTimes(1);
 
     const correo = enviarCorreo.mock.calls[0][0];
-    const codigo = correo.html.match(/letter-spacing:9px;">(\d{6})<\/span>/)[1];
+    const codigo = correo.html.match(/letter-spacing:8px;[^>]*>(\d{6})</)[1];
     expect(Recuperacion.guardar).toHaveBeenCalledWith(
       1,
       crypto.createHash('sha256').update(codigo).digest('hex'),
       15,
     );
     expect(correo.asunto).toBe('Tu código para recuperar la contraseña');
-    expect(correo.html).toContain('Hemos recibido una solicitud para restablecer la contraseña');
-    expect(correo.html).toContain('Este código vence en 15 minutos. Si no fuiste tú, ignora este correo; tu contraseña no cambia.');
-    expect(correo.html).toContain('background="https://mini-burguer-lw8q.vercel.app/email/recovery-burger.jpg"');
-    expect(correo.html).toContain('<v:fill type="frame" src="https://mini-burguer-lw8q.vercel.app/email/recovery-burger.jpg"');
-    expect(correo.html).toContain('src="https://mini-burguer-lw8q.vercel.app/email/el-parche-logo.png"');
-    expect(correo.html).toContain('background:#ffd34f');
-    expect(correo.html.match(/src="https:\/\/mini-burguer-lw8q\.vercel\.app\/email\/el-parche-logo\.png"/g)).toHaveLength(2);
-    expect(correo.html).toContain('height="340"');
-    expect(correo.attachments).toBeUndefined();
-    expect(correo.html).not.toContain('cid:recovery-burger');
-    expect(correo.html).not.toContain('cid:el-parche-logo');
+    // Encabezado «¡Hola! RECUPERA TU CONTRASEÑA» (imagen adjunta)
+    expect(correo.html).toContain('src="cid:hero-codigo"');
+    expect(correo.html).toContain('Vence en 15 minutos. Si no fuiste tú, ignora este correo; tu contraseña no cambia.');
   });
 
   it.each(['nadie@correo.com', 'inactiva@correo.com'])('con %s responde igual, sin error y sin enviar nada', async (correo) => {

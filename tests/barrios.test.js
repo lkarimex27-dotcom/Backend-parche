@@ -36,9 +36,9 @@ describe('/api/barrios', () => {
     Barrio.desactivar.mockResolvedValue({ id_barrio: barrio.id_barrio });
   });
 
-  it('requires authentication', async () => {
-    const response = await request(app).get('/api/barrios');
-    expect(response.status).toBe(401);
+  it('is public for checkout, but the admin list requires authentication', async () => {
+    expect((await request(app).get('/api/barrios')).status).toBe(200);
+    expect((await request(app).get('/api/barrios/admin')).status).toBe(401);
   });
 
   it('returns active configured neighborhoods to checkout', async () => {

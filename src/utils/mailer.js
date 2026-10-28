@@ -1,3 +1,5 @@
+const fs = require('fs');
+const path = require('path');
 const nodemailer = require('nodemailer');
 const env = require('../config/env');
 const AppError = require('../errors/AppError');
@@ -6,10 +8,18 @@ const AppError = require('../errors/AppError');
 const transporte = () =>
   nodemailer.createTransport({ service: 'gmail', auth: { user: env.mailUser, pass: env.mailPass } });
 
+// Imágenes de la plantilla: cada una va adjunta solo si el correo la usa (cid:<nombre sin extensión>)
+const IMAGENES = path.join(__dirname, '../assets/correo');
+const adjuntos = (html) =>
+  fs.readdirSync(IMAGENES)
+    .filter((f) => html.includes(`cid:${path.parse(f).name}"`))
+    .map((f) => ({ filename: f, path: path.join(IMAGENES, f), cid: path.parse(f).name }));
+
 const enviarCorreo = async ({ para, asunto, html, attachments = [] }) => {
   if (!env.mailUser || !env.mailPass) throw new AppError('El envío de correos no está configurado (MAIL_USER / MAIL_PASS)', 503);
   const correo = { from: `"El Parche Mini Burguer" <${env.mailUser}>`, to: para, subject: asunto, html };
-  if (attachments.length) correo.attachments = attachments;
+  const todos = [...adjuntos(html), ...attachments];
+  if (todos.length) correo.attachments = todos;
   const resultado = await transporte().sendMail(correo);
   if (!resultado.accepted?.length) {
     throw new AppError('El proveedor de correo no aceptó al destinatario.', 502);
@@ -17,4 +27,4 @@ const enviarCorreo = async ({ para, asunto, html, attachments = [] }) => {
   return resultado;
 };
 
-module.exports = { enviarCorreo };
+module.exports = { enviarCorreo, adjuntos };

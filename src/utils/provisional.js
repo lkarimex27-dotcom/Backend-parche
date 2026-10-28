@@ -1,7 +1,6 @@
 const crypto = require('crypto');
 const { enviarCorreo } = require('./mailer');
-const crearCorreoProvisional = require('../templates/provisional-email');
-const crearCorreoBienvenida = require('../templates/bienvenida-email');
+const { plantilla, parrafo, recuadro, lista, escapar, urlApp } = require('./plantillaCorreo');
 
 // 10 caracteres con mayúscula, minúscula y número (sin 0/O, 1/l/I para que se lea bien en el correo)
 const contrasenaProvisional = () => {
@@ -21,15 +20,40 @@ const enviarProvisional = ({ para, nombre, contrasena }) =>
   enviarCorreo({
     para,
     asunto: 'Bienvenido a El Parche: tu contraseña provisional',
-    ...crearCorreoProvisional({ correo: para, nombre, contrasena }),
+    html: plantilla({
+      titulo: 'Ya tienes tu cuenta en El Parche',
+      hero: 'provisional',
+      contenido:
+        parrafo(`¡Hola, <strong>${escapar(nombre)}</strong>! Te creamos una cuenta en El Parche Mini Burguer.`) +
+        recuadro('Contraseña provisional', contrasena, 3) +
+        lista([
+          `Entra con <strong>${escapar(para)}</strong>.`,
+          'Escribe la contraseña tal como aparece (distingue mayúsculas).',
+          'Te pediremos que elijas una contraseña propia y listo.',
+        ]),
+      boton: { texto: 'Iniciar sesión', url: urlApp() },
+      nota: 'Si no esperabas este correo, puedes ignorarlo: nadie podrá usar la cuenta sin esta contraseña.',
+    }),
   });
 
 // Correo de bienvenida a quien creó su cuenta en la web (no lleva contraseña: la eligió al registrarse)
 const enviarBienvenida = ({ para, nombre }) =>
   enviarCorreo({
     para,
-    asunto: '¡Bienvenido a El Parche Mini Burguer!',
-    ...crearCorreoBienvenida(nombre),
+    asunto: '¡Bienvenido a El Parche Mini Burguer! 🍔',
+    html: plantilla({
+      titulo: '¡Bienvenido! Ya eres del parche',
+      hero: 'bienvenida',
+      contenido:
+        parrafo(`¡Hola, <strong>${escapar(nombre)}</strong>! Ya puedes pedir tus favoritas sin volver a escribir tus datos.`) +
+        lista([
+          'Hamburguesas, perros y salchipapas preparados al momento.',
+          'Personaliza tu pedido con salsas gratis, adiciones y bebidas.',
+          'Domicilio en Bello o recoge en el local, y sigue el estado de tu pedido.',
+        ]),
+      boton: { texto: 'Ver el menú y pedir', url: urlApp() },
+      nota: `Entras con <strong>${escapar(para)}</strong> y la contraseña que elegiste. Si no creaste esta cuenta, escríbenos.`,
+    }),
   });
 
 module.exports = { contrasenaProvisional, enviarProvisional, enviarBienvenida };

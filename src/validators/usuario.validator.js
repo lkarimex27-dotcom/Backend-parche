@@ -39,9 +39,6 @@ const crearUsuario = z.object({
   ...contacto,
 }).superRefine((data, ctx) => {
   const esCliente = data.roles.every((rol) => normalizarRol(rol) === 'CLIENTE');
-  if (esCliente && !data.contrasena) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['contrasena'], message: 'La contraseña es obligatoria para las cuentas de cliente.' });
-  }
   if (
     !esCliente &&
     normalizarRol(data.tipo_documento || '') === 'TARJETA_DE_IDENTIDAD'

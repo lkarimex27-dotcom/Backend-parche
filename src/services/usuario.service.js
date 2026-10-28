@@ -3,7 +3,7 @@ const env = require('../config/env');
 const Usuario = require('../models/usuario.model');
 const { withTransaction } = require('../config/db');
 const AppError = require('../errors/AppError');
-const { enviarProvisional } = require('../utils/provisional');
+const { contrasenaProvisional, enviarProvisional } = require('../utils/provisional');
 
 const ROUNDS = 10;
 
@@ -30,8 +30,9 @@ const crear = async (d) => {
     throw AppError.badRequest('La tarjeta de identidad solo está permitida para clientes.');
   }
   const rolTemporal = d.roles.find((rol) => normalizarRol(rol) !== 'CLIENTE');
+  // Un cliente creado sin contraseña recibe una provisional por correo
   const contrasenaInicial = esCliente
-    ? d.contrasena
+    ? d.contrasena || contrasenaProvisional()
     : rolTemporal && env.defaultPasswords[`DEFAULT_PASSWORD_${normalizarRol(rolTemporal)}`];
   if (!contrasenaInicial) {
     throw AppError.badRequest(
@@ -59,7 +60,7 @@ const crear = async (d) => {
       );
     }
   }
-  const requiereCambioContrasena = !esCliente;
+  const requiereCambioContrasena = !esCliente || !d.contrasena;
   const hash = await bcrypt.hash(contrasenaInicial, ROUNDS);
   const id = await withTransaction(async (c) => {
     const u = await Usuario.crearUsuario(c, {
