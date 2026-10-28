@@ -3,8 +3,8 @@ const bcrypt = require('bcryptjs');
 const Usuario = require('../models/usuario.model');
 const Recuperacion = require('../models/recuperacion.model');
 const { enviarCorreo } = require('../utils/mailer');
-const { plantilla, parrafo, recuadro } = require('../utils/plantillaCorreo');
 const AppError = require('../errors/AppError');
+const crearCorreoRecuperacion = require('../templates/recuperacion-email');
 
 const MINUTOS = 15;
 const MINUTOS_VERIFICACION = 10;
@@ -24,13 +24,7 @@ const solicitar = async ({ correo }) => {
     await enviarCorreo({
       para: u.correo,
       asunto: 'Tu código para recuperar la contraseña',
-      html: plantilla({
-        titulo: 'Recupera tu contraseña',
-        contenido:
-          parrafo('Recibimos una solicitud para cambiar la contraseña de tu cuenta. Escribe este código en la página:') +
-          recuadro('Tu código', codigo, 8),
-        nota: `Vence en ${MINUTOS} minutos. Si no fuiste tú, ignora este correo: tu contraseña no cambia.`,
-      }),
+      ...crearCorreoRecuperacion(codigo, MINUTOS),
     });
   } catch (err) {
     await Recuperacion.borrar(u.id_usuario); // un código que no llegó no debe bloquear el reintento
