@@ -8,4 +8,4 @@ const estimar = z.object({
   distancia_km: z.number().finite().min(0).optional(),
 });
 
-module.exports = { estimar };
+module.exports = { estimar, identificadorBarrio, ubicacion };

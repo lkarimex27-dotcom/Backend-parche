@@ -9,11 +9,13 @@ jest.mock('../src/config/db', () => ({
 
 const Pedido = require('../src/models/pedido.model');
 const Barrio = require('../src/models/barrio.model');
+const InsumoProducto = require('../src/models/insumoProducto.model');
 const service = require('../src/services/pedido.service');
 
 describe('integración de la estimación inicial al crear un pedido', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    InsumoProducto.gaseosas.mockResolvedValue([]);
     Pedido.catalogoActivo.mockResolvedValue([
       { id_insumo_producto: 4, nombre: 'Hamburguesa Mini', precio: 13000, categoria: 'Hamburguesas' },
     ]);
@@ -25,7 +27,14 @@ describe('integración de la estimación inicial al crear un pedido', () => {
       tiempo_desplazamiento_minutos: null,
       costo_domicilio_cop: 3500,
     });
-    Pedido.cargaCocina.mockResolvedValue(0);
+    Barrio.obtenerActivoPorNombre.mockResolvedValue({
+      id_barrio: 2,
+      nombre: 'Santa Ana',
+      activo: true,
+      es_cercano: true,
+      tiempo_desplazamiento_minutos: null,
+    });
+    Pedido.colaCocina.mockResolvedValue([]);
     Pedido.estadisticasDesplazamiento.mockResolvedValue({
       observaciones: 0,
       p25: null,
@@ -42,6 +51,7 @@ describe('integración de la estimación inicial al crear un pedido', () => {
       telefono: '3000000000',
       direccion: 'Calle 1',
       id_barrio: 2,
+      ubicacion: { lat: 6.3295, lon: -75.55 },
       pago: 'Efectivo',
       items: [{ producto: 'Mini', cantidad: 1, salsas: [], adiciones: [] }],
     }, 7);
@@ -50,9 +60,9 @@ describe('integración de la estimación inicial al crear un pedido', () => {
     expect(client).toEqual({});
     expect(payload.id_barrio).toBe(2);
     expect(payload.estimacion_inicial).toMatchObject({
-      estimatedMinutes: 20,
-      source: 'baseline',
+      source: 'distance',
       zone: 'Santa Ana',
+      distanceMethod: 'straight_line_estimate',
     });
     expect(payload.subtotal).toBe(13000);
     expect(payload.costo_domicilio_cop).toBe(3500);

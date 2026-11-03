@@ -35,6 +35,16 @@ const obtenerActivo = async (id, c, bloquear = false) =>
     [id, ESTIMADOR.MUNICIPIO, ESTIMADOR.DEPARTAMENTO]
   )).rows[0] || null;
 
+const obtenerActivoPorNombre = async (nombre, c, bloquear = false) =>
+  (await (c || { query }).query(
+    `SELECT id_barrio, nombre, municipio, departamento, activo, es_cercano, tiempo_desplazamiento_minutos
+       FROM barrios
+      WHERE lower(nombre) = lower($1) AND activo = TRUE
+        AND lower(municipio) = lower($2) AND lower(departamento) = lower($3)
+      ${bloquear ? 'FOR SHARE' : ''}`,
+    [nombre, ESTIMADOR.MUNICIPIO, ESTIMADOR.DEPARTAMENTO]
+  )).rows[0] || null;
+
 const crear = async (d) =>
   (await query(
     `INSERT INTO barrios (nombre, activo, es_cercano, tiempo_desplazamiento_minutos, costo_domicilio_cop)

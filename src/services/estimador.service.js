@@ -89,4 +89,8 @@ const calcular = async (idBarrio, c, barrioConfigurado, tipoEntrega = 'domicilio
   return estimar(barrio, pedidosActivos, historial);
 };
 
-module.exports = { calcular, calcularEsperaCocina, estimar };
+module.exports = {
+  calcular, calcularCostoDomicilio, calcularTiempoDomicilio, calcularEsperaCocina,
+  calcularDistanciaKm, calcularTiempoPreparacion, estimar,
+  estimarSinDomicilio,
+};
