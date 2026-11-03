@@ -5,8 +5,8 @@ const app = require('../src/app');
 // Estas pruebas no necesitan base de datos: la seguridad responde antes de llegar a ella.
 describe('Seguridad', () => {
   it.each(['/api/usuarios', '/api/roles', '/api/insumos', '/api/productos', '/api/proveedores', '/api/clientes',
-    '/api/compras', '/api/perdidas-insumos', '/api/pedidos', '/api/pedidos/mios', '/api/domicilios', '/api/ventas', '/api/devoluciones',
-    '/api/ordenes-produccion', '/api/productos-no-conformes'])(
+    '/api/compras', '/api/perdidas-insumos', '/api/pedidos', '/api/pedidos/mios', '/api/ventas', '/api/devoluciones',
+    '/api/ordenes-produccion', '/api/productos-no-conformes', '/api/barrios'] )(
     'GET %s sin token devuelve 401',
     async (ruta) => {
       const res = await request(app).get(ruta);
@@ -19,10 +19,8 @@ describe('Seguridad', () => {
     expect(res.status).toBe(401);
   });
 
-  it('POST /api/productos-no-conformes/con-reposicion sin token devuelve 401', async () => {
-    const res = await request(app)
-      .post('/api/productos-no-conformes/con-reposicion')
-      .send({ producto_no_conforme: [], orden_produccion: [] });
+  it('POST /api/pedidos/estimacion sin token devuelve 401', async () => {
+    const res = await request(app).post('/api/pedidos/estimacion').send({ id_barrio: 1 });
     expect(res.status).toBe(401);
   });
 

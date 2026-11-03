@@ -3,7 +3,7 @@ const { query } = require('../config/db');
 const SELECT = `
   SELECT pe.id_perdida, pe.id_insumo_producto, i.nombre AS insumo, i.medida, pe.cantidad::float AS cantidad,
          pe.motivo, pe.responsable, pe.observacion, to_char(pe.fecha, 'YYYY-MM-DD') AS fecha, pe.id_usuario,
-         pe.estado, pe.motivo_devolucion, pe.cantidad_devuelta::float AS cantidad_devuelta, pe.id_compra
+         pe.estado, pe.motivo_devolucion, pe.cantidad_devuelta::float AS cantidad_devuelta
     FROM perdidas_insumos pe
     JOIN insumos_productos i ON i.id_insumo_producto = pe.id_insumo_producto`;
 

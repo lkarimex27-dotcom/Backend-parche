@@ -64,17 +64,6 @@ const actualizar = async (tipo, id, d) =>
      d.descripcion, d.etiqueta, d.estado]
   )).rows[0] || null;
 
-// Las fichas técnicas que usan este insumo pasan a su nueva medida, salvo las que se convierten
-// (g ↔ kg, ml ↔ L): un "paq" y una "und" no se convierten entre sí y el costo y el stock dejarían de cuadrar
-const alinearMedidaFichas = async (id, medida) =>
-  (await query(
-    `UPDATE ficha_tecnica_insumos SET medida = $2::varchar
-      WHERE id_insumo_producto = $1 AND medida IS DISTINCT FROM $2::varchar
-        AND NOT (medida IN ('g', 'kg') AND $2::varchar IN ('g', 'kg'))
-        AND NOT (medida IN ('ml', 'L') AND $2::varchar IN ('ml', 'L'))`,
-    [id, medida]
-  )).rowCount;
-
 // Borra el insumo y su propia ficha técnica, y lo quita de la lista de proveedores que lo venden.
 // Si otro módulo tiene registros de él (compras, pérdidas, recetas), el servicio no deja borrarlo (y Postgres tampoco)
 const eliminar = (tipo, id) =>
@@ -85,7 +74,6 @@ const eliminar = (tipo, id) =>
       [id]
     );
     await c.query('DELETE FROM fichas_tecnicas WHERE id_insumo_producto = $1', [id]);
-    await c.query('DELETE FROM imagenes WHERE id_producto = $1', [id]);
     const nombre = (await c.query('SELECT nombre FROM insumos_productos WHERE id_insumo_producto = $1', [id])).rows[0]?.nombre;
     if (nombre) {
       await c.query(
@@ -97,23 +85,6 @@ const eliminar = (tipo, id) =>
     }
     return (await c.query('DELETE FROM insumos_productos WHERE id_insumo_producto = $1 AND tipo = $2', [id, tipo])).rowCount > 0;
   });
-
-// Registros que impiden borrar un producto: ventas (del panel o de la tienda), compras y proveedores que lo venden.
-// Las líneas de ventas y pedidos del panel guardan el nombre ("product":"<nombre>") en su JSON.
-const usosProducto = async (id) =>
-  (await query(
-    `WITH p AS (SELECT nombre, '"product":' || to_json(nombre::text)::text AS linea FROM insumos_productos WHERE id_insumo_producto = $1)
-     SELECT (SELECT count(*) FROM detalle_ventas WHERE id_insumo_producto = $1)::int
-          + (SELECT count(*) FROM ventas, p WHERE position(p.linea IN coalesce(datos_panel->>11, '')) > 0)::int AS ventas,
-            ((SELECT count(*) FROM pedido_detalle WHERE id_insumo_producto = $1)
-          + (SELECT count(*) FROM pedidos, p WHERE position(p.linea IN coalesce(datos_panel->>10, '')) > 0))::int AS pedidos,
-            (SELECT count(*) FROM detalle_compras WHERE id_insumo_producto = $1)::int AS compras,
-            (SELECT string_agg(pr.nombre, ', ') FROM proveedores pr, p
-              WHERE p.nombre = ANY(regexp_split_to_array(pr.insumos, '\\s*,\\s*'))) AS proveedores,
-            ((SELECT count(*) FROM producto_no_conforme WHERE id_insumo_producto = $1)
-          + (SELECT count(*) FROM perdidas_insumos WHERE id_insumo_producto = $1))::int AS otros`,
-    [id]
-  )).rows[0];
 
 // Registros de otros módulos que usan este insumo (si hay alguno, no se puede eliminar)
 const usos = async (id) =>
@@ -175,16 +146,7 @@ const productosSinStock = async () =>
       WHERE ${AGOTADO}`
   )).rows.map((r) => Number(r.id));
 
-// Stock de las gaseosas de reventa: el producto "Gaseosa <sabor> (<tamaño>)" de «Bebidas» (sus compras lo suben).
-// Sin stock está agotada (el cliente no la ve hasta que una compra la reponga).
-const gaseosas = async () =>
-  (await query(
-    `SELECT ip.nombre, ip.stock <= 0 AS agotada
-       FROM insumos_productos ip
-      WHERE ip.tipo = 'PRODUCTO' AND ip.nombre ILIKE 'Gaseosa %'`
-  )).rows;
-
 module.exports = {
   listar, obtenerPorId, crear, actualizar, eliminar, guardarFicha, reemplazarImagen, obtenerImagen,
-  productosSinStock, gaseosas, usos, usosProducto, alinearMedidaFichas,
+  productosSinStock, usos,
 };

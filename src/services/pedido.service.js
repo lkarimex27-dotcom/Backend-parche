@@ -5,7 +5,6 @@ const { withTransaction } = require('../config/db');
 const { PEDIDO_MONTO_APROBACION } = require('../config/constants');
 const AppError = require('../errors/AppError');
 const Estimador = require('./estimador.service');
-const VentaPedido = require('./ventaPedido.service');
 
 const normalizar = (s) => String(s).normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toLowerCase();
 
@@ -52,7 +51,7 @@ const cotizar = (items, catalogo, gaseosas = []) => {
 };
 
 const crear = async (d, idCliente) => {
-  const lineas = cotizar(d.items, await Pedido.catalogoActivo(), await InsumoProducto.gaseosas());
+  const lineas = cotizar(d.items, await Pedido.catalogoActivo());
   const subtotal = lineas.reduce((s, l) => s + l.subtotal, 0);
   const id = await withTransaction(async (c) => {
     const tipoEntrega = d.tipo_entrega ?? 'domicilio';
