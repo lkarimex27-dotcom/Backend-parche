@@ -26,6 +26,10 @@ const env = {
   mailUser: process.env.MAIL_USER,
   mailPass: (process.env.MAIL_PASS || '').replace(/\s/g, ''), // Google la muestra con espacios
 
+  cloudinaryCloudName: process.env.CLOUDINARY_CLOUD_NAME,
+cloudinaryApiKey: process.env.CLOUDINARY_API_KEY,
+cloudinaryApiSecret: process.env.CLOUDINARY_API_SECRET,
+
   defaultPasswords: Object.fromEntries(
     Object.entries(process.env).filter(([key]) => key.startsWith('DEFAULT_PASSWORD_'))
   ),
