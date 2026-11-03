@@ -8,7 +8,15 @@ const notFound = (req, _res, next) => {
 // eslint-disable-next-line no-unused-vars
 const errorHandler = (err, _req, res, _next) => {
   // Errores comunes de PostgreSQL
-  if (err.code === '23505') err = AppError.conflict('Ya existe un registro con esos datos');
+  if (err.code === '23505') {
+    err = AppError.conflict(
+      err.constraint === 'personas_documento_key'
+        ? 'Ya hay una persona registrada con este número de documento.'
+        : err.constraint === 'usuarios_correo_key'
+          ? 'Ya existe una cuenta con este correo.'
+          : 'Ya existe un registro con esos datos'
+    );
+  }
   else if (err.code === '23503') err = AppError.conflict('Operación no permitida: el registro depende de otros datos o hay datos que dependen de él');
   else if (err.code === '22P02') err = AppError.badRequest('Formato de dato inválido');
 

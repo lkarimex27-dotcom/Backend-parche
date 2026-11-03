@@ -122,7 +122,8 @@ module.exports = {
       id_venta: r[1]
         ? (await query('SELECT id_venta FROM ventas WHERE codigo = $1 LIMIT 1', [String(r[1])])).rows[0]?.id_venta ?? null
         : null,
-      cliente: txt(r[3]) ?? txt(r[2]),
+      // [2] cliente de la venta; [3] es el comentario de por qué se devuelve
+      cliente: txt(r[2]),
       motivo: txt(r[4], 50),
       fecha: fecha(r[5]),
     }),

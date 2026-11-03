@@ -40,11 +40,9 @@ const actualizar = async (tipo, id, datos) => {
   }
 
   await validar(tipo, datos);
-
-  if (!(await Modelo.actualizar(tipo, id, datos))) {
-    throw AppError.notFound(`${NOMBRE[tipo]} no encontrado`);
-  }
-
+  if (!(await Modelo.actualizar(tipo, id, datos))) throw AppError.notFound(`${NOMBRE[tipo]} no encontrado`);
+  // Cambió la medida de un insumo: sus fichas técnicas la siguen (ej. pan en "und" → "paq")
+  if (tipo === 'INSUMO' && datos.medida) await Modelo.alinearMedidaFichas(id, datos.medida);
   return obtener(tipo, id);
 };
 
@@ -65,10 +63,21 @@ const eliminar = async (tipo, id) => {
       );
     }
   }
-
-  if (!(await Modelo.eliminar(tipo, id))) {
-    throw AppError.notFound(`${NOMBRE[tipo]} no encontrado`);
+  // Un producto solo se elimina si no tiene ventas, pedidos ni compras, y ningún proveedor lo vende (ej. gaseosas)
+  if (tipo === 'PRODUCTO') {
+    const u = await Modelo.usosProducto(id);
+    const en = [
+      u.ventas && 'ventas',
+      u.pedidos && 'pedidos',
+      u.compras && 'compras',
+      u.proveedores && `el proveedor ${u.proveedores}`,
+      u.otros && 'productos no conformes o pérdidas',
+    ].filter(Boolean);
+    if (en.length) {
+      throw AppError.conflict(`No se puede eliminar: está registrado en ${en.join(', ')}. Si ya no lo vendes, desactívalo.`);
+    }
   }
+  if (!(await Modelo.eliminar(tipo, id))) throw AppError.notFound(`${NOMBRE[tipo]} no encontrado`);
 };
 
 const guardarFicha = async (tipo, id, d) => {

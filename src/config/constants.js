@@ -21,6 +21,7 @@ const MODULOS = [
   'PRODUCTO_NO_CONFORME',
   // Ventas
   'CLIENTES',
+  'DOMICILIOS',
   'PEDIDOS',
   'BARRIOS',
   'VENTAS',

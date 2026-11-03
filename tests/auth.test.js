@@ -5,8 +5,8 @@ const app = require('../src/app');
 // Estas pruebas no necesitan base de datos: la seguridad responde antes de llegar a ella.
 describe('Seguridad', () => {
   it.each(['/api/usuarios', '/api/roles', '/api/insumos', '/api/productos', '/api/proveedores', '/api/clientes',
-    '/api/compras', '/api/perdidas-insumos', '/api/pedidos', '/api/pedidos/mios', '/api/ventas', '/api/devoluciones',
-    '/api/ordenes-produccion', '/api/productos-no-conformes', '/api/barrios'] )(
+    '/api/compras', '/api/perdidas-insumos', '/api/pedidos', '/api/pedidos/mios', '/api/domicilios', '/api/ventas', '/api/devoluciones',
+    '/api/ordenes-produccion', '/api/productos-no-conformes'])(
     'GET %s sin token devuelve 401',
     async (ruta) => {
       const res = await request(app).get(ruta);
@@ -62,16 +62,26 @@ describe('Recuperar contraseña', () => {
     expect(res.status).toBe(400);
   });
 
-  it('restablecer exige un código de 6 dígitos y una contraseña de 8+', async () => {
+  it('restablecer exige un PIN validado previamente y una contraseña de 8+', async () => {
     const res = await request(app)
       .post('/api/auth/restablecer')
       .send({ correo: 'ana@correo.com', codigo: '12ab', nueva: 'corta' });
     expect(res.status).toBe(400);
     expect(res.body.detalles).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ campo: 'codigo' }),
+        expect.objectContaining({ campo: 'token' }),
         expect.objectContaining({ campo: 'nueva' }),
       ])
+    );
+  });
+
+  it('verificar recuperación exige un PIN de 6 dígitos', async () => {
+    const res = await request(app)
+      .post('/api/auth/recuperar/verificar')
+      .send({ correo: 'ana@correo.com', codigo: '12ab' });
+    expect(res.status).toBe(400);
+    expect(res.body.detalles).toEqual(
+      expect.arrayContaining([expect.objectContaining({ campo: 'codigo' })])
     );
   });
 });

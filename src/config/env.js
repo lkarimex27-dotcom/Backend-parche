@@ -21,6 +21,8 @@ const env = {
   adminNombre: process.env.ADMIN_NOMBRE || 'Administrador',
   // Superadministrador fijo: nadie lo desactiva, lo elimina, le quita el rol ni le cambia el correo
   superAdminEmail: 'admin@minifood.com',
+  // Página de la tienda: el botón de los correos lleva aquí
+  appUrl: process.env.APP_URL || 'https://mini-burguer-lw8q.vercel.app',
 
   // Correo que envía los códigos de recuperación (Gmail + contraseña de aplicación)
   mailUser: process.env.MAIL_USER,

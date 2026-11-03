@@ -41,13 +41,11 @@ const catalogoActivo = async () =>
 
 const crear = async (c, d) =>
   (await c.query(
-    `INSERT INTO pedidos (id_cliente, estado, nombre_contacto, telefono_contacto, tipo_entrega, direccion_entrega, observacion,
-                          metodo_pago, estado_pago, comprobante, subtotal, costo_domicilio_cop, total,
-                          id_barrio, estimacion_inicial)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING id_pedido`,
-    [d.id_cliente, d.estado, d.nombre, d.telefono, d.tipo_entrega ?? 'domicilio', d.direccion, d.notas ?? null, d.pago, d.estado_pago,
-     d.comprobante ?? null, d.subtotal, d.costo_domicilio_cop, d.total, d.id_barrio,
-     JSON.stringify(d.estimacion_inicial)]
+    `INSERT INTO pedidos (id_cliente, estado, nombre_contacto, telefono_contacto, direccion_entrega, observacion,
+                          metodo_pago, estado_pago, comprobante, subtotal, costo_domicilio_cop, total, id_barrio, estimacion_inicial)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING id_pedido`,
+    [d.id_cliente, d.estado, d.nombre, d.telefono, d.direccion, d.notas ?? null, d.pago, d.estado_pago,
+     d.comprobante ?? null, d.subtotal, d.costo_domicilio_cop, d.total, d.id_barrio, JSON.stringify(d.estimacion_inicial)]
   )).rows[0].id_pedido;
 
 const crearDetalle = (c, idPedido, it) =>

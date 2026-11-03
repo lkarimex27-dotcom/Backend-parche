@@ -12,7 +12,7 @@ npm install
 #    - JWT_SECRET    (node -e "console.log(require('crypto').randomBytes(48).toString('hex'))")
 #    - ADMIN_EMAIL / ADMIN_PASSWORD (primer administrador)
 #    - DEFAULT_PASSWORD_ADMINISTRADOR / DEFAULT_PASSWORD_EMPLEADO / DEFAULT_PASSWORD_DOMICILIARIO
-npm run db:setup     # crea las 26 tablas + roles, privilegios, módulos, permisos y el admin
+npm run db:setup     # crea las 27 tablas + roles, privilegios, módulos, permisos y el admin
 npm run dev
 ```
 
@@ -24,6 +24,10 @@ caracteres e incluir una mayúscula, una minúscula y un número. El servidor la
 usuarios de personal, devuelve la clave temporal solo en la respuesta de alta y exige cambiarla
 en `PATCH /api/auth/me/contrasena-inicial` antes de permitir cualquier otra ruta autenticada.
 Las cuentas de cliente conservan la contraseña que el cliente eligió.
+El selector de entrega obtiene los barrios habilitados desde `GET /api/barrios`;
+la ruta requiere sesión y devuelve el catálogo de Bello bajo `data`.
+El checkout consulta `POST /api/pedidos/estimacion` para calcular el tiempo y
+obtener el precio de domicilio configurado para el barrio seleccionado.
 
 ## Cómo se usa la seguridad
 
@@ -31,6 +35,20 @@ Las cuentas de cliente conservan la contraseña que el cliente eligió.
 2. Todas las demás rutas (salvo `/health`, `/auth/login`, `/auth/registro`) exigen `Authorization: Bearer <token>`.
 3. Cada ruta valida contra la BD que algún rol del usuario tenga el privilegio (`VER`, `CREAR`, `EDITAR`, `ELIMINAR`) en el módulo.
    Los permisos se leen en cada petición: si cambias un rol o desactivas a alguien, aplica de inmediato.
+   Las rutas públicas de autenticación para registro y recuperación se detallan a continuación.
+
+### Registro y recuperación de contraseña
+
+El registro envía un PIN aleatorio de seis dígitos al correo indicado. La cuenta solo se crea
+después de validar el PIN, que vence en 15 minutos y permite hasta cinco intentos. El endpoint
+`POST /api/auth/registro` también inicia el mismo flujo de verificación.
+
+Para recuperar la contraseña, usa `POST /api/auth/recuperar`, luego valida el PIN con
+`POST /api/auth/recuperar/verificar` y envía el token devuelto junto con la nueva contraseña a
+`POST /api/auth/restablecer`. El token temporal vence a los 10 minutos. Configura `MAIL_USER`
+y `MAIL_PASS` en `.env` para habilitar el envío de correo; en Gmail, `MAIL_PASS` debe ser una
+contraseña de aplicación. Ejecuta `npm run db:init` para aplicar la tabla temporal de registros
+y las columnas de verificación de recuperación.
 
 Los JWT duran 365 días por defecto (`JWT_EXPIRES_IN` permite cambiarlo). Esta vigencia es compartida por todos los módulos, incluido barrios. Si un token ya venció, inicia sesión de nuevo para recibir uno vigente; cambiar esta duración no renueva tokens emitidos anteriormente.
 
@@ -50,11 +68,13 @@ Los JWT duran 365 días por defecto (`JWT_EXPIRES_IN` permite cambiarlo). Esta v
 | Órdenes de Prod. | `/api/ordenes-produccion` | Panel sincronizado; reposiciones transaccionales |
 | Prod. No Conforme | `/api/productos-no-conformes` | Panel sincronizado; vínculo de reposición |
 | Clientes | `/api/clientes` (solo lectura) | Listo |
+| Domicilios | `/api/barrios/admin` (configuración de cobertura, tiempos y costos) | CRUD listo |
 | Pedidos | `/api/pedidos` | Pendiente |
 | Ventas | `/api/ventas` | Pendiente |
 | Devoluciones | `/api/devoluciones` | Pendiente |
 
 Las tablas de los módulos pendientes ya existen en `sql/init.sql`.
+El endpoint `/api/domicilios` conserva el CRUD de direcciones asociadas a pedidos y sus cambios aparecen en `/api/pedidos/mios`. La configuración del módulo Domicilios se administra por `/api/barrios/admin` y requiere los privilegios `VER`, `CREAR`, `EDITAR` y `ELIMINAR` del módulo `BARRIOS`.
 Al registrar un producto no conforme que genera reposición, el panel usa
 `POST /api/productos-no-conformes/con-reposicion`: registra la orden nueva y el
 producto no conforme en una transacción, los vincula en la base de datos y,
@@ -79,10 +99,18 @@ Endpoints autenticados:
 |---|---|
 | `GET /api/barrios?buscar=ana` | Barrios activos de Bello, búsqueda parcial sin distinguir mayúsculas |
 | `GET /api/barrios/admin` | Catálogo completo para administración (`BARRIOS:VER`) |
-| `POST /api/barrios` | Crear candidato inactivo por defecto (`BARRIOS:CREAR`) |
-| `PATCH /api/barrios/:id` | Activar/desactivar o configurar cercanía/tiempo (`BARRIOS:EDITAR`) |
-| `POST /api/pedidos/estimacion` | Estimar domicilio con barrio y `tipo_entrega: "domicilio"`, o cocina con `tipo_entrega: "local"` / `"recoger"` |
-| `POST /api/pedidos` | Crear pedido con modalidad en `tipo_entrega`; solo los domicilios requieren barrio y suman tarifa de envío |
+| `POST /api/barrios/admin` | Crear barrio (`BARRIOS:CREAR`) |
+| `PATCH /api/barrios/admin/:id` | Editar cobertura, cercanía, tiempo y `costo_domicilio_cop` (`BARRIOS:EDITAR`) |
+| `DELETE /api/barrios/admin/:id` | Desactivar barrio sin borrar referencias históricas (`BARRIOS:ELIMINAR`) |
+| `POST /api/pedidos/estimacion` | Estimar con `{ "id_barrio": 1, "direccion": "..." }` |
+| `POST /api/pedidos` | Crear pedido con `id_barrio`; el backend valida y almacena la estimación inicial |
+
+Configura `costo_domicilio_cop` por barrio mediante `PATCH /api/barrios/admin/:id`.
+No se asigna una tarifa predeterminada: si el barrio no tiene costo configurado,
+la estimación devuelve `deliveryCost: null` y el pedido no se crea. Cuando la
+tarifa está configurada, el backend suma el costo al subtotal y persiste el
+detalle del domicilio y el total del pedido. El umbral de aprobación sigue
+evaluándose con el subtotal de productos.
 
 La respuesta exitosa usa el formato general `{ "ok": true, "data": ... }`. La
 configuración de barrios del panel también acepta `POST /api/barrios/admin` y
@@ -126,14 +154,11 @@ El tiempo entre fin de preparación y salida no está registrado y no se inventa
 `components.dispatchWaitMinutes` será `null`, y `isApproximate` permanece en
 `true` incluso cuando el tramo de desplazamiento usa historial.
 
-Sin tiempo de zona ni historial suficiente, la estimación de un domicilio puede
-indicar `source: "unavailable"` y `estimatedMinutes: null`. No se inventa una
-distancia ni un costo: si no se recibe una distancia finita y no negativa, el
-costo queda `null` y el pedido a domicilio no se crea. Aunque la estimación
-previa la solicita el frontend, el servidor calcula la tarifa definitiva y no
-acepta el costo enviado por el cliente. Para `"local"` y `"recoger"` siempre se
-estima cocina sin exigir barrio. La estimación inicial queda guardada como
-snapshot y no se sobrescribe.
+Sin tiempo de zona ni historial suficiente, la respuesta indica
+`source: "unavailable"`, `estimatedMinutes: null` y un mensaje “Por confirmar”;
+el pedido puede crearse si el barrio sigue activo, dentro de cobertura y con
+costo de domicilio configurado. La estimación inicial se conserva como snapshot
+y no se sobrescribe con consultas posteriores.
 
 ## Estructura
 

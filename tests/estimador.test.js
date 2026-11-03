@@ -13,6 +13,7 @@ const barrio = (overrides = {}) => ({
   activo: true,
   es_cercano: true,
   tiempo_desplazamiento_minutos: null,
+  costo_domicilio_cop: 3500,
   ...overrides,
 });
 
@@ -26,7 +27,9 @@ describe('estimador de pedidos', () => {
     expect(result.deliveryCost).toBe(4000);
     expect(result.minimumMinutes).toBeNull();
     expect(result.maximumMinutes).toBeNull();
-    expect(result.source).toBe('distance');
+    expect(result.deliveryCost).toBe(3500);
+    expect(result.costConfigured).toBe(true);
+    expect(result.source).toBe('baseline');
     expect(result.isApproximate).toBe(true);
     expect(result.distanceKm).toBe(1.5);
     expect(result.distanceMethod).toBe('straight_line_estimate');
@@ -83,10 +86,12 @@ describe('estimador de pedidos', () => {
     expect(result.components.travelMinutes).toBe(12);
   });
 
-  it('indica que falta distancia solo si no hay tiempo configurado para el barrio', () => {
-    const result = estimar(barrio({ es_cercano: false }), 0, { observaciones: 0 });
+  it('no inventa un tiempo de desplazamiento para una zona sin configuración', () => {
+    const result = estimar(barrio({ es_cercano: false, costo_domicilio_cop: null }), 0, { observaciones: 0 });
 
     expect(result.estimatedMinutes).toBeNull();
+    expect(result.deliveryCost).toBeNull();
+    expect(result.costConfigured).toBe(false);
     expect(result.source).toBe('unavailable');
     expect(result.coverageAvailable).toBe(true);
     expect(result.message).toMatch(/sin una distancia/i);

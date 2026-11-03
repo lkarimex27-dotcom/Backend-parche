@@ -1,9 +1,11 @@
 const Pedido = require('../models/pedido.model');
 const InsumoProducto = require('../models/insumoProducto.model');
+const Barrio = require('../models/barrio.model');
 const { withTransaction } = require('../config/db');
 const { PEDIDO_MONTO_APROBACION } = require('../config/constants');
 const AppError = require('../errors/AppError');
 const Estimador = require('./estimador.service');
+const VentaPedido = require('./ventaPedido.service');
 
 const normalizar = (s) => String(s).normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toLowerCase();
 
@@ -51,33 +53,19 @@ const cotizar = (items, catalogo, gaseosas = []) => {
 
 const crear = async (d, idCliente) => {
   const lineas = cotizar(d.items, await Pedido.catalogoActivo(), await InsumoProducto.gaseosas());
-  const total = lineas.reduce((s, l) => s + l.subtotal, 0);
-  const estado = total >= PEDIDO_MONTO_APROBACION ? 'Por confirmar' : 'Recibido';
+  const subtotal = lineas.reduce((s, l) => s + l.subtotal, 0);
   const id = await withTransaction(async (c) => {
-    const tipoEntrega = d.tipo_entrega ?? 'domicilio';
-    const esDomicilio = tipoEntrega === 'domicilio';
-    const { idBarrio, estimacion: estimacionInicial } =
-      await Estimador.calcular(
-        esDomicilio ? d.id_barrio ?? d.nombre_barrio : undefined,
-        c,
-        d.distancia_km,
-        tipoEntrega,
-        d.items,
-        d.ubicacion,
-      );
-    const costoDomicilio = esDomicilio ? estimacionInicial.deliveryCost : 0;
-    if (esDomicilio && costoDomicilio === null) {
-      throw AppError.badRequest('No se pudo calcular el domicilio. Verifica la dirección y la distancia.');
+    const barrio = await Barrio.obtenerActivo(d.id_barrio, c, true);
+    if (!barrio) throw AppError.badRequest('El barrio no está activo o se encuentra fuera de cobertura');
+    const estimacionInicial = await Estimador.calcular(d.id_barrio, c, barrio);
+    if (estimacionInicial.deliveryCost === null) {
+      throw AppError.conflict('Costo de domicilio por confirmar para este barrio.');
     }
+    const costoDomicilio = estimacionInicial.deliveryCost;
+    const total = subtotal + costoDomicilio;
+    const estado = subtotal >= PEDIDO_MONTO_APROBACION ? 'Por confirmar' : 'Recibido';
     const idPedido = await Pedido.crear(c, {
-      ...d,
-      tipo_entrega: tipoEntrega,
-      id_barrio: esDomicilio ? idBarrio : null,
-      id_cliente: idCliente,
-      subtotal: total,
-      costo_domicilio_cop: costoDomicilio,
-      total: total + costoDomicilio,
-      estado,
+      ...d, id_cliente: idCliente, subtotal, costo_domicilio_cop: costoDomicilio, total, estado,
       estimacion_inicial: estimacionInicial,
       estado_pago: d.pago === 'Efectivo' ? 'Pendiente' : 'Pendiente de verificación',
     });
@@ -101,12 +89,19 @@ const subirComprobante = async (id, comprobante, idCliente) => {
   return obtener(id);
 };
 
-// Panel: cambia estado, pago y autorización de producción (deja historial si cambia el estado)
+// Panel: cambia estado, pago y autorización de producción (deja historial si cambia el estado).
+// Al quedar «Pagado» se crea su venta (una sola), y la venta sigue el estado del pedido.
 const actualizar = async (id, d, idUsuario) => {
   await withTransaction(async (c) => {
     const p = await obtener(id, c);
     await Pedido.actualizar(c, id, d);
-    if (d.estado && d.estado !== p.estado) await Pedido.registrarEstado(c, id, d.estado, idUsuario);
+    if (d.estado && d.estado !== p.estado) {
+      await Pedido.registrarEstado(c, id, d.estado, idUsuario);
+      await VentaPedido.reflejarEstado(c, id, d.estado);
+    }
+    if (d.estado_pago === 'Pagado' && p.estado_pago !== 'Pagado') {
+      await VentaPedido.asegurarVenta(c, await obtener(id, c), idUsuario);
+    }
   });
   return obtener(id);
 };

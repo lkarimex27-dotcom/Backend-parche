@@ -1,5 +1,5 @@
 -- =====================================================
--- MINIFOOD - Esquema para PostgreSQL (Neon) - 26 tablas
+-- MINIFOOD - Esquema para PostgreSQL (Neon) - 27 tablas
 -- Convertido desde el script MySQL/SQL Server original.
 -- En Neon ya existe la base de datos (neondb), por eso no hay CREATE DATABASE / USE.
 -- Es idempotente: se puede ejecutar varias veces (npm run db:init).
@@ -332,9 +332,10 @@ CREATE TABLE IF NOT EXISTS barrios (
     activo                          BOOLEAN NOT NULL DEFAULT FALSE,
     es_cercano                      BOOLEAN NOT NULL DEFAULT FALSE,
     tiempo_desplazamiento_minutos   SMALLINT CHECK (tiempo_desplazamiento_minutos > 0),
+    costo_domicilio_cop             DECIMAL(12,2) CHECK (costo_domicilio_cop >= 0),
     creado_en                       TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
-ALTER TABLE barrios ADD COLUMN IF NOT EXISTS es_cercano BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE barrios ADD COLUMN IF NOT EXISTS costo_domicilio_cop DECIMAL(12,2) CHECK (costo_domicilio_cop >= 0);
 CREATE UNIQUE INDEX IF NOT EXISTS uq_barrios_nombre_municipio
     ON barrios (lower(nombre), lower(municipio), lower(departamento));
 
@@ -381,7 +382,7 @@ ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS registros_produccion JSONB NOT NULL
 ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS id_barrio BIGINT REFERENCES barrios(id_barrio);
 ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS estimacion_inicial JSONB;
 ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS costo_domicilio_cop DECIMAL(12,2);
-ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS tipo_entrega VARCHAR(20) NOT NULL DEFAULT 'domicilio';
+ALTER TABLE barrios ADD COLUMN IF NOT EXISTS es_cercano BOOLEAN NOT NULL DEFAULT FALSE;
 
 -- 25. DETALLE DE PEDIDOS (precio_unitario queda congelado al confirmar el pedido)
 CREATE TABLE IF NOT EXISTS pedido_detalle (
@@ -528,8 +529,25 @@ CREATE TABLE IF NOT EXISTS recuperaciones_contrasena (
     expira       TIMESTAMPTZ NOT NULL,
     intentos     INT NOT NULL DEFAULT 0,
     creado_en    TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    verificacion_hash VARCHAR(64),
+    verificacion_expira TIMESTAMPTZ,
 
     CONSTRAINT fk_recuperacion_usuario FOREIGN KEY (id_usuario) REFERENCES usuarios(id_usuario) ON DELETE CASCADE
+);
+ALTER TABLE recuperaciones_contrasena ADD COLUMN IF NOT EXISTS verificacion_hash VARCHAR(64);
+ALTER TABLE recuperaciones_contrasena ADD COLUMN IF NOT EXISTS verificacion_expira TIMESTAMPTZ;
+
+CREATE TABLE IF NOT EXISTS codigos_registro (
+   correo          VARCHAR(255) PRIMARY KEY,
+   codigo_hash     VARCHAR(64) NOT NULL,
+   contrasena_hash VARCHAR(255) NOT NULL,
+   nombre          VARCHAR(150) NOT NULL,
+   tipo_documento  VARCHAR(30),
+   documento       VARCHAR(50),
+   telefono        VARCHAR(30),
+   expira          TIMESTAMPTZ NOT NULL,
+   intentos        INT NOT NULL DEFAULT 0,
+   creado_en       TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Cliente mostrador: anónimo para registrar ventas a quien no quiere dar sus datos (no se edita ni se anula)
@@ -653,3 +671,14 @@ DELETE FROM insumos_productos i USING gaseosas_insumo g WHERE i.id_insumo_produc
 DELETE FROM categorias c
  WHERE c.nombre_categoria = 'Bebidas' AND c.tipo = 'INSUMO'
    AND NOT EXISTS (SELECT 1 FROM insumos_productos ip WHERE ip.id_categoria = c.id_categoria);
+
+-- 34. EL PAN DE HAMBURGUESA SE MIDE EN PAQUETES: cada paquete trae los dos panes (una hamburguesa), igual que
+-- en sus fichas técnicas. Y en general: una ficha técnica usa la medida de su insumo cuando no se convierten entre
+-- sí (g ↔ kg y ml ↔ L sí), para que el costo y el stock cuadren.
+UPDATE insumos_productos SET medida = 'paq'
+ WHERE tipo = 'INSUMO' AND lower(nombre) = 'pan de hamburguesa' AND medida = 'und';
+UPDATE ficha_tecnica_insumos f SET medida = i.medida
+  FROM insumos_productos i
+ WHERE i.id_insumo_producto = f.id_insumo_producto AND f.medida IS DISTINCT FROM i.medida
+   AND NOT (f.medida IN ('g', 'kg') AND i.medida IN ('g', 'kg'))
+   AND NOT (f.medida IN ('ml', 'L') AND i.medida IN ('ml', 'L'));
