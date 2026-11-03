@@ -104,6 +104,8 @@ Endpoints autenticados:
 | `DELETE /api/barrios/admin/:id` | Desactivar barrio sin borrar referencias históricas (`BARRIOS:ELIMINAR`) |
 | `POST /api/pedidos/estimacion` | Estimar con `{ "id_barrio": 1, "direccion": "..." }` |
 | `POST /api/pedidos` | Crear pedido con `id_barrio`; el backend valida y almacena la estimación inicial |
+| `POST /api/barrios` | Crear candidato inactivo por defecto (`BARRIOS:CREAR`) |
+| `PATCH /api/barrios/:id` | Activar/desactivar o configurar cercanía/tiempo (`BARRIOS:EDITAR`) |
 
 Configura `costo_domicilio_cop` por barrio mediante `PATCH /api/barrios/admin/:id`.
 No se asigna una tarifa predeterminada: si el barrio no tiene costo configurado,
@@ -154,11 +156,13 @@ El tiempo entre fin de preparación y salida no está registrado y no se inventa
 `components.dispatchWaitMinutes` será `null`, y `isApproximate` permanece en
 `true` incluso cuando el tramo de desplazamiento usa historial.
 
-Sin tiempo de zona ni historial suficiente, la respuesta indica
-`source: "unavailable"`, `estimatedMinutes: null` y un mensaje “Por confirmar”;
-el pedido puede crearse si el barrio sigue activo, dentro de cobertura y con
-costo de domicilio configurado. La estimación inicial se conserva como snapshot
-y no se sobrescribe con consultas posteriores.
+El costo del domicilio se calcula por tramos según la distancia (`distancia_km` o `ubicacion`).
+Si no llega una distancia, se usa la tarifa configurada del barrio (`costo_domicilio_cop`); si
+tampoco hay tarifa, el costo queda `null` (`costConfigured: false`) y el pedido a domicilio no se
+crea. El servidor calcula la tarifa definitiva y no acepta el costo enviado por el cliente. Sin tiempo de
+zona ni historial suficiente, la estimación indica `source: "unavailable"` y `estimatedMinutes: null`.
+Para `"local"` y `"recoger"` siempre se estima solo cocina, sin exigir barrio. La estimación inicial
+queda guardada como snapshot y no se sobrescribe.
 
 ## Estructura
 

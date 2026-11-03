@@ -69,8 +69,8 @@ describe('consultas del estimador', () => {
       tipo_entrega: 'domicilio',
       estimacion_inicial: initialEstimate,
       subtotal: 13000,
-      costo_domicilio_cop: 3500,
-      total: 13000,
+      costo_domicilio_cop: 4000,
+      total: 17000,
       nombre: 'Cliente',
       telefono: '3000000000',
       direccion: 'Dirección',
@@ -85,8 +85,8 @@ describe('consultas del estimador', () => {
     expect(params).toContain('domicilio');
     expect(params).toContain(3);
     expect(params).toContain(JSON.stringify(initialEstimate));
-    expect(params).toContain(13000);
-    expect(params).toContain(3500);
     expect(sql).toContain('costo_domicilio_cop');
+    expect(params).toContain(4000);
+    expect(params).toContain(17000);
   });
 });

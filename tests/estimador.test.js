@@ -21,15 +21,15 @@ describe('estimador de pedidos', () => {
   beforeEach(() => jest.clearAllMocks());
 
   it('calcula el tiempo de domicilio por distancia en línea recta', () => {
-    const result = estimar(barrio(), [], { observaciones: 0 }, 1.5);
+    // Barrio sin tarifa: se cobra por tramos de distancia
+    const result = estimar(barrio({ costo_domicilio_cop: null }), [], { observaciones: 0 }, 1.5);
 
     expect(result.estimatedMinutes).toBe(21);
     expect(result.deliveryCost).toBe(4000);
     expect(result.minimumMinutes).toBeNull();
     expect(result.maximumMinutes).toBeNull();
-    expect(result.deliveryCost).toBe(3500);
+    expect(result.source).toBe('distance');
     expect(result.costConfigured).toBe(true);
-    expect(result.source).toBe('baseline');
     expect(result.isApproximate).toBe(true);
     expect(result.distanceKm).toBe(1.5);
     expect(result.distanceMethod).toBe('straight_line_estimate');
@@ -86,7 +86,23 @@ describe('estimador de pedidos', () => {
     expect(result.components.travelMinutes).toBe(12);
   });
 
-  it('no inventa un tiempo de desplazamiento para una zona sin configuración', () => {
+  it('con tarifa y tiempo configurados, el barrio manda sobre la distancia (lo que ve el cliente)', () => {
+    const result = estimar(barrio({ tiempo_desplazamiento_minutos: 8 }), [], { observaciones: 0 }, 1.5);
+
+    expect(result.deliveryCost).toBe(3500);
+    expect(result.source).toBe('baseline');
+    expect(result.components.travelMinutes).toBe(8);
+  });
+
+  it('sin distancia usa la tarifa configurada del barrio', () => {
+    const result = estimar(barrio(), [], { observaciones: 0 });
+
+    expect(result.deliveryCost).toBe(3500);
+    expect(result.costConfigured).toBe(true);
+    expect(result.source).toBe('baseline');
+  });
+
+  it('indica que falta distancia solo si no hay tiempo ni tarifa configurados para el barrio', () => {
     const result = estimar(barrio({ es_cercano: false, costo_domicilio_cop: null }), 0, { observaciones: 0 });
 
     expect(result.estimatedMinutes).toBeNull();
@@ -107,7 +123,7 @@ describe('estimador de pedidos', () => {
     expect(calcularEsperaCocina(pedidos(1))).toBe(0);
     expect(calcularEsperaCocina(pedidos(2))).toBe(15);
     expect(calcularEsperaCocina(pedidos(4))).toBe(30);
-    expect(estimar(barrio(), pedidos(4), { observaciones: 0 }, 3)).toMatchObject({
+    expect(estimar(barrio({ costo_domicilio_cop: null }), pedidos(4), { observaciones: 0 }, 3)).toMatchObject({
       estimatedMinutes: 57,
       deliveryCost: 6000,
       source: 'distance',
@@ -175,7 +191,7 @@ describe('estimador de pedidos', () => {
   });
 
   it('prefiere el historial suficiente del barrio para el tiempo de desplazamiento', () => {
-    const result = estimar(barrio({ es_cercano: false }), [], {
+    const result = estimar(barrio({ es_cercano: false, costo_domicilio_cop: null }), [], {
       observaciones: 5,
       p25: 7,
       mediana: 10,
