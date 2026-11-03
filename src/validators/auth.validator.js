@@ -23,12 +23,6 @@ const registro = z.object({
   telefono: z.string().trim().max(30).optional(),
 });
 
-const solicitarRegistro = registro;
-const verificarCodigo = z.object({
-  correo,
-  codigo: z.string().trim().regex(/^\d{6}$/, 'El código tiene 6 dígitos'),
-});
-
 // Perfil propio (cliente o personal)
 const perfil = z
   .object({

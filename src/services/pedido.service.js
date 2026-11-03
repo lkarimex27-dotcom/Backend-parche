@@ -5,7 +5,6 @@ const { withTransaction } = require('../config/db');
 const { PEDIDO_MONTO_APROBACION } = require('../config/constants');
 const AppError = require('../errors/AppError');
 const Estimador = require('./estimador.service');
-const VentaPedido = require('./ventaPedido.service');
 
 const normalizar = (s) => String(s).normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toLowerCase();
 
@@ -52,12 +51,10 @@ const cotizar = (items, catalogo, gaseosas = []) => {
 };
 
 const crear = async (d, idCliente) => {
-  const lineas = cotizar(d.items, await Pedido.catalogoActivo(), await InsumoProducto.gaseosas());
+  const lineas = cotizar(d.items, await Pedido.catalogoActivo());
   const subtotal = lineas.reduce((s, l) => s + l.subtotal, 0);
   const id = await withTransaction(async (c) => {
-    const barrio = await Barrio.obtenerActivo(d.id_barrio, c, true);
-    if (!barrio) throw AppError.badRequest('El barrio no está activo o se encuentra fuera de cobertura');
-    const estimacionInicial = await Estimador.calcular(d.id_barrio, c, barrio);
+    const estimacionInicial = await Estimador.calcular(d.id_barrio, c);
     if (estimacionInicial.deliveryCost === null) {
       throw AppError.conflict('Costo de domicilio por confirmar para este barrio.');
     }

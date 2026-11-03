@@ -1,92 +1,100 @@
 const Barrio = require('../models/barrio.model');
 const Pedido = require('../models/pedido.model');
-const { ESTIMADOR } = require('../config/constants');
 const AppError = require('../errors/AppError');
+const { ESTIMADOR } = require('../config/constants');
 
-const calcularEsperaCocina = (pedidosActivos) =>
-  Math.ceil(Math.max(0, Number(pedidosActivos) - 1) / ESTIMADOR.CAPACIDAD_COCINA_PEDIDOS) *
-  ESTIMADOR.PREPARACION_BASE_MINUTOS;
+const minutosValidos = (value) => Number.isFinite(Number(value)) && Number(value) > 0;
+const enteroMinutos = (value) => Math.max(1, Math.round(Number(value)));
 
-const estimar = (barrio, pedidosActivos = 0, historial = {}, tipoEntrega = 'domicilio') => {
-  const esDomicilio = tipoEntrega === 'domicilio';
-  const cocinaEspera = calcularEsperaCocina(pedidosActivos);
-  const preparacion = ESTIMADOR.PREPARACION_BASE_MINUTOS;
-  const observaciones = Number(historial.observaciones) || 0;
-  const percentilesRaw = [historial.p25, historial.mediana, historial.p75];
-  const percentiles = percentilesRaw.map(Number);
-  const historialValido =
-    observaciones >= ESTIMADOR.MIN_OBSERVACIONES_ZONA &&
-    percentilesRaw.every((value) => value !== null && value !== undefined) &&
-    percentiles.every(Number.isFinite) &&
-    percentiles[0] >= 0 &&
-    percentiles[0] <= percentiles[1] &&
-    percentiles[1] <= percentiles[2];
-  const desplazamiento = !esDomicilio
+const calcularEsperaCocina = (pedidosActivos) => {
+  const capacidad = ESTIMADOR.CAPACIDAD_COCINA_PEDIDOS;
+  const pedidos = Math.max(0, Math.floor(Number(pedidosActivos) || 0));
+  return Math.floor(pedidos / capacidad) * ESTIMADOR.PREPARACION_BASE_MINUTOS;
+};
+
+const estimar = (barrio, pedidosActivos, estadisticas) => {
+  const observaciones = Math.max(0, Number.parseInt(estadisticas?.observaciones, 10) || 0);
+  const historialSuficiente = observaciones >= ESTIMADOR.MIN_OBSERVACIONES_ZONA
+    && minutosValidos(estadisticas.p25)
+    && minutosValidos(estadisticas.mediana)
+    && minutosValidos(estadisticas.p75)
+    && Number(estadisticas.p25) <= Number(estadisticas.mediana)
+    && Number(estadisticas.mediana) <= Number(estadisticas.p75);
+  const tiempoConfigurado = barrio.tiempo_desplazamiento_minutos
+    ?? (barrio.es_cercano ? ESTIMADOR.DESPLAZAMIENTO_CERCANO_MINUTOS : null);
+  const desplazamiento = historialSuficiente ? Number(estadisticas.mediana) : Number(tiempoConfigurado);
+  const esperaCocinaMinutos = calcularEsperaCocina(pedidosActivos);
+  const preparacionMinutos = ESTIMADOR.PREPARACION_BASE_MINUTOS;
+  const zona = barrio.nombre;
+  const deliveryCost = barrio.costo_domicilio_cop == null
     ? null
-    : historialValido
-      ? Math.round(percentiles[1])
-      : barrio?.tiempo_desplazamiento_minutos ??
-        (barrio?.es_cercano ? ESTIMADOR.DESPLAZAMIENTO_CERCANO_MINUTOS : null);
-  const tieneBarrio = !!barrio;
-  const tiempoDisponible = !esDomicilio || (tieneBarrio && desplazamiento !== null);
-  const tiempoEstimado = tiempoDisponible
-    ? cocinaEspera + preparacion + (desplazamiento ?? 0)
+    : Number(barrio.costo_domicilio_cop);
+
+  if (!minutosValidos(desplazamiento)) {
+    return {
+      minimumMinutes: null,
+      maximumMinutes: null,
+      estimatedMinutes: null,
+      estimatedArrival: null,
+      zone: zona,
+      deliveryCost,
+      costConfigured: deliveryCost !== null,
+      source: 'unavailable',
+      isApproximate: true,
+      coverageAvailable: true,
+      message: 'Tiempo por confirmar para este barrio.',
+      components: {
+        kitchenWaitMinutes: esperaCocinaMinutos,
+        preparationMinutes: preparacionMinutos,
+        dispatchWaitMinutes: null,
+        travelMinutes: null,
+      },
+      observations: observaciones,
+    };
+  }
+
+  const travel = enteroMinutos(desplazamiento);
+  const common = esperaCocinaMinutos + preparacionMinutos;
+  const estimatedMinutes = common + travel;
+  const minimumMinutes = historialSuficiente
+    ? common + enteroMinutos(estadisticas.p25)
     : null;
-  const costo = esDomicilio ? barrio?.costo_domicilio_cop ?? null : null;
+  const maximumMinutes = historialSuficiente
+    ? common + enteroMinutos(estadisticas.p75)
+    : null;
 
   return {
-    minimumMinutes: esDomicilio && tiempoDisponible && historialValido
-      ? cocinaEspera + preparacion + Math.round(percentiles[0])
-      : null,
-    maximumMinutes: esDomicilio && tiempoDisponible && historialValido
-      ? cocinaEspera + preparacion + Math.round(percentiles[2])
-      : null,
-    estimatedMinutes: tiempoEstimado,
+    minimumMinutes,
+    maximumMinutes,
+    estimatedMinutes,
     estimatedArrival: null,
-    deliveryCost: costo,
-    costConfigured: !esDomicilio || costo !== null,
-    zone: barrio?.nombre ?? null,
-    source: !esDomicilio
-      ? 'kitchen'
-      : !tieneBarrio || !tiempoDisponible
-        ? 'unavailable'
-        : historialValido
-          ? 'history'
-          : 'baseline',
-    isApproximate: esDomicilio && !historialValido,
-    coverageAvailable: esDomicilio ? tieneBarrio : null,
-    message: !esDomicilio
-      ? 'El tiempo estimado incluye únicamente la preparación en cocina.'
-      : !tieneBarrio
-      ? 'Selecciona un barrio de entrega.'
-      : !tiempoDisponible
-        ? 'Tiempo de domicilio por confirmar para este barrio.'
-        : historialValido
-          ? null
-          : 'Estimación aproximada según la configuración del barrio.',
+    zone: zona,
+    deliveryCost,
+    costConfigured: deliveryCost !== null,
+    source: historialSuficiente ? 'history' : 'baseline',
+    isApproximate: true,
+    coverageAvailable: true,
+    message: historialSuficiente
+      ? 'El desplazamiento usa historial; preparación y carga de cocina son aproximadas.'
+      : 'Estimación aproximada: se usan los tiempos iniciales configurados.',
     components: {
-      kitchenWaitMinutes: cocinaEspera,
-      preparationMinutes: preparacion,
-      dispatchWaitMinutes: 0,
-      travelMinutes: tiempoDisponible ? desplazamiento : null,
+      kitchenWaitMinutes: esperaCocinaMinutos,
+      preparationMinutes: preparacionMinutos,
+      dispatchWaitMinutes: null,
+      travelMinutes: travel,
     },
     observations: observaciones,
   };
 };
 
-const calcular = async (idBarrio, c, barrioConfigurado, tipoEntrega = 'domicilio') => {
-  if (tipoEntrega !== 'domicilio') {
-    const pedidosActivos = await Pedido.cargaCocina(c);
-    return estimar(null, pedidosActivos, {}, tipoEntrega);
-  }
-  if (!idBarrio) return estimar(null);
-  const barrio = barrioConfigurado || await Barrio.obtenerActivo(idBarrio, c);
-  if (!barrio) throw AppError.badRequest('Barrio no encontrado o fuera de cobertura');
-  const [pedidosActivos, historial] = await Promise.all([
+const calcular = async (idBarrio, c) => {
+  const barrio = await Barrio.obtenerActivo(idBarrio, c, Boolean(c));
+  if (!barrio) throw AppError.notFound('Barrio no encontrado o fuera de cobertura');
+  const [pedidosActivos, estadisticas] = await Promise.all([
     Pedido.cargaCocina(c),
     Pedido.estadisticasDesplazamiento(idBarrio, c),
   ]);
-  return estimar(barrio, pedidosActivos, historial);
+  return estimar(barrio, pedidosActivos, estadisticas);
 };
 
 module.exports = { calcular, calcularEsperaCocina, estimar };
