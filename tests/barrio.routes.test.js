@@ -7,6 +7,7 @@ jest.mock('../src/controllers/barrio.controller', () => ({
   listarTodos: (_req, res) => res.json({ ok: true, data: [] }),
   crear: (req, res) => res.status(201).json({ ok: true, data: req.body }),
   actualizar: (req, res) => res.json({ ok: true, data: { id: req.params.id, ...req.body } }),
+  eliminar: (_req, res) => res.status(204).send(),
 }));
 
 const express = require('express');

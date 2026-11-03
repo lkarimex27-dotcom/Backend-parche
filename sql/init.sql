@@ -335,6 +335,7 @@ CREATE TABLE IF NOT EXISTS barrios (
     costo_domicilio_cop             DECIMAL(12,2) CHECK (costo_domicilio_cop >= 0),
     creado_en                       TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+ALTER TABLE barrios ADD COLUMN IF NOT EXISTS es_cercano BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE barrios ADD COLUMN IF NOT EXISTS costo_domicilio_cop DECIMAL(12,2) CHECK (costo_domicilio_cop >= 0);
 CREATE UNIQUE INDEX IF NOT EXISTS uq_barrios_nombre_municipio
     ON barrios (lower(nombre), lower(municipio), lower(departamento));
@@ -382,6 +383,7 @@ ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS registros_produccion JSONB NOT NULL
 ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS id_barrio BIGINT REFERENCES barrios(id_barrio);
 ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS estimacion_inicial JSONB;
 ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS costo_domicilio_cop DECIMAL(12,2);
+ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS tipo_entrega VARCHAR(20) NOT NULL DEFAULT 'domicilio';
 ALTER TABLE barrios ADD COLUMN IF NOT EXISTS es_cercano BOOLEAN NOT NULL DEFAULT FALSE;
 
 -- 25. DETALLE DE PEDIDOS (precio_unitario queda congelado al confirmar el pedido)

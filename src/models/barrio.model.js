@@ -79,4 +79,4 @@ const desactivar = async (id) =>
     [id, ESTIMADOR.MUNICIPIO, ESTIMADOR.DEPARTAMENTO]
   )).rows[0] || null;
 
-module.exports = { listarDisponibles, listarTodos, obtenerActivo, crear, actualizar, desactivar };
+module.exports = { listarDisponibles, listarTodos, obtenerActivo, obtenerActivoPorNombre, crear, actualizar, desactivar };
