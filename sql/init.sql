@@ -322,8 +322,8 @@ ALTER TABLE perdidas_insumos ADD COLUMN IF NOT EXISTS motivo_devolucion TEXT;
 -- Se puede devolver solo una parte: cantidad = lo que sigue perdido, cantidad_devuelta = lo que volvió al stock
 ALTER TABLE perdidas_insumos ADD COLUMN IF NOT EXISTS cantidad_devuelta DECIMAL(12,3) NOT NULL DEFAULT 0;
 
--- Catálogo operativo de barrios. Los candidatos suministrados por el negocio quedan inactivos
--- hasta que una persona administradora confirme cobertura y configuración de desplazamiento.
+-- Barrios suministrados por el negocio para Bello. Solo Santa Ana usa el tiempo inicial
+-- de desplazamiento de zona cercana; los demás tiempos deben configurarse con datos medidos.
 CREATE TABLE IF NOT EXISTS barrios (
     id_barrio                       BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     nombre                          VARCHAR(120) NOT NULL,
@@ -335,23 +335,20 @@ CREATE TABLE IF NOT EXISTS barrios (
     costo_domicilio_cop             DECIMAL(12,2) CHECK (costo_domicilio_cop >= 0),
     creado_en                       TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+ALTER TABLE barrios ADD COLUMN IF NOT EXISTS es_cercano BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE barrios ADD COLUMN IF NOT EXISTS costo_domicilio_cop DECIMAL(12,2) CHECK (costo_domicilio_cop >= 0);
 CREATE UNIQUE INDEX IF NOT EXISTS uq_barrios_nombre_municipio
     ON barrios (lower(nombre), lower(municipio), lower(departamento));
 
-INSERT INTO barrios (nombre)
-SELECT candidatos.nombre
+INSERT INTO barrios AS barrio (nombre, municipio, departamento, activo, es_cercano)
+SELECT candidatos.nombre, 'Bello', 'Antioquia', TRUE, candidatos.nombre = 'Santa Ana'
   FROM unnest(ARRAY[
     'Santa Ana', 'Los Búcaros', 'Serramonte', 'Salento', 'Molinares', 'San Simón',
     'Villas de Occidente', 'La Madera', 'La Cabañita', 'La Cabaña', 'Centro', 'Pérez',
     'Espíritu Santo', 'La Florida', 'Barrio Nuevo', 'La Cumbre', 'Bellavista', 'Niquía'
   ]::text[]) AS candidatos(nombre)
- WHERE NOT EXISTS (
-   SELECT 1 FROM barrios b
-    WHERE lower(b.nombre) = lower(candidatos.nombre)
-      AND lower(b.municipio) = 'bello'
-      AND lower(b.departamento) = 'antioquia'
- );
+ON CONFLICT (lower(nombre), lower(municipio), lower(departamento))
+DO UPDATE SET activo = TRUE, es_cercano = barrio.es_cercano OR EXCLUDED.es_cercano;
 
 -- 24. PEDIDOS (ciclo: PENDIENTE > APROBADO > EN_PREPARACION > LISTO > EN_CAMINO > ENTREGADO | RECHAZADO | CANCELADO)
 -- Al entregarse un pedido se genera la venta (id_venta).
@@ -386,6 +383,7 @@ ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS registros_produccion JSONB NOT NULL
 ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS id_barrio BIGINT REFERENCES barrios(id_barrio);
 ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS estimacion_inicial JSONB;
 ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS costo_domicilio_cop DECIMAL(12,2);
+ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS tipo_entrega VARCHAR(20) NOT NULL DEFAULT 'domicilio';
 ALTER TABLE barrios ADD COLUMN IF NOT EXISTS es_cercano BOOLEAN NOT NULL DEFAULT FALSE;
 
 -- 25. DETALLE DE PEDIDOS (precio_unitario queda congelado al confirmar el pedido)

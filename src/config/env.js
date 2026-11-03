@@ -15,7 +15,7 @@ const env = {
     ]),
   ],
   jwtSecret: process.env.JWT_SECRET,
-  jwtExpiresIn: process.env.JWT_EXPIRES_IN || '30d',
+  jwtExpiresIn: process.env.JWT_EXPIRES_IN || '365d',
   adminEmail: process.env.ADMIN_EMAIL,
   adminPassword: process.env.ADMIN_PASSWORD,
   adminNombre: process.env.ADMIN_NOMBRE || 'Administrador',
@@ -27,6 +27,10 @@ const env = {
   // Correo que envía los códigos de recuperación (Gmail + contraseña de aplicación)
   mailUser: process.env.MAIL_USER,
   mailPass: (process.env.MAIL_PASS || '').replace(/\s/g, ''), // Google la muestra con espacios
+
+  cloudinaryCloudName: process.env.CLOUDINARY_CLOUD_NAME,
+cloudinaryApiKey: process.env.CLOUDINARY_API_KEY,
+cloudinaryApiSecret: process.env.CLOUDINARY_API_SECRET,
 
   defaultPasswords: Object.fromEntries(
     Object.entries(process.env).filter(([key]) => key.startsWith('DEFAULT_PASSWORD_'))

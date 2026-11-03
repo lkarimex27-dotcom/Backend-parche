@@ -22,7 +22,7 @@ describe('POST /api/pedidos/estimacion', () => {
       tiempo_desplazamiento_minutos: 8,
       costo_domicilio_cop: 3500,
     });
-    Pedido.cargaCocina.mockResolvedValue(0);
+    Pedido.colaCocina.mockResolvedValue([]); // cola de cocina vacía
     Pedido.estadisticasDesplazamiento.mockResolvedValue({
       observaciones: 0,
       p25: null,

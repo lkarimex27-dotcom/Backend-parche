@@ -27,9 +27,10 @@ describe('Usuario creado desde el admin (módulo Usuarios)', () => {
     const { para, asunto, html } = enviarCorreo.mock.calls[0][0];
     expect(para).toBe('cajero@parche.co');
     expect(asunto).toMatch(/Bienvenido/);
-    const provisional = /letter-spacing:9px;">([^<]+)<\/span>/.exec(html)[1];
+    // La contraseña va en la franja amarilla del correo (celda con letter-spacing)
+    const provisional = /letter-spacing:\d+px;[^"]*white-space:nowrap">([^<]+)<\/td>/.exec(html)[1];
     expect(provisional).toBe(process.env.DEFAULT_PASSWORD_CAJERO);
-    expect(html).toContain('¡Hola, Pedro!');
+    expect(html).toContain('¡Hola, <strong>Pedro</strong>!');
     expect(html).toContain('Entra con <strong>cajero@parche.co</strong>.');
 
     const cuenta = Usuario.crearUsuario.mock.calls[0][1];
