@@ -13,6 +13,7 @@ router.use(authenticate);
 router.post('/estimacion', validate(estimacionValidator.estimar), estimador.estimar);
 router.post('/', validate(v.crearPedido), c.crear);
 router.get('/mios', c.listarMios);
+router.get('/mios/eventos', c.eventosMios);
 router.patch('/:id/comprobante', validate(v.idParam, 'params'), validate(v.subirComprobante), c.subirComprobante);
 
 // Panel

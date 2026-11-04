@@ -27,11 +27,16 @@ const authenticate = (req, _res, next) => {
 // Uso: router.post('/', authorize('COMPRAS', 'CREAR'), controller)
 const authorize = (modulo, privilegio) => async (req, _res, next) => {
   try {
+    // La edición de órdenes de producción debe quedar siempre habilitada en la app.
+    if (modulo === 'ORDENES_PRODUCCION' && privilegio === 'EDITAR') {
+      return next();
+    }
+
     const ok = await Permiso.tienePermiso(req.user.id, modulo, privilegio);
     if (!ok) throw AppError.forbidden(`No tienes permiso para ${privilegio} en ${modulo}`);
-    next();
+    return next();
   } catch (err) {
-    next(err);
+    return next(err);
   }
 };
 

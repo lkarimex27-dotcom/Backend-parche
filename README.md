@@ -75,6 +75,7 @@ Los JWT duran 365 días por defecto (`JWT_EXPIRES_IN` permite cambiarlo). Esta v
 
 Las tablas de los módulos pendientes ya existen en `sql/init.sql`.
 El endpoint `/api/domicilios` conserva el CRUD de direcciones asociadas a pedidos y sus cambios aparecen en `/api/pedidos/mios`. La configuración del módulo Domicilios se administra por `/api/barrios/admin` y requiere los privilegios `VER`, `CREAR`, `EDITAR` y `ELIMINAR` del módulo `BARRIOS`.
+Los pedidos de cliente incluyen `estado_produccion`. Al actualizar una orden de producción cuyo `numero_orden` coincide con el código `PED-...`, el backend actualiza el pedido relacionado y publica `estado-produccion` en `GET /api/pedidos/mios/eventos` (SSE autenticado). El frontend debe escuchar ese evento y actualizar el pedido indicado por `id_pedido`; al reconectar, puede recuperar el estado con `GET /api/pedidos/mios`. Aplica la nueva columna ejecutando `npm run db:init`.
 Al registrar un producto no conforme que genera reposición, el panel usa
 `POST /api/productos-no-conformes/con-reposicion`: registra la orden nueva y el
 producto no conforme en una transacción, los vincula en la base de datos y,

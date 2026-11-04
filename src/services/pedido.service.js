@@ -5,6 +5,7 @@ const { withTransaction } = require('../config/db');
 const { PEDIDO_MONTO_APROBACION } = require('../config/constants');
 const AppError = require('../errors/AppError');
 const Estimador = require('./estimador.service');
+const VentaPedido = require('./ventaPedido.service');
 
 const normalizar = (s) => String(s).normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toLowerCase();
 
@@ -42,6 +43,7 @@ const cotizar = (items, catalogo, gaseosas = []) => {
     const unitario = producto.precio + adiciones.reduce((s, a) => s + a.cantidad * a.precio, 0);
     return {
       id_insumo_producto: producto.id_insumo_producto,
+      producto: producto.nombre,
       cantidad: it.cantidad,
       precio_unitario: producto.precio,
       subtotal: unitario * it.cantidad,
@@ -83,6 +85,7 @@ const crear = async (d, idCliente) => {
       estado_pago: d.pago === 'Efectivo' ? 'Pendiente' : 'Pendiente de verificación',
     });
     for (const l of lineas) await Pedido.crearDetalle(c, idPedido, l);
+    await Pedido.crearOrdenProduccion(c, idPedido, lineas);
     await Pedido.registrarEstado(c, idPedido, estado, idCliente);
     return idPedido;
   });

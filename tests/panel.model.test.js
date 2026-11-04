@@ -8,6 +8,31 @@ jest.mock('../src/config/db', () => ({
 
 const Panel = require('../src/models/panel.model');
 
+describe('Panel.actualizarConCliente', () => {
+  it('guarda las columnas y todos los datos originales del formulario', async () => {
+    const client = { query: jest.fn().mockResolvedValue({ rowCount: 1 }) };
+    const cfg = {
+      tabla: 'ordenes_produccion',
+      id: 'id_orden_produccion',
+    };
+    const columnas = {
+      numero_orden: 'PED-0030',
+      productos: '2 x Hamburguesa Tradicional (BBQ, Tocineta)',
+      cantidad: 2,
+      prioridad: 1,
+      estado: 'Iniciada',
+    };
+    const fila = ['PED-0030', columnas.productos, 2, 1, '2026-11-03', '10:30', '', '', 'Iniciada', 'Nota adicional'];
+
+    await expect(Panel.actualizarConCliente(client, cfg, 30, columnas, fila)).resolves.toBe(true);
+
+    expect(client.query).toHaveBeenCalledWith(
+      expect.stringContaining('UPDATE ordenes_produccion SET'),
+      [30, ...Object.values(columnas), JSON.stringify(fila)]
+    );
+  });
+});
+
 describe('Panel.crearPar', () => {
   beforeEach(() => {
     mockClientQuery.mockReset();

@@ -5,6 +5,9 @@ const asyncHandler = require('../utils/asyncHandler');
 const validate = require('../middlewares/validate.middleware');
 const { authenticate, authorize } = require('../middlewares/auth.middleware');
 const AppError = require('../errors/AppError');
+const { withTransaction } = require('../config/db');
+const Pedido = require('../models/pedido.model');
+const pedidoEventos = require('../services/pedidoEventos.service');
 
 const idParam = z.object({ id: z.coerce.number().int().positive() });
 // Fila del panel: textos (pueden ser JSON largos: historial, líneas), números o vacíos
@@ -38,7 +41,33 @@ module.exports = (cfg) => {
       const fila = req.body.datos_panel;
       const { id_usuario, ...resto } = await cfg.columnas(fila, req.user.id);
       const columnas = cfg.usuarioEditable ? { id_usuario, ...resto } : resto;
-      if (!(await Panel.actualizar(cfg, req.params.id, columnas, fila))) throw AppError.notFound('Registro no encontrado');
+      let pedidoActualizado = null;
+      if (cfg.modulo === 'ORDENES_PRODUCCION') {
+        const codigoPedido = /^PED-(\d+)$/i.exec(String(fila[0] ?? '').trim());
+        pedidoActualizado = await withTransaction(async (client) => {
+          if (!(await Panel.actualizarConCliente(client, cfg, req.params.id, columnas, fila))) {
+            throw AppError.notFound('Registro no encontrado');
+          }
+          if (!codigoPedido || typeof columnas.estado !== 'string') return null;
+          return Pedido.actualizarEstadoProduccion(
+            client,
+            Number(codigoPedido[1]),
+            columnas.estado,
+            req.user.id
+          );
+        });
+      } else if (!(await Panel.actualizar(cfg, req.params.id, columnas, fila))) {
+        throw AppError.notFound('Registro no encontrado');
+      }
+
+      if (pedidoActualizado?.id_cliente != null) {
+        pedidoEventos.publicarEstadoProduccion({
+          idCliente: pedidoActualizado.id_cliente,
+          idPedido: pedidoActualizado.id_pedido,
+          estado: pedidoActualizado.estado,
+          estado_produccion: pedidoActualizado.estado_produccion,
+        });
+      }
       res.json({ ok: true, data: { id: req.params.id, datos_panel: fila } });
     }));
 

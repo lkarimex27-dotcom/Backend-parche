@@ -24,9 +24,4 @@ const devolver = z.object({
   motivo: z.string().trim().min(3, 'Escribe por qué se devuelve a la compra').max(500),
 });
 
-const devolver = z.object({
-  cantidad: z.number().positive('La cantidad a devolver debe ser mayor que 0').optional(),
-  motivo: z.string().trim().min(3, 'Escribe por qué se devuelve a la compra').max(500),
-});
-
 module.exports = { idParam, crearPerdida: perdida, actualizarPerdida: perdida, devolver };

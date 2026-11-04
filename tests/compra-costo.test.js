@@ -5,7 +5,8 @@ jest.mock('../src/config/db', () => ({ withTransaction: async (fn) => fn({}) }))
 jest.mock('../src/models/proveedor.model', () => ({ obtenerPorId: jest.fn(async () => ({ id_proveedor: 1 })) }));
 jest.mock('../src/models/stock.model', () => ({
   ajustar: jest.fn(async () => true),
-  fijarCosto: jest.fn(async () => undefined),
+  marcar: jest.fn(async () => undefined),
+  recalcularCosto: jest.fn(async () => undefined),
 }));
 jest.mock('../src/models/compra.model', () => ({
   crear: jest.fn(async () => 9),
@@ -16,10 +17,10 @@ const Stock = require('../src/models/stock.model');
 const service = require('../src/services/compra.service');
 
 describe('Precio unitario de una compra', () => {
-  it('pasa a ser el costo unitario del insumo y suma la cantidad al stock', async () => {
-    // El pan costaba 700; en esta compra vino a 1000
+  it('recalcula el costo desde las compras registradas y suma la cantidad al stock', async () => {
     await service.crear({ id_proveedor: 1, fecha: '2026-10-17', items: [{ id_insumo_producto: 5, cantidad: 20, costo_unitario: 1000 }] });
-    expect(Stock.fijarCosto).toHaveBeenCalledWith({}, 5, 1000);
+    expect(Stock.marcar).toHaveBeenCalledWith({}, 'COMPRA', 'Compra #9');
+    expect(Stock.recalcularCosto).toHaveBeenCalledWith({}, 5);
     expect(Stock.ajustar).toHaveBeenCalledWith({}, 5, 20);
   });
 });

@@ -384,6 +384,7 @@ ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS id_barrio BIGINT REFERENCES barrios
 ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS estimacion_inicial JSONB;
 ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS costo_domicilio_cop DECIMAL(12,2);
 ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS tipo_entrega VARCHAR(20) NOT NULL DEFAULT 'domicilio';
+ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS estado_produccion VARCHAR(50);
 ALTER TABLE barrios ADD COLUMN IF NOT EXISTS es_cercano BOOLEAN NOT NULL DEFAULT FALSE;
 
 -- 25. DETALLE DE PEDIDOS (precio_unitario queda congelado al confirmar el pedido)
@@ -399,6 +400,36 @@ CREATE TABLE IF NOT EXISTS pedido_detalle (
     CONSTRAINT fk_pedido_detalle_pedido   FOREIGN KEY (id_pedido)          REFERENCES pedidos(id_pedido),
     CONSTRAINT fk_pedido_detalle_producto FOREIGN KEY (id_insumo_producto) REFERENCES insumos_productos(id_insumo_producto)
 );
+
+-- Backfill de pedidos existentes de la tienda al tablero de producción.
+WITH ordenes_cliente AS (
+  SELECT p.id_pedido,
+         'PED-' || CASE WHEN p.id_pedido < 10000 THEN lpad(p.id_pedido::text, 4, '0') ELSE p.id_pedido::text END AS numero_orden,
+         string_agg(d.cantidad::text || ' x ' || i.nombre, E'\n' ORDER BY d.id_pedido_detalle) AS productos,
+         sum(d.cantidad) AS cantidad,
+         to_char(p.creado_en AT TIME ZONE 'America/Bogota', 'YYYY-MM-DD') AS fecha,
+         COALESCE(p.estado_produccion, 'Recibida') AS estado
+    FROM pedidos p
+    JOIN pedido_detalle d ON d.id_pedido = p.id_pedido
+    JOIN insumos_productos i ON i.id_insumo_producto = d.id_insumo_producto
+   WHERE p.id_cliente IS NOT NULL
+     AND p.estado NOT IN ('Cancelado', 'Entregado')
+   GROUP BY p.id_pedido
+), insertadas AS (
+  INSERT INTO ordenes_produccion
+    (fecha_inicio, tipo_orden_produccion, numero_orden, productos, cantidad, prioridad, estado, datos_panel)
+  SELECT fecha::date, 'PEDIDO CLIENTE', numero_orden, productos, cantidad, 0, estado,
+         jsonb_build_array(numero_orden, productos, cantidad, 0, fecha, '', '', '', estado)
+    FROM ordenes_cliente
+  ON CONFLICT (numero_orden) DO NOTHING
+  RETURNING numero_orden
+)
+UPDATE pedidos p
+   SET estado_produccion = op.estado
+  FROM ordenes_produccion op
+ WHERE p.id_cliente IS NOT NULL
+   AND p.estado NOT IN ('Cancelado', 'Entregado')
+   AND op.numero_orden = 'PED-' || CASE WHEN p.id_pedido < 10000 THEN lpad(p.id_pedido::text, 4, '0') ELSE p.id_pedido::text END;
 
 -- 26. HISTORIAL DE ESTADOS DE PEDIDOS (la hora real de cada fase que muestra la app)
 CREATE TABLE IF NOT EXISTS historial_estados_pedido (

@@ -1,5 +1,8 @@
 jest.mock('../src/models/pedido.model');
 jest.mock('../src/models/barrio.model');
+jest.mock('../src/models/insumoProducto.model', () => ({
+  gaseosas: jest.fn(),
+}));
 jest.mock('../src/config/db', () => ({
   withTransaction: jest.fn((fn) => fn({})),
 }));
@@ -39,6 +42,7 @@ describe('integración de la estimación inicial al crear un pedido', () => {
       p75: null,
     });
     Pedido.crear.mockResolvedValue(22);
+    Pedido.crearOrdenProduccion.mockResolvedValue(undefined);
     Pedido.obtenerPorId.mockResolvedValue({ id_pedido: 22 });
   });
 
@@ -71,6 +75,11 @@ describe('integración de la estimación inicial al crear un pedido', () => {
     expect(Pedido.crearDetalle).toHaveBeenCalledWith(client, 22, expect.objectContaining({
       subtotal: 13000,
     }));
+    expect(Pedido.crearOrdenProduccion).toHaveBeenCalledWith(
+      client,
+      22,
+      expect.arrayContaining([expect.objectContaining({ producto: 'Hamburguesa Mini' })])
+    );
   });
 
   it('resuelve el barrio por nombre y persiste su ID sin cambiar el precio', async () => {

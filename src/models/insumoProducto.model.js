@@ -99,6 +99,26 @@ const usos = async (id) =>
     [id]
   )).rows[0];
 
+const usosProducto = async (id) =>
+  (await query(
+    `WITH p AS (
+       SELECT nombre, '"product":' || to_json(nombre::text)::text AS linea
+         FROM insumos_productos
+        WHERE id_insumo_producto = $1
+     )
+     SELECT (SELECT count(*) FROM detalle_ventas WHERE id_insumo_producto = $1)::int
+            + (SELECT count(*) FROM ventas, p WHERE position(p.linea IN coalesce(datos_panel->>11, '')) > 0)::int AS ventas,
+            ((SELECT count(*) FROM pedido_detalle WHERE id_insumo_producto = $1)
+            + (SELECT count(*) FROM pedidos, p WHERE position(p.linea IN coalesce(datos_panel->>10, '')) > 0))::int AS pedidos,
+            (SELECT count(*) FROM detalle_compras WHERE id_insumo_producto = $1)::int AS compras,
+            (SELECT string_agg(pr.nombre, ', ')
+               FROM proveedores pr, p
+              WHERE p.nombre = ANY(regexp_split_to_array(pr.insumos, '\\s*,\\s*'))) AS proveedores,
+            ((SELECT count(*) FROM producto_no_conforme WHERE id_insumo_producto = $1)
+            + (SELECT count(*) FROM perdidas_insumos WHERE id_insumo_producto = $1))::int AS otros`,
+    [id]
+  )).rows[0];
+
 // Ficha técnica: una por producto/insumo; la receta se reemplaza completa
 const guardarFicha = async (c, id, d) => {
   const { id_ficha_tecnica } = (await c.query(
@@ -146,7 +166,14 @@ const productosSinStock = async () =>
       WHERE ${AGOTADO}`
   )).rows.map((r) => Number(r.id));
 
+const gaseosas = async () =>
+  (await query(
+    `SELECT nombre, stock <= 0 AS agotada
+        FROM insumos_productos
+       WHERE tipo = 'PRODUCTO' AND nombre ILIKE 'Gaseosa %'`
+  )).rows;
+
 module.exports = {
   listar, obtenerPorId, crear, actualizar, eliminar, guardarFicha, reemplazarImagen, obtenerImagen,
-  productosSinStock, usos,
+  productosSinStock, gaseosas, usos, usosProducto,
 };

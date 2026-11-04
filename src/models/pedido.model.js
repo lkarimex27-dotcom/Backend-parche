@@ -8,7 +8,7 @@ const SELECT = `
            'nombre', COALESCE(p.nombre_contacto, pe.nombre),
            'telefono', p.telefono_contacto
          ) AS destinatario,
-         p.estado, p.estado_pago, p.motivo_rechazo_pago, p.comprobante, p.produccion_autorizada,
+         p.estado, p.estado_produccion, p.estado_pago, p.motivo_rechazo_pago, p.comprobante, p.produccion_autorizada,
          p.registros_produccion, p.id_barrio, p.estimacion_inicial,
          p.subtotal::float AS subtotal, p.costo_domicilio_cop::float AS costo_domicilio_cop,
          p.total::float AS total, p.creado_en,
@@ -57,9 +57,64 @@ const crearDetalle = (c, idPedido, it) =>
     [idPedido, it.id_insumo_producto, it.cantidad, it.precio_unitario, it.subtotal, JSON.stringify(it.detalle)]
   );
 
+const crearOrdenProduccion = async (c, idPedido, items) => {
+  const numeroOrden = `PED-${String(idPedido).padStart(4, '0')}`;
+  const productos = items.map((item) => {
+    const detalle = item.detalle || {};
+    const extras = [
+      ...(detalle.salsas || []),
+      ...(detalle.adiciones || []).map((adicion) =>
+        `${adicion.cantidad > 1 ? `${adicion.cantidad} x ` : ''}${adicion.nombre}`
+      ),
+    ];
+    return `${item.cantidad} x ${item.producto}${extras.length ? ` (${extras.join(', ')})` : ''}`;
+  }).join('\n');
+  const cantidad = items.reduce((total, item) => total + item.cantidad, 0);
+  const fecha = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
+  const fila = [numeroOrden, productos, cantidad, 0, fecha, '', '', '', 'Recibida'];
+
+  await c.query(
+    `INSERT INTO ordenes_produccion
+       (fecha_inicio, tipo_orden_produccion, numero_orden, productos, cantidad, prioridad, estado, datos_panel)
+     VALUES ($1, 'PEDIDO CLIENTE', $2, $3, $4, $5, $6, $7)`,
+    [fecha, numeroOrden, productos, cantidad, 0, 'Recibida', JSON.stringify(fila)]
+  );
+  await c.query(
+    `UPDATE pedidos SET estado_produccion = $2 WHERE id_pedido = $1`,
+    [idPedido, 'Recibida']
+  );
+};
+
 const registrarEstado = (c, idPedido, estado, idUsuario) =>
   c.query('INSERT INTO historial_estados_pedido (id_pedido, estado, id_usuario) VALUES ($1, $2, $3)',
     [idPedido, estado, idUsuario]);
+
+const actualizarEstadoProduccion = async (c, idPedido, estadoProduccion, idUsuario) => {
+  const anterior = (await c.query(
+    'SELECT estado FROM pedidos WHERE id_pedido = $1 FOR UPDATE',
+    [idPedido]
+  )).rows[0];
+  if (!anterior) return null;
+
+  const estadoPedido = ['Iniciada', 'En cocina'].includes(estadoProduccion)
+    ? 'En cocina'
+    : null;
+  const actualizado = (await c.query(
+    `UPDATE pedidos
+        SET estado_produccion = $2,
+            estado = COALESCE($3::text, estado)
+      WHERE id_pedido = $1
+        AND (estado_produccion IS DISTINCT FROM $2 OR ($3::text IS NOT NULL AND estado IS DISTINCT FROM $3::text))
+      RETURNING id_pedido, id_cliente, estado, estado_produccion`,
+    [idPedido, estadoProduccion, estadoPedido]
+  )).rows[0] || null;
+
+  if (actualizado && estadoPedido && estadoPedido !== anterior.estado) {
+    await registrarEstado(c, idPedido, estadoPedido, idUsuario);
+  }
+
+  return actualizado;
+};
 
 // Solo cambia los campos enviados
 const CAMPOS = ['estado', 'estado_pago', 'motivo_rechazo_pago', 'produccion_autorizada', 'registros_produccion', 'comprobante'];
@@ -127,6 +182,6 @@ const estadisticasDesplazamiento = async (idBarrio, c) =>
   )).rows[0];
 
 module.exports = {
-  listar, listarDeCliente, obtenerPorId, catalogoActivo, crear, crearDetalle, registrarEstado,
-  actualizar, colaCocina, estadisticasDesplazamiento,
+  listar, listarDeCliente, obtenerPorId, catalogoActivo, crear, crearDetalle, crearOrdenProduccion, registrarEstado,
+  actualizarEstadoProduccion, actualizar, colaCocina, estadisticasDesplazamiento,
 };

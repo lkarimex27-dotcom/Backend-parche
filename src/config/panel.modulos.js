@@ -75,6 +75,7 @@ module.exports = {
     tabla: 'producto_no_conforme',
     id: 'id_producto_no_conforme',
     modulo: 'PRODUCTO_NO_CONFORME',
+    borrar: true,
     columnas: async (r, idUsuario, relacionados = {}) => ({
       id_usuario: idUsuario,
       codigo: txt(r[0], 30),

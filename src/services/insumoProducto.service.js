@@ -63,6 +63,22 @@ const eliminar = async (tipo, id) => {
       );
     }
   }
+  if (tipo === 'PRODUCTO') {
+    const u = await Modelo.usosProducto(id);
+    const en = [
+      u.ventas && 'ventas',
+      u.pedidos && 'pedidos',
+      u.compras && 'compras',
+      u.proveedores && `el proveedor ${u.proveedores}`,
+      u.otros && 'productos no conformes o pérdidas',
+    ].filter(Boolean);
+
+    if (en.length) {
+      throw AppError.conflict(
+        `No se puede eliminar: está registrado en ${en.join(', ')}. Si ya no lo vendes, desactívalo.`
+      );
+    }
+  }
   if (!(await Modelo.eliminar(tipo, id))) throw AppError.notFound(`${NOMBRE[tipo]} no encontrado`);
 };
 
@@ -144,6 +160,7 @@ const imagen = async (idImagen) => {
 };
 
 const productosSinStock = () => Modelo.productosSinStock();
+const gaseosas = () => Modelo.gaseosas();
 
 module.exports = {
   listar,
