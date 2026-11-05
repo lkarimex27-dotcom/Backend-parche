@@ -78,7 +78,8 @@ describe('integración de la estimación inicial al crear un pedido', () => {
     expect(Pedido.crearOrdenProduccion).toHaveBeenCalledWith(
       client,
       22,
-      expect.arrayContaining([expect.objectContaining({ producto: 'Hamburguesa Mini' })])
+      expect.arrayContaining([expect.objectContaining({ producto: 'Hamburguesa Mini' })]),
+      undefined // sin notas del cliente
     );
   });
 

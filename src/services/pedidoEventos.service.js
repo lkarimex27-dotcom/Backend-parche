@@ -12,3 +12,15 @@ const alCambiarEstadoProduccion = (listener) => {
 };
 
 module.exports = { publicarEstadoProduccion, alCambiarEstadoProduccion };
+
+// Avisos al panel: «pedidos» o «clientes» cambiaron (sin datos; el panel los vuelve a pedir)
+const panel = new EventEmitter();
+panel.setMaxListeners(0);
+const publicarCambioPanel = (modulo) => panel.emit('cambio', modulo);
+const alCambiarPanel = (listener) => {
+  panel.on('cambio', listener);
+  return () => panel.off('cambio', listener);
+};
+
+module.exports.publicarCambioPanel = publicarCambioPanel;
+module.exports.alCambiarPanel = alCambiarPanel;

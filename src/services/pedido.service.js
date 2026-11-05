@@ -6,11 +6,22 @@ const { PEDIDO_MONTO_APROBACION } = require('../config/constants');
 const AppError = require('../errors/AppError');
 const Estimador = require('./estimador.service');
 const VentaPedido = require('./ventaPedido.service');
+const Eventos = require('./pedidoEventos.service');
 
 const normalizar = (s) => String(s).normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toLowerCase();
 
 const listar = () => Pedido.listar();
-const listarMios = (idCliente) => Pedido.listarDeCliente(idCliente);
+// El cliente ve los cambios de su pedido, pero no quién del equipo los hizo
+const listarMios = async (idCliente) =>
+  (await Pedido.listarDeCliente(idCliente)).map((p) => ({ ...p, historial: p.historial.map(({ estado, fecha }) => ({ estado, fecha })) }));
+
+// Cambios de pago en el historial (la columna admite 30 caracteres)
+const PAGO_EN_HISTORIAL = {
+  Pagado: 'Pago recibido',
+  Rechazado: 'Pago rechazado',
+  'Pendiente de verificación': 'Pago por verificar',
+  Pendiente: 'Pago pendiente',
+};
 
 const obtener = async (id, c) => {
   const p = await Pedido.obtenerPorId(id, c);
@@ -44,6 +55,7 @@ const cotizar = (items, catalogo, gaseosas = []) => {
     return {
       id_insumo_producto: producto.id_insumo_producto,
       producto: producto.nombre,
+      categoria: producto.categoria,
       cantidad: it.cantidad,
       precio_unitario: producto.precio,
       subtotal: unitario * it.cantidad,
@@ -85,7 +97,7 @@ const crear = async (d, idCliente) => {
       estado_pago: d.pago === 'Efectivo' ? 'Pendiente' : 'Pendiente de verificación',
     });
     for (const l of lineas) await Pedido.crearDetalle(c, idPedido, l);
-    await Pedido.crearOrdenProduccion(c, idPedido, lineas);
+    await Pedido.crearOrdenProduccion(c, idPedido, lineas, d.notas);
     await Pedido.registrarEstado(c, idPedido, estado, idCliente);
     return idPedido;
   });
@@ -115,11 +127,19 @@ const actualizar = async (id, d, idUsuario) => {
       await Pedido.registrarEstado(c, id, d.estado, idUsuario);
       await VentaPedido.reflejarEstado(c, id, d.estado);
     }
+    if (d.estado_pago && d.estado_pago !== p.estado_pago && PAGO_EN_HISTORIAL[d.estado_pago]) {
+      await Pedido.registrarEstado(c, id, PAGO_EN_HISTORIAL[d.estado_pago], idUsuario);
+    }
     if (d.estado_pago === 'Pagado' && p.estado_pago !== 'Pagado') {
       await VentaPedido.asegurarVenta(c, await obtener(id, c), idUsuario);
     }
   });
-  return obtener(id);
+  const pedido = await obtener(id);
+  // Avisa al cliente para que su detalle del pedido se actualice sin recargar
+  Eventos.publicarEstadoProduccion({
+    idCliente: pedido.id_cliente, idPedido: pedido.id_pedido, estado: pedido.estado, estado_produccion: pedido.estado_produccion,
+  });
+  return pedido;
 };
 
 module.exports = { listar, listarMios, obtener, crear, subirComprobante, actualizar, cotizar };
