@@ -15,16 +15,22 @@ const env = {
     ]),
   ],
   jwtSecret: process.env.JWT_SECRET,
-  jwtExpiresIn: process.env.JWT_EXPIRES_IN || '1d',
+  jwtExpiresIn: process.env.JWT_EXPIRES_IN || '365d',
   adminEmail: process.env.ADMIN_EMAIL,
   adminPassword: process.env.ADMIN_PASSWORD,
   adminNombre: process.env.ADMIN_NOMBRE || 'Administrador',
   // Superadministrador fijo: nadie lo desactiva, lo elimina, le quita el rol ni le cambia el correo
   superAdminEmail: 'admin@minifood.com',
+  // Página de la tienda: el botón de los correos lleva aquí
+  appUrl: process.env.APP_URL || 'https://mini-burguer-lw8q.vercel.app',
 
   // Correo que envía los códigos de recuperación (Gmail + contraseña de aplicación)
   mailUser: process.env.MAIL_USER,
   mailPass: (process.env.MAIL_PASS || '').replace(/\s/g, ''), // Google la muestra con espacios
+
+  cloudinaryCloudName: process.env.CLOUDINARY_CLOUD_NAME,
+cloudinaryApiKey: process.env.CLOUDINARY_API_KEY,
+cloudinaryApiSecret: process.env.CLOUDINARY_API_SECRET,
 
   defaultPasswords: Object.fromEntries(
     Object.entries(process.env).filter(([key]) => key.startsWith('DEFAULT_PASSWORD_'))

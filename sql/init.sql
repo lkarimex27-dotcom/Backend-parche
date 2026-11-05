@@ -1,5 +1,5 @@
 -- =====================================================
--- MINIFOOD - Esquema para PostgreSQL (Neon) - 26 tablas
+-- MINIFOOD - Esquema para PostgreSQL (Neon) - 27 tablas
 -- Convertido desde el script MySQL/SQL Server original.
 -- En Neon ya existe la base de datos (neondb), por eso no hay CREATE DATABASE / USE.
 -- Es idempotente: se puede ejecutar varias veces (npm run db:init).
@@ -322,8 +322,8 @@ ALTER TABLE perdidas_insumos ADD COLUMN IF NOT EXISTS motivo_devolucion TEXT;
 -- Se puede devolver solo una parte: cantidad = lo que sigue perdido, cantidad_devuelta = lo que volvió al stock
 ALTER TABLE perdidas_insumos ADD COLUMN IF NOT EXISTS cantidad_devuelta DECIMAL(12,3) NOT NULL DEFAULT 0;
 
--- Catálogo operativo de barrios. Los candidatos suministrados por el negocio quedan inactivos
--- hasta que una persona administradora confirme cobertura y configuración de desplazamiento.
+-- Barrios suministrados por el negocio para Bello. Solo Santa Ana usa el tiempo inicial
+-- de desplazamiento de zona cercana; los demás tiempos deben configurarse con datos medidos.
 CREATE TABLE IF NOT EXISTS barrios (
     id_barrio                       BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     nombre                          VARCHAR(120) NOT NULL,
@@ -335,23 +335,20 @@ CREATE TABLE IF NOT EXISTS barrios (
     costo_domicilio_cop             DECIMAL(12,2) CHECK (costo_domicilio_cop >= 0),
     creado_en                       TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+ALTER TABLE barrios ADD COLUMN IF NOT EXISTS es_cercano BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE barrios ADD COLUMN IF NOT EXISTS costo_domicilio_cop DECIMAL(12,2) CHECK (costo_domicilio_cop >= 0);
 CREATE UNIQUE INDEX IF NOT EXISTS uq_barrios_nombre_municipio
     ON barrios (lower(nombre), lower(municipio), lower(departamento));
 
-INSERT INTO barrios (nombre)
-SELECT candidatos.nombre
+INSERT INTO barrios AS barrio (nombre, municipio, departamento, activo, es_cercano)
+SELECT candidatos.nombre, 'Bello', 'Antioquia', TRUE, candidatos.nombre = 'Santa Ana'
   FROM unnest(ARRAY[
     'Santa Ana', 'Los Búcaros', 'Serramonte', 'Salento', 'Molinares', 'San Simón',
     'Villas de Occidente', 'La Madera', 'La Cabañita', 'La Cabaña', 'Centro', 'Pérez',
     'Espíritu Santo', 'La Florida', 'Barrio Nuevo', 'La Cumbre', 'Bellavista', 'Niquía'
   ]::text[]) AS candidatos(nombre)
- WHERE NOT EXISTS (
-   SELECT 1 FROM barrios b
-    WHERE lower(b.nombre) = lower(candidatos.nombre)
-      AND lower(b.municipio) = 'bello'
-      AND lower(b.departamento) = 'antioquia'
- );
+ON CONFLICT (lower(nombre), lower(municipio), lower(departamento))
+DO UPDATE SET activo = TRUE, es_cercano = barrio.es_cercano OR EXCLUDED.es_cercano;
 
 -- 24. PEDIDOS (ciclo: PENDIENTE > APROBADO > EN_PREPARACION > LISTO > EN_CAMINO > ENTREGADO | RECHAZADO | CANCELADO)
 -- Al entregarse un pedido se genera la venta (id_venta).
@@ -386,6 +383,7 @@ ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS registros_produccion JSONB NOT NULL
 ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS id_barrio BIGINT REFERENCES barrios(id_barrio);
 ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS estimacion_inicial JSONB;
 ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS costo_domicilio_cop DECIMAL(12,2);
+ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS tipo_entrega VARCHAR(20) NOT NULL DEFAULT 'domicilio';
 ALTER TABLE barrios ADD COLUMN IF NOT EXISTS es_cercano BOOLEAN NOT NULL DEFAULT FALSE;
 
 -- 25. DETALLE DE PEDIDOS (precio_unitario queda congelado al confirmar el pedido)
@@ -533,8 +531,25 @@ CREATE TABLE IF NOT EXISTS recuperaciones_contrasena (
     expira       TIMESTAMPTZ NOT NULL,
     intentos     INT NOT NULL DEFAULT 0,
     creado_en    TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    verificacion_hash VARCHAR(64),
+    verificacion_expira TIMESTAMPTZ,
 
     CONSTRAINT fk_recuperacion_usuario FOREIGN KEY (id_usuario) REFERENCES usuarios(id_usuario) ON DELETE CASCADE
+);
+ALTER TABLE recuperaciones_contrasena ADD COLUMN IF NOT EXISTS verificacion_hash VARCHAR(64);
+ALTER TABLE recuperaciones_contrasena ADD COLUMN IF NOT EXISTS verificacion_expira TIMESTAMPTZ;
+
+CREATE TABLE IF NOT EXISTS codigos_registro (
+   correo          VARCHAR(255) PRIMARY KEY,
+   codigo_hash     VARCHAR(64) NOT NULL,
+   contrasena_hash VARCHAR(255) NOT NULL,
+   nombre          VARCHAR(150) NOT NULL,
+   tipo_documento  VARCHAR(30),
+   documento       VARCHAR(50),
+   telefono        VARCHAR(30),
+   expira          TIMESTAMPTZ NOT NULL,
+   intentos        INT NOT NULL DEFAULT 0,
+   creado_en       TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Cliente mostrador: anónimo para registrar ventas a quien no quiere dar sus datos (no se edita ni se anula)
@@ -545,3 +560,127 @@ SELECT 'Cliente mostrador', 'CLIENTE', 'Cédula de Ciudadanía', '000000000', TR
 -- Datos de contacto del personal (usuarios que no son clientes)
 ALTER TABLE personas ADD COLUMN IF NOT EXISTS barrio VARCHAR(100);
 ALTER TABLE personas ADD COLUMN IF NOT EXISTS telefono_emergencia VARCHAR(30);
+
+-- 30. PÉRDIDA ↔ COMPRA POR NÚMERO: una pérdida enviada desde una compra guarda su id_compra.
+-- Antes solo quedaba el texto "Compra a <proveedor> del <fecha>", ambiguo con dos compras al mismo proveedor el mismo día.
+ALTER TABLE perdidas_insumos ADD COLUMN IF NOT EXISTS id_compra BIGINT REFERENCES compras(id_compra);
+-- Pérdidas anteriores: se enlazan si su texto apunta a una sola compra; si hay dos posibles quedan sin enlazar
+UPDATE perdidas_insumos pe
+   SET id_compra = m.id_compra
+  FROM (SELECT pe2.id_perdida, min(co.id_compra) AS id_compra
+          FROM perdidas_insumos pe2
+          JOIN compras co ON TRUE
+          JOIN proveedores pr ON pr.id_proveedor = co.id_proveedor
+         WHERE pe2.id_compra IS NULL
+           AND pe2.observacion = 'Compra a ' || pr.nombre || ' del ' || extract(day FROM co.fecha)::int || ' de ' ||
+               (ARRAY['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'])
+                 [extract(month FROM co.fecha)::int] || ' de ' || extract(year FROM co.fecha)::int
+         GROUP BY pe2.id_perdida
+        HAVING count(*) = 1) m
+ WHERE pe.id_perdida = m.id_perdida;
+CREATE INDEX IF NOT EXISTS idx_perdidas_compra ON perdidas_insumos(id_compra);
+
+-- 31. HISTORIAL DE MOVIMIENTOS DE STOCK: cada cambio del stock de un insumo queda registrado con su origen.
+-- Lo escribe un trigger, así ningún camino (compra, pérdida, producción, edición) se salta el registro y
+-- siempre se cumple: stock actual = suma de sus movimientos. El origen lo indica el backend en la transacción
+-- con set_config('app.mov_origen', ...) / ('app.mov_ref', ...); sin eso queda como 'AJUSTE'.
+CREATE TABLE IF NOT EXISTS movimientos_stock (
+    id_movimiento       BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    id_insumo_producto  BIGINT NOT NULL,
+    cantidad            DECIMAL(12,3) NOT NULL,   -- positiva entra, negativa sale
+    stock_resultante    DECIMAL(12,3) NOT NULL,
+    origen              VARCHAR(40) NOT NULL,     -- COMPRA, ANULACION_COMPRA, PERDIDA, DEVOLUCION_PERDIDA, PRODUCCION...
+    referencia          VARCHAR(150),             -- ej. "Compra #12", "Pérdida #4", "Orden OP-0007"
+    fecha               TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_movimiento_insumo FOREIGN KEY (id_insumo_producto) REFERENCES insumos_productos(id_insumo_producto) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_movimientos_insumo ON movimientos_stock(id_insumo_producto, fecha);
+
+CREATE OR REPLACE FUNCTION registrar_movimiento_stock() RETURNS trigger AS $$
+DECLARE
+  delta NUMERIC := NEW.stock - CASE WHEN TG_OP = 'INSERT' THEN 0 ELSE OLD.stock END;
+BEGIN
+  IF NEW.tipo <> 'INSUMO' OR delta = 0 THEN
+    RETURN NEW;
+  END IF;
+  INSERT INTO movimientos_stock (id_insumo_producto, cantidad, stock_resultante, origen, referencia)
+  VALUES (NEW.id_insumo_producto, delta, NEW.stock,
+          COALESCE(NULLIF(current_setting('app.mov_origen', true), ''), 'AJUSTE'),
+          NULLIF(current_setting('app.mov_ref', true), ''));
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS tr_movimiento_stock ON insumos_productos;
+CREATE TRIGGER tr_movimiento_stock
+  AFTER INSERT OR UPDATE OF stock ON insumos_productos
+  FOR EACH ROW EXECUTE FUNCTION registrar_movimiento_stock();
+
+-- Punto de partida: el stock que ya tenía cada insumo antes del historial
+INSERT INTO movimientos_stock (id_insumo_producto, cantidad, stock_resultante, origen, referencia)
+SELECT ip.id_insumo_producto, ip.stock, ip.stock, 'SALDO_INICIAL', 'Stock al empezar el historial'
+  FROM insumos_productos ip
+ WHERE ip.tipo = 'INSUMO' AND ip.stock <> 0
+   AND NOT EXISTS (SELECT 1 FROM movimientos_stock m WHERE m.id_insumo_producto = ip.id_insumo_producto);
+
+-- 32. GASEOSAS COMO PRODUCTOS DE «BEBIDAS»: cada gaseosa es un producto de la categoría «Bebidas» llamado
+-- "Gaseosa <sabor> (<tamaño>)", con su propio precio y foto y sin ficha técnica (la tienda las arma con ese nombre).
+-- Ya no existen «Sabores de bebida» ni la categoría «Gaseosas»: si quedara algo en «Gaseosas», pasa a «Bebidas».
+UPDATE insumos_productos
+   SET id_categoria = (SELECT id_categoria FROM categorias WHERE nombre_categoria = 'Bebidas' AND tipo = 'PRODUCTO')
+ WHERE tipo = 'PRODUCTO'
+   AND id_categoria IN (SELECT id_categoria FROM categorias WHERE nombre_categoria = 'Gaseosas' AND tipo = 'PRODUCTO')
+   AND EXISTS (SELECT 1 FROM categorias WHERE nombre_categoria = 'Bebidas' AND tipo = 'PRODUCTO');
+DELETE FROM categorias c
+ WHERE c.nombre_categoria = 'Gaseosas' AND c.tipo = 'PRODUCTO'
+   AND NOT EXISTS (SELECT 1 FROM insumos_productos ip WHERE ip.id_categoria = c.id_categoria);
+
+-- 33. LAS GASEOSAS LLEVAN SU STOCK EN EL PRODUCTO: una gaseosa de reventa ya no es insumo; su compra suma al stock
+-- de su producto "Gaseosa <sabor> (<tamaño>)" de «Bebidas» y su venta lo baja. Por eso el historial de stock
+-- también registra esos productos (antes solo insumos).
+CREATE OR REPLACE FUNCTION registrar_movimiento_stock() RETURNS trigger AS $$
+DECLARE
+  delta NUMERIC := NEW.stock - CASE WHEN TG_OP = 'INSERT' THEN 0 ELSE OLD.stock END;
+BEGIN
+  IF delta = 0 OR NOT (NEW.tipo = 'INSUMO' OR (NEW.tipo = 'PRODUCTO' AND NEW.nombre ILIKE 'Gaseosa %')) THEN
+    RETURN NEW;
+  END IF;
+  INSERT INTO movimientos_stock (id_insumo_producto, cantidad, stock_resultante, origen, referencia)
+  VALUES (NEW.id_insumo_producto, delta, NEW.stock,
+          COALESCE(NULLIF(current_setting('app.mov_origen', true), ''), 'AJUSTE'),
+          NULLIF(current_setting('app.mov_ref', true), ''));
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Una gaseosa que quedó como insumo pasa a su producto: stock, costo y compras (su historial viejo se va con el insumo;
+-- el traslado queda como un movimiento del producto)
+CREATE TEMP TABLE gaseosas_insumo ON COMMIT DROP AS
+SELECT i.id_insumo_producto AS insumo, p.id_insumo_producto AS producto, i.stock, i.costo
+  FROM insumos_productos i
+  JOIN insumos_productos p ON p.tipo = 'PRODUCTO' AND lower(p.nombre) = lower(i.nombre)
+ WHERE i.tipo = 'INSUMO' AND i.nombre ILIKE 'Gaseosa %';
+UPDATE detalle_compras d SET id_insumo_producto = g.producto FROM gaseosas_insumo g WHERE d.id_insumo_producto = g.insumo;
+UPDATE perdidas_insumos pe SET id_insumo_producto = g.producto FROM gaseosas_insumo g WHERE pe.id_insumo_producto = g.insumo;
+SELECT set_config('app.mov_origen', 'TRASLADO', true), set_config('app.mov_ref', 'Desde su antiguo insumo', true);
+UPDATE insumos_productos p
+   SET stock = p.stock + g.stock, costo = CASE WHEN g.costo > 0 THEN g.costo ELSE p.costo END
+  FROM gaseosas_insumo g WHERE p.id_insumo_producto = g.producto;
+SELECT set_config('app.mov_origen', '', true), set_config('app.mov_ref', '', true);
+DELETE FROM insumos_productos i USING gaseosas_insumo g WHERE i.id_insumo_producto = g.insumo;
+-- La categoría de insumos «Bebidas» ya no se usa
+DELETE FROM categorias c
+ WHERE c.nombre_categoria = 'Bebidas' AND c.tipo = 'INSUMO'
+   AND NOT EXISTS (SELECT 1 FROM insumos_productos ip WHERE ip.id_categoria = c.id_categoria);
+
+-- 34. EL PAN DE HAMBURGUESA SE MIDE EN PAQUETES: cada paquete trae los dos panes (una hamburguesa), igual que
+-- en sus fichas técnicas. Y en general: una ficha técnica usa la medida de su insumo cuando no se convierten entre
+-- sí (g ↔ kg y ml ↔ L sí), para que el costo y el stock cuadren.
+UPDATE insumos_productos SET medida = 'paq'
+ WHERE tipo = 'INSUMO' AND lower(nombre) = 'pan de hamburguesa' AND medida = 'und';
+UPDATE ficha_tecnica_insumos f SET medida = i.medida
+  FROM insumos_productos i
+ WHERE i.id_insumo_producto = f.id_insumo_producto AND f.medida IS DISTINCT FROM i.medida
+   AND NOT (f.medida IN ('g', 'kg') AND i.medida IN ('g', 'kg'))
+   AND NOT (f.medida IN ('ml', 'L') AND i.medida IN ('ml', 'L'));

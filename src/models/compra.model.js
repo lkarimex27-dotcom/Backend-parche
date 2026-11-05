@@ -43,4 +43,12 @@ const crearDetalle = (c, idCompra, it) =>
     [idCompra, it.id_insumo_producto, it.cantidad, it.costo_unitario]
   );
 
-module.exports = { listar, obtenerPorId, crear, actualizar, cambiarEstado, borrarDetalles, crearDetalle };
+// Estados de las compras a ese proveedor en esa fecha (una pérdida guarda su compra como texto, no por id)
+const estadosDe = async (c, proveedor, fecha) =>
+  (await c.query(
+    `SELECT co.estado FROM compras co JOIN proveedores pr ON pr.id_proveedor = co.id_proveedor
+      WHERE lower(pr.nombre) = lower($1) AND co.fecha = $2::date`,
+    [proveedor, fecha]
+  )).rows.map((r) => r.estado);
+
+module.exports = { listar, obtenerPorId, crear, actualizar, cambiarEstado, borrarDetalles, crearDetalle, estadosDe };

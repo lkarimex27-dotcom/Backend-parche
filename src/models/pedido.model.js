@@ -3,11 +3,16 @@ const { ESTIMADOR } = require('../config/constants');
 
 const SELECT = `
   SELECT p.id_pedido, p.id_cliente, u.correo, COALESCE(pe.nombre, p.nombre_contacto) AS cliente,
-         p.nombre_contacto, p.telefono_contacto, p.direccion_entrega, p.observacion, p.metodo_pago,
+         p.nombre_contacto, p.telefono_contacto, p.tipo_entrega, p.direccion_entrega, p.observacion, p.metodo_pago,
+         json_build_object(
+           'nombre', COALESCE(p.nombre_contacto, pe.nombre),
+           'telefono', p.telefono_contacto
+         ) AS destinatario,
          p.estado, p.estado_pago, p.motivo_rechazo_pago, p.comprobante, p.produccion_autorizada,
          p.registros_produccion, p.id_barrio, p.estimacion_inicial,
          p.subtotal::float AS subtotal, p.costo_domicilio_cop::float AS costo_domicilio_cop,
          p.total::float AS total, p.creado_en,
+         b.nombre AS barrio,
          COALESCE((SELECT json_agg(json_build_object(
                      'producto', i.nombre, 'cantidad', d.cantidad::float, 'precio_unitario', d.precio_unitario::float,
                      'detalle', d.observacion::json) ORDER BY d.id_pedido_detalle)
@@ -15,6 +20,7 @@ const SELECT = `
                     WHERE d.id_pedido = p.id_pedido), '[]'::json) AS items
     FROM pedidos p
     JOIN usuarios u ON u.id_usuario = p.id_cliente
+    LEFT JOIN barrios b ON b.id_barrio = p.id_barrio
     LEFT JOIN personas pe ON pe.id_usuario = p.id_cliente`;
 
 const listar = async () => (await query(`${SELECT} ORDER BY p.creado_en DESC`)).rows;
@@ -35,11 +41,13 @@ const catalogoActivo = async () =>
 
 const crear = async (c, d) =>
   (await c.query(
-    `INSERT INTO pedidos (id_cliente, estado, nombre_contacto, telefono_contacto, direccion_entrega, observacion,
-                          metodo_pago, estado_pago, comprobante, subtotal, costo_domicilio_cop, total, id_barrio, estimacion_inicial)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING id_pedido`,
-    [d.id_cliente, d.estado, d.nombre, d.telefono, d.direccion, d.notas ?? null, d.pago, d.estado_pago,
-     d.comprobante ?? null, d.subtotal, d.costo_domicilio_cop, d.total, d.id_barrio, JSON.stringify(d.estimacion_inicial)]
+    `INSERT INTO pedidos (id_cliente, estado, nombre_contacto, telefono_contacto, tipo_entrega, direccion_entrega, observacion,
+                          metodo_pago, estado_pago, comprobante, subtotal, costo_domicilio_cop, total,
+                          id_barrio, estimacion_inicial)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING id_pedido`,
+    [d.id_cliente, d.estado, d.nombre, d.telefono, d.tipo_entrega ?? 'domicilio', d.direccion, d.notas ?? null, d.pago, d.estado_pago,
+     d.comprobante ?? null, d.subtotal, d.costo_domicilio_cop, d.total, d.id_barrio,
+     JSON.stringify(d.estimacion_inicial)]
   )).rows[0].id_pedido;
 
 const crearDetalle = (c, idPedido, it) =>
@@ -64,14 +72,30 @@ const actualizar = (c, id, d) => {
   );
 };
 
-const cargaCocina = async (c) =>
+const colaCocina = async (c) =>
   (await (c || { query }).query(
-    `SELECT count(*)::int AS pedidos_activos
-       FROM pedidos
-      WHERE estado = ANY($1::text[])
-        AND creado_en <= now()`,
+    `SELECT p.id_pedido, p.estado, p.creado_en, COALESCE(productos.unidades, 0)::float AS unidades,
+            CASE WHEN p.estado = 'En cocina' THEN (
+              SELECT max(h.fecha)
+                FROM historial_estados_pedido h
+               WHERE h.id_pedido = p.id_pedido
+                 AND h.estado = 'En cocina'
+                 AND h.fecha <= now()
+            ) ELSE NULL END AS inicio_cocina
+       FROM pedidos p
+       LEFT JOIN LATERAL (
+         SELECT SUM(d.cantidad) AS unidades
+           FROM pedido_detalle d
+          WHERE d.id_pedido = p.id_pedido
+       ) productos ON TRUE
+      WHERE (
+          p.estado = ANY($1::text[])
+          OR (p.estado = 'Por confirmar' AND p.produccion_autorizada = TRUE)
+        )
+        AND p.creado_en <= now()
+      ORDER BY p.creado_en ASC, p.id_pedido ASC`,
     [['Recibido', 'Confirmado', 'En cocina']]
-  )).rows[0].pedidos_activos;
+  )).rows;
 
 const estadisticasDesplazamiento = async (idBarrio, c) =>
   (await (c || { query }).query(
@@ -104,5 +128,5 @@ const estadisticasDesplazamiento = async (idBarrio, c) =>
 
 module.exports = {
   listar, listarDeCliente, obtenerPorId, catalogoActivo, crear, crearDetalle, registrarEstado,
-  actualizar, cargaCocina, estadisticasDesplazamiento,
+  actualizar, colaCocina, estadisticasDesplazamiento,
 };

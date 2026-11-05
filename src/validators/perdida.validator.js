@@ -16,6 +16,12 @@ const perdida = z.object({
     .refine((f) => f <= hoy(), 'La fecha de la pérdida no puede ser posterior a hoy')
     .optional(),
   observacion: z.string().trim().max(1000).optional(),  // ej. "Compra a X del <fecha>"
+  id_compra: z.number().int().positive().optional(),     // la compra de la que se envió (si vino de una)
+});
+
+const devolver = z.object({
+  cantidad: z.number().positive('La cantidad a devolver debe ser mayor que 0').optional(),
+  motivo: z.string().trim().min(3, 'Escribe por qué se devuelve a la compra').max(500),
 });
 
 const devolver = z.object({

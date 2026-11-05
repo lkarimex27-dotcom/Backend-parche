@@ -3,18 +3,20 @@ const bcrypt = require('bcryptjs');
 const Usuario = require('../models/usuario.model');
 const Recuperacion = require('../models/recuperacion.model');
 const { enviarCorreo } = require('../utils/mailer');
+const { plantilla, parrafo, recuadro } = require('../utils/plantillaCorreo');
 const AppError = require('../errors/AppError');
 
 const MINUTOS = 15;
+const MINUTOS_VERIFICACION = 10;
 const MAX_INTENTOS = 5;
 const hash = (codigo) => crypto.createHash('sha256').update(String(codigo)).digest('hex');
 const iguales = (a, b) => a.length === b.length && crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b));
 
-// Envía un código de 6 dígitos al correo; solo a cuentas registradas en la app y activas
+// Envía un código de 6 dígitos al correo; solo a cuentas registradas en la app y activas.
+// Para cualquier otro correo responde igual (sin error): así no se puede averiguar quién tiene cuenta
 const solicitar = async ({ correo }) => {
   const u = await Usuario.obtenerParaLogin(correo);
-  if (!u) throw AppError.notFound('Ese correo no está registrado en la aplicación. Revisa que esté bien escrito o regístrate.');
-  if (u.estado !== 'ACTIVO') throw AppError.forbidden('Tu usuario está inactivo. Comunícate con el administrador.');
+  if (!u || u.estado !== 'ACTIVO') return;
   if ((await Recuperacion.obtener(u.id_usuario))?.reciente) return; // ya se envió uno hace menos de 1 minuto
   const codigo = String(crypto.randomInt(0, 1_000_000)).padStart(6, '0');
   await Recuperacion.guardar(u.id_usuario, hash(codigo), MINUTOS);
@@ -22,12 +24,14 @@ const solicitar = async ({ correo }) => {
     await enviarCorreo({
       para: u.correo,
       asunto: 'Tu código para recuperar la contraseña',
-      html: `<div style="font-family:Arial,sans-serif;max-width:420px">
-        <h2 style="color:#C9962B">El Parche Mini Burguer</h2>
-        <p>Recibimos una solicitud para cambiar tu contraseña. Tu código es:</p>
-        <p style="font-size:32px;font-weight:bold;letter-spacing:8px">${codigo}</p>
-        <p>Vence en ${MINUTOS} minutos. Si no fuiste tú, ignora este correo: tu contraseña no cambia.</p>
-      </div>`,
+      html: plantilla({
+        titulo: 'Recupera tu contraseña',
+        hero: 'codigo',
+        ayuda: false,
+        contenido:
+          recuadro('Tu código', codigo, 8) +
+          parrafo(`Vence en ${MINUTOS} minutos. Si no fuiste tú, ignora este correo; tu contraseña no cambia.`),
+      }),
     });
   } catch (err) {
     await Recuperacion.borrar(u.id_usuario); // un código que no llegó no debe bloquear el reintento
@@ -35,18 +39,33 @@ const solicitar = async ({ correo }) => {
   }
 };
 
-// Cambia la contraseña si el código es correcto, está vigente y no superó los intentos
-const restablecer = async ({ correo, codigo, nueva }) => {
-  const invalido = AppError.badRequest('El código es incorrecto o ya venció. Pide uno nuevo.');
+// Verifica el PIN por separado y emite un token temporal para el formulario de nueva contraseña.
+const verificar = async ({ correo: correoEntrada, codigo }) => {
+  const correo = correoEntrada.trim().toLowerCase();
   const u = await Usuario.obtenerParaLogin(correo);
   const r = u && (await Recuperacion.obtener(u.id_usuario));
+  const invalido = AppError.badRequest('El código es incorrecto o ya venció. Pide uno nuevo.');
   if (!r || !r.vigente || r.intentos >= MAX_INTENTOS) throw invalido;
   if (!iguales(hash(codigo), r.codigo_hash)) {
     await Recuperacion.sumarIntento(u.id_usuario);
     throw invalido;
   }
+
+  const token = crypto.randomBytes(32).toString('hex');
+  await Recuperacion.marcarVerificado(u.id_usuario, hash(token), MINUTOS_VERIFICACION);
+  return { token };
+};
+
+// Cambia la contraseña solo con el token emitido tras validar el PIN.
+const restablecer = async ({ correo: correoEntrada, token, nueva }) => {
+  const correo = correoEntrada.trim().toLowerCase();
+  const invalido = AppError.badRequest('El código es incorrecto o ya venció. Pide uno nuevo.');
+  const u = await Usuario.obtenerParaLogin(correo);
+  const r = u && (await Recuperacion.obtener(u.id_usuario));
+  if (!r || !r.vigente || r.intentos >= MAX_INTENTOS) throw invalido;
+  if (!r.verificacion_vigente || !r.verificacion_hash || !iguales(hash(token), r.verificacion_hash)) throw invalido;
   await Usuario.cambiarContrasena(u.id_usuario, await bcrypt.hash(nueva, 10));
   await Recuperacion.borrar(u.id_usuario);
 };
 
-module.exports = { solicitar, restablecer };
+module.exports = { solicitar, verificar, restablecer };

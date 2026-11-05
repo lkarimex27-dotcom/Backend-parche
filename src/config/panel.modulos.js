@@ -75,8 +75,7 @@ module.exports = {
     tabla: 'producto_no_conforme',
     id: 'id_producto_no_conforme',
     modulo: 'PRODUCTO_NO_CONFORME',
-    borrar: true,
-    columnas: async (r, idUsuario) => ({
+    columnas: async (r, idUsuario, relacionados = {}) => ({
       id_usuario: idUsuario,
       codigo: txt(r[0], 30),
       productos: txt(r[1], 2000),
@@ -86,6 +85,9 @@ module.exports = {
       fecha: fecha(r[5]),
       observacion: txt(r[6], 2000),
       medida: txt(r[7], 50),
+      ...(Object.hasOwn(relacionados, 'id_orden_produccion')
+        ? { id_orden_produccion: relacionados.id_orden_produccion }
+        : {}),
       estado: txt(r[8], 30) ?? 'PENDIENTE',
     }),
   },
@@ -120,7 +122,8 @@ module.exports = {
       id_venta: r[1]
         ? (await query('SELECT id_venta FROM ventas WHERE codigo = $1 LIMIT 1', [String(r[1])])).rows[0]?.id_venta ?? null
         : null,
-      cliente: txt(r[3]) ?? txt(r[2]),
+      // [2] cliente de la venta; [3] es el comentario de por qué se devuelve
+      cliente: txt(r[2]),
       motivo: txt(r[4], 50),
       fecha: fecha(r[5]),
     }),

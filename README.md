@@ -12,7 +12,7 @@ npm install
 #    - JWT_SECRET    (node -e "console.log(require('crypto').randomBytes(48).toString('hex'))")
 #    - ADMIN_EMAIL / ADMIN_PASSWORD (primer administrador)
 #    - DEFAULT_PASSWORD_ADMINISTRADOR / DEFAULT_PASSWORD_EMPLEADO / DEFAULT_PASSWORD_DOMICILIARIO
-npm run db:setup     # crea las 26 tablas + roles, privilegios, módulos, permisos y el admin
+npm run db:setup     # crea las 27 tablas + roles, privilegios, módulos, permisos y el admin
 npm run dev
 ```
 
@@ -24,6 +24,10 @@ caracteres e incluir una mayúscula, una minúscula y un número. El servidor la
 usuarios de personal, devuelve la clave temporal solo en la respuesta de alta y exige cambiarla
 en `PATCH /api/auth/me/contrasena-inicial` antes de permitir cualquier otra ruta autenticada.
 Las cuentas de cliente conservan la contraseña que el cliente eligió.
+El selector de entrega obtiene los barrios habilitados desde `GET /api/barrios`;
+la ruta requiere sesión y devuelve el catálogo de Bello bajo `data`.
+El checkout consulta `POST /api/pedidos/estimacion` para calcular el tiempo y
+obtener el precio de domicilio configurado para el barrio seleccionado.
 
 ## Cómo se usa la seguridad
 
@@ -31,6 +35,22 @@ Las cuentas de cliente conservan la contraseña que el cliente eligió.
 2. Todas las demás rutas (salvo `/health`, `/auth/login`, `/auth/registro`) exigen `Authorization: Bearer <token>`.
 3. Cada ruta valida contra la BD que algún rol del usuario tenga el privilegio (`VER`, `CREAR`, `EDITAR`, `ELIMINAR`) en el módulo.
    Los permisos se leen en cada petición: si cambias un rol o desactivas a alguien, aplica de inmediato.
+   Las rutas públicas de autenticación para registro y recuperación se detallan a continuación.
+
+### Registro y recuperación de contraseña
+
+El registro envía un PIN aleatorio de seis dígitos al correo indicado. La cuenta solo se crea
+después de validar el PIN, que vence en 15 minutos y permite hasta cinco intentos. El endpoint
+`POST /api/auth/registro` también inicia el mismo flujo de verificación.
+
+Para recuperar la contraseña, usa `POST /api/auth/recuperar`, luego valida el PIN con
+`POST /api/auth/recuperar/verificar` y envía el token devuelto junto con la nueva contraseña a
+`POST /api/auth/restablecer`. El token temporal vence a los 10 minutos. Configura `MAIL_USER`
+y `MAIL_PASS` en `.env` para habilitar el envío de correo; en Gmail, `MAIL_PASS` debe ser una
+contraseña de aplicación. Ejecuta `npm run db:init` para aplicar la tabla temporal de registros
+y las columnas de verificación de recuperación.
+
+Los JWT duran 365 días por defecto (`JWT_EXPIRES_IN` permite cambiarlo). Esta vigencia es compartida por todos los módulos, incluido barrios. Si un token ya venció, inicia sesión de nuevo para recibir uno vigente; cambiar esta duración no renueva tokens emitidos anteriormente.
 
 ## Módulos y rutas
 
@@ -45,14 +65,104 @@ Las cuentas de cliente conservan la contraseña que el cliente eligió.
 | Pérdida Insumos | `/api/perdidas-insumos` | Pendiente (baja stock, transacción) |
 | Categ. Producto | `/api/categorias-productos` | Listo |
 | Productos | `/api/productos` | Listo |
-| Órdenes de Prod. | `/api/ordenes-produccion` | Pendiente |
-| Prod. No Conforme | `/api/productos-no-conformes` | Pendiente |
+| Órdenes de Prod. | `/api/ordenes-produccion` | Panel sincronizado; reposiciones transaccionales |
+| Prod. No Conforme | `/api/productos-no-conformes` | Panel sincronizado; vínculo de reposición |
 | Clientes | `/api/clientes` (solo lectura) | Listo |
+| Domicilios | `/api/barrios/admin` (configuración de cobertura, tiempos y costos) | CRUD listo |
 | Pedidos | `/api/pedidos` | Pendiente |
 | Ventas | `/api/ventas` | Pendiente |
 | Devoluciones | `/api/devoluciones` | Pendiente |
 
 Las tablas de los módulos pendientes ya existen en `sql/init.sql`.
+El endpoint `/api/domicilios` conserva el CRUD de direcciones asociadas a pedidos y sus cambios aparecen en `/api/pedidos/mios`. La configuración del módulo Domicilios se administra por `/api/barrios/admin` y requiere los privilegios `VER`, `CREAR`, `EDITAR` y `ELIMINAR` del módulo `BARRIOS`.
+Al registrar un producto no conforme que genera reposición, el panel usa
+`POST /api/productos-no-conformes/con-reposicion`: registra la orden nueva y el
+producto no conforme en una transacción, los vincula en la base de datos y,
+cuando se informa la orden afectada, guarda también su cambio de estado dentro
+de la misma transacción.
+
+## Barrios y estimación de entrega
+
+`npm run db:init` crea/actualiza el catálogo `barrios`, habilita los 18 barrios
+suministrados por el negocio y agrega `id_barrio`, `tipo_entrega` y
+`estimacion_inicial` a `pedidos`.
+Ejecuta también `npm run db:seed` para incorporar el módulo y los permisos
+administrativos `BARRIOS`. La lista es el catálogo inicial del negocio, no un
+inventario oficial ni completo. Solo Santa Ana recibe la referencia inicial de
+5 minutos (`es_cercano: true`); los otros tiempos quedan sin configurar hasta que
+se validen y registren datos medidos. El `db:init` es idempotente y no reemplaza
+los tiempos que ya haya configurado una persona administradora.
+
+Endpoints autenticados:
+
+| Método y ruta | Uso |
+|---|---|
+| `GET /api/barrios?buscar=ana` | Barrios activos de Bello, búsqueda parcial sin distinguir mayúsculas |
+| `GET /api/barrios/admin` | Catálogo completo para administración (`BARRIOS:VER`) |
+| `POST /api/barrios/admin` | Crear barrio (`BARRIOS:CREAR`) |
+| `PATCH /api/barrios/admin/:id` | Editar cobertura, cercanía, tiempo y `costo_domicilio_cop` (`BARRIOS:EDITAR`) |
+| `DELETE /api/barrios/admin/:id` | Desactivar barrio sin borrar referencias históricas (`BARRIOS:ELIMINAR`) |
+| `POST /api/pedidos/estimacion` | Estimar con `{ "id_barrio": 1, "direccion": "..." }` |
+| `POST /api/pedidos` | Crear pedido con `id_barrio`; el backend valida y almacena la estimación inicial |
+| `POST /api/barrios` | Crear candidato inactivo por defecto (`BARRIOS:CREAR`) |
+| `PATCH /api/barrios/:id` | Activar/desactivar o configurar cercanía/tiempo (`BARRIOS:EDITAR`) |
+
+Configura `costo_domicilio_cop` por barrio mediante `PATCH /api/barrios/admin/:id`.
+No se asigna una tarifa predeterminada: si el barrio no tiene costo configurado,
+la estimación devuelve `deliveryCost: null` y el pedido no se crea. Cuando la
+tarifa está configurada, el backend suma el costo al subtotal y persiste el
+detalle del domicilio y el total del pedido. El umbral de aprobación sigue
+evaluándose con el subtotal de productos.
+
+La respuesta exitosa usa el formato general `{ "ok": true, "data": ... }`. La
+configuración de barrios del panel también acepta `POST /api/barrios/admin` y
+`PATCH /api/barrios/admin/:id`, las rutas que usa el frontend.
+estimación contiene `minimumMinutes` y `maximumMinutes` solo cuando hay al menos
+cinco entregas válidas con marcas de salida y entrega para el barrio; incluye la
+mediana histórica del tramo `En camino` → `Entregado`. La cocina respeta el orden
+de creación PEPS, consulta los estados activos de los pedidos y usa la marca real
+de entrada a `En cocina` para descontar el tiempo transcurrido. Cuando faltan
+marcas, aplica la preparación base configurable de 15 minutos y la capacidad
+configurable en `src/config/constants.js` (dos pedidos concurrentes inicialmente).
+La preparación del pedido actual es de 15 minutos por unidad solicitada. La cola
+usa las cantidades agregadas de cada pedido activo y distribuye el trabajo entre
+los espacios de cocina configurados; excluye pedidos cancelados y entregados.
+Para `tipo_entrega: "local"` o `"recoger"`, `estimatedMinutes` incluye la espera y
+preparación de cocina; `deliveryCost` y `components.travelMinutes` son `null`.
+Para domicilios, `estimatedMinutes` también incluye el desplazamiento y
+`deliveryCost` se calcula separadamente. La respuesta incluye `distanceKm`,
+`distanceMethod: "straight_line_estimate"`, `zone`, `components` e `isApproximate`.
+Si hay al menos cinco entregas válidas del barrio en los últimos 180 días, la
+mediana histórica determina el desplazamiento y los percentiles informan el
+rango. En caso contrario, se usa la distancia aproximada en línea recta a
+15 km/h o el tiempo inicial configurado para un barrio cercano.
+El domicilio se calcula con la distancia aproximada geocodificada por el
+cliente: hasta 2 km cuesta $4.000; más de 2 y hasta 5 km, $6.000; después de
+5 km se suman $2.000 por cada tramo adicional de 3 km iniciado. Así, 5,1 km
+cuestan $8.000 y 8,1 km cuestan $10.000. La fórmula y los parámetros se
+centralizan en `src/config/constants.js`. No se utiliza distancia vial real:
+la respuesta identifica que la distancia es aproximada.
+El backend recalcula el valor, guarda `costo_domicilio_cop` por separado y suma
+el costo al total solo para `tipo_entrega: "domicilio"`, sin modificar el
+subtotal de productos. Para `"local"` y `"recoger"` guarda tarifa cero y el total
+es igual al subtotal. En esos dos casos no se requiere barrio ni distancia.
+La consulta de estimación de un domicilio debe incluir el barrio, la distancia
+calculada y las unidades del carrito para cotizar el tiempo. Ejemplo:
+`{ "tipo_entrega": "domicilio", "id_barrio": 1, "direccion": "Calle 1", "distancia_km": 1.5, "items": [{ "producto": "Mini", "cantidad": 2 }] }`.
+Para tiempo solo de cocina:
+`{ "tipo_entrega": "recoger" }`.
+El checkout consulta la estimación cada 30 segundos para las tres modalidades.
+El tiempo entre fin de preparación y salida no está registrado y no se inventa:
+`components.dispatchWaitMinutes` será `null`, y `isApproximate` permanece en
+`true` incluso cuando el tramo de desplazamiento usa historial.
+
+El costo del domicilio se calcula por tramos según la distancia (`distancia_km` o `ubicacion`).
+Si no llega una distancia, se usa la tarifa configurada del barrio (`costo_domicilio_cop`); si
+tampoco hay tarifa, el costo queda `null` (`costConfigured: false`) y el pedido a domicilio no se
+crea. El servidor calcula la tarifa definitiva y no acepta el costo enviado por el cliente. Sin tiempo de
+zona ni historial suficiente, la estimación indica `source: "unavailable"` y `estimatedMinutes: null`.
+Para `"local"` y `"recoger"` siempre se estima solo cocina, sin exigir barrio. La estimación inicial
+queda guardada como snapshot y no se sobrescribe.
 
 ## Barrios y estimación de entrega
 

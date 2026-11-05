@@ -14,18 +14,19 @@ const obtenerPorId = async (id, c) =>
 
 const crear = async (c, d) =>
   (await c.query(
-    `INSERT INTO perdidas_insumos (id_insumo_producto, id_usuario, fecha, cantidad, motivo, responsable, observacion)
-     VALUES ($1, $2, COALESCE($3::date, CURRENT_DATE), $4, $5, $6, $7) RETURNING id_perdida`,
+    `INSERT INTO perdidas_insumos (id_insumo_producto, id_usuario, fecha, cantidad, motivo, responsable, observacion, id_compra)
+     VALUES ($1, $2, COALESCE($3::date, CURRENT_DATE), $4, $5, $6, $7, $8) RETURNING id_perdida`,
     [d.id_insumo_producto, d.id_usuario, d.fecha ?? null, d.cantidad, d.motivo ?? null, d.responsable ?? null,
-     d.observacion ?? null]
+     d.observacion ?? null, d.id_compra ?? null]
   )).rows[0].id_perdida;
 
 const actualizar = (c, id, d) =>
   c.query(
     `UPDATE perdidas_insumos SET id_insumo_producto = $2, fecha = COALESCE($3::date, fecha), cantidad = $4,
-            motivo = $5, responsable = $6, observacion = $7
+            motivo = $5, responsable = $6, observacion = $7, id_compra = COALESCE($8, id_compra)
       WHERE id_perdida = $1`,
-    [id, d.id_insumo_producto, d.fecha ?? null, d.cantidad, d.motivo ?? null, d.responsable ?? null, d.observacion ?? null]
+    [id, d.id_insumo_producto, d.fecha ?? null, d.cantidad, d.motivo ?? null, d.responsable ?? null, d.observacion ?? null,
+     d.id_compra ?? null]
   );
 
 // total = se devolvió todo (queda DEVUELTA con su cantidad original); si no, la pérdida baja en lo devuelto.

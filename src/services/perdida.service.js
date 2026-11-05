@@ -1,4 +1,5 @@
 const Perdida = require('../models/perdida.model');
+const Compra = require('../models/compra.model');
 const Stock = require('../models/stock.model');
 const { withTransaction } = require('../config/db');
 const AppError = require('../errors/AppError');
@@ -12,13 +13,21 @@ const obtener = async (id, c) => {
   return p;
 };
 
-const descontar = async (c, idInsumo, cantidad) => {
-  if (!(await Stock.ajustar(c, idInsumo, -cantidad))) throw AppError.badRequest('El insumo no existe');
+// No se puede perder más de lo que hay (antes el stock quedaba en 0 y el resto se perdía sin aviso)
+const descontar = (c, idInsumo, cantidad) => Stock.retirar(c, idInsumo, cantidad, 'No hay tanto en stock');
+
+// "Compra a Postobón del 17 de octubre de 2026" -> { proveedor, fecha: '2026-10-17' }
+const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+const compraDeOrigen = (observacion) => {
+  const m = /^Compra a (.+) del (\d{1,2}) de (\p{L}+) de (\d{4})$/u.exec(String(observacion || '').trim());
+  const mes = m && MESES.indexOf(m[3].toLowerCase()) + 1;
+  return mes ? { proveedor: m[1], fecha: `${m[4]}-${String(mes).padStart(2, '0')}-${m[2].padStart(2, '0')}` } : null;
 };
 
 const crear = async (d, idUsuario) => {
   const id = await withTransaction(async (c) => {
     const idPerdida = await Perdida.crear(c, { ...d, id_usuario: idUsuario });
+    await Stock.marcar(c, 'PERDIDA', `Pérdida #${idPerdida}`);
     await descontar(c, d.id_insumo_producto, d.cantidad);
     return idPerdida;
   });
