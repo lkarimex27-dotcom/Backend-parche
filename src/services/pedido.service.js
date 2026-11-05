@@ -55,17 +55,37 @@ const crear = async (d, idCliente) => {
   const lineas = cotizar(d.items, await Pedido.catalogoActivo(), await InsumoProducto.gaseosas());
   const subtotal = lineas.reduce((s, l) => s + l.subtotal, 0);
   const id = await withTransaction(async (c) => {
-    const barrio = await Barrio.obtenerActivo(d.id_barrio, c, true);
-    if (!barrio) throw AppError.badRequest('El barrio no está activo o se encuentra fuera de cobertura');
-    const estimacionInicial = await Estimador.calcular(d.id_barrio, c, barrio);
-    if (estimacionInicial.deliveryCost === null) {
-      throw AppError.conflict('Costo de domicilio por confirmar para este barrio.');
+    const tipoEntrega = d.tipo_entrega || 'domicilio';
+    let barrio = null;
+    let costoDomicilio = 0;
+    let total = subtotal;
+    let estimacionInicial = null;
+    const distanciaKm = d.distancia_km ?? (d.ubicacion ? Estimador.calcularDistanciaKm(d.ubicacion) : undefined);
+
+    if (tipoEntrega === 'domicilio') {
+      barrio = await Barrio.obtenerActivo(d.id_barrio, c, true);
+      if (!barrio) throw AppError.badRequest('El barrio no está activo o se encuentra fuera de cobertura');
+      estimacionInicial = await Estimador.calcular(d.id_barrio, c, barrio, tipoEntrega, distanciaKm, d.ubicacion);
+      if (estimacionInicial.deliveryCost === null) {
+        throw AppError.conflict('Costo de domicilio por confirmar para este barrio.');
+      }
+      costoDomicilio = estimacionInicial.deliveryCost;
+      total = subtotal + costoDomicilio;
+    } else {
+      estimacionInicial = await Estimador.calcular(d.id_barrio, c, null, tipoEntrega, distanciaKm, d.ubicacion);
+      total = subtotal;
     }
-    const costoDomicilio = estimacionInicial.deliveryCost;
-    const total = subtotal + costoDomicilio;
+
     const estado = subtotal >= PEDIDO_MONTO_APROBACION ? 'Por confirmar' : 'Recibido';
     const idPedido = await Pedido.crear(c, {
-      ...d, id_cliente: idCliente, subtotal, costo_domicilio_cop: costoDomicilio, total, estado,
+      ...d,
+      tipo_entrega: tipoEntrega,
+      id_barrio: tipoEntrega === 'domicilio' ? d.id_barrio : null,
+      id_cliente: idCliente,
+      subtotal,
+      costo_domicilio_cop: costoDomicilio,
+      total,
+      estado,
       estimacion_inicial: estimacionInicial,
       estado_pago: d.pago === 'Efectivo' ? 'Pendiente' : 'Pendiente de verificación',
     });

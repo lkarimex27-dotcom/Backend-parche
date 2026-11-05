@@ -93,4 +93,42 @@ describe('integración de la estimación inicial al crear un pedido', () => {
 
     expect(Pedido.crear).not.toHaveBeenCalled();
   });
+
+  it.each(['local', 'recoger'])('estima solo cocina y no cobra domicilio para pedidos tipo %s', async (tipoEntrega) => {
+    await service.crear({
+      nombre: 'Cliente',
+      telefono: '3000000000',
+      tipo_entrega: tipoEntrega,
+      direccion: tipoEntrega === 'local' ? 'Consumo en el local' : 'Recoger en el local',
+      ...(tipoEntrega === 'recoger' && {
+        id_barrio: 999,
+        nombre_barrio: 'Barrio fuera de cobertura',
+      }),
+      pago: 'Efectivo',
+      items: [{ producto: 'Mini', cantidad: 1, salsas: [], adiciones: [] }],
+    }, 7);
+
+    const [client, payload] = Pedido.crear.mock.calls[0];
+    expect(payload).toMatchObject({
+      tipo_entrega: tipoEntrega,
+      id_barrio: null,
+      subtotal: 13000,
+      costo_domicilio_cop: 0,
+      total: 13000,
+      estimacion_inicial: {
+        estimatedMinutes: 15,
+        deliveryCost: null,
+        source: 'kitchen',
+        components: {
+          kitchenWaitMinutes: 0,
+          preparationMinutes: 15,
+          travelMinutes: null,
+        },
+      },
+    });
+    expect(Barrio.obtenerActivo).not.toHaveBeenCalled();
+    expect(Barrio.obtenerActivoPorNombre).not.toHaveBeenCalled();
+    expect(Pedido.estadisticasDesplazamiento).not.toHaveBeenCalled();
+    expect(Pedido.crearDetalle).toHaveBeenCalledWith(client, 22, expect.any(Object));
+  });
 });

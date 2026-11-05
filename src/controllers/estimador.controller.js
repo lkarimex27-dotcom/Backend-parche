@@ -4,7 +4,7 @@ const asyncHandler = require('../utils/asyncHandler');
 const estimar = asyncHandler(async (req, res) => {
   res.json({
     ok: true,
-    data: await service.calcular(req.body.id_barrio, undefined, undefined, req.body.tipo_entrega),
+    data: await service.calcular(req.body.id_barrio, undefined, undefined, req.body.tipo_entrega, req.body.distancia_km, req.body.ubicacion),
   });
 });
 
