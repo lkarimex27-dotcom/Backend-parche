@@ -17,7 +17,13 @@ const SELECT = `
                      'producto', i.nombre, 'cantidad', d.cantidad::float, 'precio_unitario', d.precio_unitario::float,
                      'detalle', d.observacion::json) ORDER BY d.id_pedido_detalle)
                      FROM pedido_detalle d JOIN insumos_productos i ON i.id_insumo_producto = d.id_insumo_producto
-                    WHERE d.id_pedido = p.id_pedido), '[]'::json) AS items
+                    WHERE d.id_pedido = p.id_pedido), '[]'::json) AS items,
+         COALESCE((SELECT json_agg(json_build_object(
+                     'estado', h.estado, 'fecha', h.fecha, 'usuario', COALESCE(hp.nombre, hu.correo)) ORDER BY h.fecha, h.id_historial)
+                     FROM historial_estados_pedido h
+                     LEFT JOIN usuarios hu ON hu.id_usuario = h.id_usuario
+                     LEFT JOIN personas hp ON hp.id_usuario = h.id_usuario
+                    WHERE h.id_pedido = p.id_pedido), '[]'::json) AS historial
     FROM pedidos p
     JOIN usuarios u ON u.id_usuario = p.id_cliente
     LEFT JOIN barrios b ON b.id_barrio = p.id_barrio
@@ -57,7 +63,7 @@ const crearDetalle = (c, idPedido, it) =>
     [idPedido, it.id_insumo_producto, it.cantidad, it.precio_unitario, it.subtotal, JSON.stringify(it.detalle)]
   );
 
-const crearOrdenProduccion = async (c, idPedido, items) => {
+const crearOrdenProduccion = async (c, idPedido, items, observacion) => {
   const numeroOrden = `PED-${String(idPedido).padStart(4, '0')}`;
   const productos = items.map((item) => {
     const detalle = item.detalle || {};
@@ -71,17 +77,31 @@ const crearOrdenProduccion = async (c, idPedido, items) => {
   }).join('\n');
   const cantidad = items.reduce((total, item) => total + item.cantidad, 0);
   const fecha = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
-  const fila = [numeroOrden, productos, cantidad, 0, fecha, '', '', '', 'Recibida'];
+  const hora = new Date().toLocaleTimeString('en-GB', { timeZone: 'America/Bogota', hour: '2-digit', minute: '2-digit' });
+  // Las líneas como las arma el panel: cada producto y, debajo, sus adiciones (para descontar insumos en cocina)
+  const lineas = items.flatMap((item, i) => {
+    const id = `${numeroOrden}-line-${i}`;
+    const salsas = item.detalle?.salsas || [];
+    return [
+      { id, name: item.producto, quantity: item.cantidad, category: item.categoria || '', ...(salsas.length ? { sauces: salsas } : {}) },
+      ...(item.detalle?.adiciones || []).map((a, j) => ({
+        id: `${id}-addition-${j}`, name: a.nombre, quantity: a.cantidad * item.cantidad, category: 'Adiciones', parentId: id,
+      })),
+    ];
+  });
+  // Fila completa del panel; [15] = el pedido: así el panel la reconoce y no crea otra orden para él
+  const fila = [numeroOrden, productos, cantidad, 0, fecha, hora, fecha, hora, 'Recibido', '', 0, 'Sí',
+    JSON.stringify([{ status: 'Recibido', date: fecha, time: hora }]), JSON.stringify(lineas), 'No', numeroOrden, observacion || ''];
 
   await c.query(
     `INSERT INTO ordenes_produccion
        (fecha_inicio, tipo_orden_produccion, numero_orden, productos, cantidad, prioridad, estado, datos_panel)
      VALUES ($1, 'PEDIDO CLIENTE', $2, $3, $4, $5, $6, $7)`,
-    [fecha, numeroOrden, productos, cantidad, 0, 'Recibida', JSON.stringify(fila)]
+    [fecha, numeroOrden, productos, cantidad, 0, 'Recibido', JSON.stringify(fila)]
   );
   await c.query(
     `UPDATE pedidos SET estado_produccion = $2 WHERE id_pedido = $1`,
-    [idPedido, 'Recibida']
+    [idPedido, 'Recibido']
   );
 };
 
@@ -96,8 +116,9 @@ const actualizarEstadoProduccion = async (c, idPedido, estadoProduccion, idUsuar
   )).rows[0];
   if (!anterior) return null;
 
-  const estadoPedido = ['Iniciada', 'En cocina'].includes(estadoProduccion)
-    ? 'En cocina'
+  // La orden de producción usa los mismos pasos que ve el cliente; «Producto no conforme» no mueve el pedido
+  const estadoPedido = ['Confirmado', 'En cocina', 'En camino', 'Entregado'].includes(estadoProduccion)
+    ? estadoProduccion
     : null;
   const actualizado = (await c.query(
     `UPDATE pedidos

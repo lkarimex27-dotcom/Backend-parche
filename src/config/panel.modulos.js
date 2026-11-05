@@ -59,15 +59,15 @@ module.exports = {
     id: 'id_orden_produccion',
     modulo: 'ORDENES_PRODUCCION',
     borrar: true,
-    // Solo se elimina mientras no ha empezado (estado Recibida)
-    borrarSi: { columna: 'estado', valor: 'Recibida', mensaje: 'Solo se puede eliminar una orden de producción en estado Recibida.' },
+    // Solo se elimina mientras no ha empezado (estado Recibido)
+    borrarSi: { columna: 'estado', valor: 'Recibido', mensaje: 'Solo se puede eliminar una orden de producción en estado Recibido.' },
     columnas: (r) => ({
       numero_orden: txt(r[0], 50),
       productos: txt(r[1], 2000),
       cantidad: num(r[2]),
       prioridad: Math.trunc(num(r[3])),
       fecha_inicio: fecha(r[4]),
-      estado: txt(r[8], 30) ?? 'Recibida',
+      estado: txt(r[8], 30) ?? 'Recibido',
     }),
   },
   // [0 código, 1 productos, 2 productos (JSON), 3 cantidad, 4 motivo, 5 fecha, 6 observación, 7 unidad, 8 estado]
@@ -110,6 +110,13 @@ module.exports = {
       estado_pago: txt(r[8], 40) ?? 'Pendiente',
       motivo_rechazo_pago: txt(r[11], 500),
     }),
+    // Un pedido de la tienda (PED-<su id>, sin fila del panel) nunca se vuelve a crear como pedido del panel
+    rechazarAlCrear: async (r) => {
+      const n = /^PED-0*(\d+)$/i.exec(String(r[0] ?? '').trim());
+      if (!n) return null;
+      const { rowCount } = await query('SELECT 1 FROM pedidos WHERE id_pedido = $1 AND datos_panel IS NULL', [Number(n[1])]);
+      return rowCount ? `${r[0]} es un pedido de la tienda: ya existe y no se duplica` : null;
+    },
   },
   // [0 código, 1 código de la venta, 2 cliente, 3 cliente (texto libre), 4 motivo, 5 fecha]
   devoluciones: {

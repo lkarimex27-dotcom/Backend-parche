@@ -20,9 +20,9 @@ describe('Panel.actualizarConCliente', () => {
       productos: '2 x Hamburguesa Tradicional (BBQ, Tocineta)',
       cantidad: 2,
       prioridad: 1,
-      estado: 'Iniciada',
+      estado: 'Confirmado',
     };
-    const fila = ['PED-0030', columnas.productos, 2, 1, '2026-11-03', '10:30', '', '', 'Iniciada', 'Nota adicional'];
+    const fila = ['PED-0030', columnas.productos, 2, 1, '2026-11-03', '10:30', '', '', 'Confirmado', 'Nota adicional'];
 
     await expect(Panel.actualizarConCliente(client, cfg, 30, columnas, fila)).resolves.toBe(true);
 
@@ -62,7 +62,7 @@ describe('Panel.crearPar', () => {
       cfgA: cfgPnc,
       filaA: ['PNC-1'],
       cfgB: cfgOrden,
-      filaB: ['OP-2', '', '', 2, '2026-10-22', '', '', '', 'Recibida'],
+      filaB: ['OP-2', '', '', 2, '2026-10-22', '', '', '', 'Recibido'],
       idUsuario: 7,
       actualizarExistente: {
         cfg: cfgOrden,
@@ -82,5 +82,20 @@ describe('Panel.crearPar', () => {
     expect(mockClientQuery.mock.calls[1][1]).toContain(21);
     expect(mockClientQuery.mock.calls[2][0]).toContain('UPDATE ordenes_produccion');
     expect(mockClientQuery.mock.calls[2][1][0]).toBe(12);
+  });
+});
+
+describe('pedidos_panel.rechazarAlCrear', () => {
+  const PANEL = require('../src/config/panel.modulos');
+  const db = require('../src/config/db');
+
+  it('rechaza volver a crear un pedido de la tienda', async () => {
+    db.query.mockResolvedValueOnce({ rowCount: 1 });
+    await expect(PANEL.pedidos_panel.rechazarAlCrear(['PED-0005'])).resolves.toMatch(/tienda/);
+  });
+
+  it('deja crear un pedido nuevo del panel', async () => {
+    db.query.mockResolvedValueOnce({ rowCount: 0 });
+    await expect(PANEL.pedidos_panel.rechazarAlCrear(['PED-0040'])).resolves.toBeNull();
   });
 });

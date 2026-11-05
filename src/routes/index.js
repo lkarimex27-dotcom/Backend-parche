@@ -25,6 +25,36 @@ const authorizeEdicionOrdenSiAplica = (req, res, next) =>
     : next();
 
 router.use('/health', require('./health.routes'));
+
+// Cuando un pedido o un perfil cambia bien, avisa a los paneles abiertos (GET /panel/eventos)
+const pedidoEventos = require('../services/pedidoEventos.service');
+const avisarPanel = (modulo, omitir = []) => (req, res, next) => {
+  if (req.method !== 'GET' && !omitir.includes(req.path)) {
+    res.on('finish', () => res.statusCode < 400 && pedidoEventos.publicarCambioPanel(modulo));
+  }
+  next();
+};
+router.use('/pedidos', avisarPanel('pedidos', ['/estimacion']));
+router.use('/auth/me', avisarPanel('clientes'));
+router.use('/clientes', avisarPanel('clientes'));
+
+router.get('/panel/eventos', authenticate, authorize('PEDIDOS', 'VER'), (req, res) => {
+  res.status(200).set({
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache, no-transform',
+    Connection: 'keep-alive',
+    'X-Accel-Buffering': 'no',
+  });
+  res.flushHeaders();
+  res.write(': conectado\n\n');
+  const detenerEscucha = pedidoEventos.alCambiarPanel((modulo) => res.write(`event: cambio\ndata: ${modulo}\n\n`));
+  const heartbeat = setInterval(() => res.write(': keep-alive\n\n'), 25_000);
+  req.on('close', () => {
+    clearInterval(heartbeat);
+    detenerEscucha();
+  });
+});
+
 router.use('/auth', require('./auth.routes'));
 
 router.post(

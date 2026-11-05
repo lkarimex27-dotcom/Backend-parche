@@ -15,6 +15,7 @@ jest.mock('../src/models/pedido.model', () => ({
 }));
 jest.mock('../src/services/pedidoEventos.service', () => ({
   publicarEstadoProduccion: jest.fn(),
+  publicarCambioPanel: jest.fn(),
   alCambiarEstadoProduccion: jest.fn(),
 }));
 jest.mock('../src/middlewares/auth.middleware', () => ({
@@ -48,29 +49,29 @@ describe('Cambios de estado de producción para pedidos de clientes', () => {
   it('actualiza el estado del pedido vinculado y publica el evento al cliente', async () => {
     const response = await request(app)
       .put('/ordenes-produccion/12')
-      .send({ datos_panel: ['PED-0030', '', '', 1, '2026-11-03', '', '', '', 'Iniciada'] });
+      .send({ datos_panel: ['PED-0030', '', '', 1, '2026-11-03', '', '', '', 'Confirmado'] });
     expect(response.status).toBe(200);
 
     expect(Panel.actualizarConCliente).toHaveBeenCalledWith(
       expect.anything(),
       cfg,
       12,
-      { numero_orden: 'PED-0030', estado: 'Iniciada' },
-      ['PED-0030', '', '', 1, '2026-11-03', '', '', '', 'Iniciada']
+      { numero_orden: 'PED-0030', estado: 'Confirmado' },
+      ['PED-0030', '', '', 1, '2026-11-03', '', '', '', 'Confirmado']
     );
-    expect(Pedido.actualizarEstadoProduccion).toHaveBeenCalledWith({}, 30, 'Iniciada', 5);
+    expect(Pedido.actualizarEstadoProduccion).toHaveBeenCalledWith({}, 30, 'Confirmado', 5);
     expect(pedidoEventos.publicarEstadoProduccion).toHaveBeenCalledWith({
       idCliente: 7,
       idPedido: 30,
       estado: 'En cocina',
-      estado_produccion: 'Iniciada',
+      estado_produccion: 'Confirmado',
     });
   });
 
   it('no envía evento si el código no corresponde a un pedido de cliente', async () => {
     const response = await request(app)
       .put('/ordenes-produccion/12')
-      .send({ datos_panel: ['OP-0030', '', '', 1, '2026-11-03', '', '', '', 'Iniciada'] });
+      .send({ datos_panel: ['OP-0030', '', '', 1, '2026-11-03', '', '', '', 'Confirmado'] });
     expect(response.status).toBe(200);
 
     expect(Pedido.actualizarEstadoProduccion).not.toHaveBeenCalled();
@@ -96,18 +97,18 @@ describe('Cambios de estado de producción para pedidos de clientes', () => {
       idCliente: 8,
       idPedido: 30,
       estado: 'En cocina',
-      estado_produccion: 'Iniciada',
+      estado_produccion: 'Confirmado',
     });
     publicar({
       idCliente: '7',
       idPedido: 30,
       estado: 'En cocina',
-      estado_produccion: 'Iniciada',
+      estado_produccion: 'Confirmado',
     });
 
     expect(res.write).toHaveBeenCalledTimes(2);
     expect(res.write).toHaveBeenLastCalledWith(
-      'event: estado-produccion\ndata: {"id_pedido":30,"estado":"En cocina","estado_produccion":"Iniciada"}\n\n'
+      'event: estado-produccion\ndata: {"id_pedido":30,"estado":"En cocina","estado_produccion":"Confirmado"}\n\n'
     );
     req.on.mock.calls.find(([evento]) => evento === 'close')[1]();
   });

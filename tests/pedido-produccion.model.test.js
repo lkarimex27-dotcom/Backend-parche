@@ -25,24 +25,24 @@ describe('estado de producción en pedidos', () => {
           rows: [{
             id_pedido: 30,
             id_cliente: 7,
-            estado: 'En cocina',
-            estado_produccion: 'Iniciada',
+            estado: 'Confirmado',
+            estado_produccion: 'Confirmado',
           }],
         })
         .mockResolvedValueOnce({ rowCount: 1 }),
     };
 
-    await expect(Pedido.actualizarEstadoProduccion(client, 30, 'Iniciada', 5)).resolves.toEqual({
+    await expect(Pedido.actualizarEstadoProduccion(client, 30, 'Confirmado', 5)).resolves.toEqual({
       id_pedido: 30,
       id_cliente: 7,
-      estado: 'En cocina',
-      estado_produccion: 'Iniciada',
+      estado: 'Confirmado',
+      estado_produccion: 'Confirmado',
     });
     expect(client.query.mock.calls[0][0]).toContain('FOR UPDATE');
     expect(client.query.mock.calls[1][0]).toContain('estado = COALESCE($3::text, estado)');
     expect(client.query.mock.calls[1][0]).toContain('$3::text IS NOT NULL');
-    expect(client.query.mock.calls[1][1]).toEqual([30, 'Iniciada', 'En cocina']);
-    expect(client.query.mock.calls[2][1]).toEqual([30, 'En cocina', 5]);
+    expect(client.query.mock.calls[1][1]).toEqual([30, 'Confirmado', 'Confirmado']);
+    expect(client.query.mock.calls[2][1]).toEqual([30, 'Confirmado', 5]);
   });
 
   it('crea una orden de producción visible en el panel para el pedido del cliente', async () => {
@@ -68,20 +68,18 @@ describe('estado de producción en pedidos', () => {
       '2 x Hamburguesa Tradicional (BBQ, Tocineta)',
       2,
       0,
-      'Recibida',
+      'Recibido',
     ]);
-    expect(JSON.parse(insertParams[6])).toEqual([
-      'PED-0030',
-      '2 x Hamburguesa Tradicional (BBQ, Tocineta)',
-      2,
-      0,
-      expect.any(String),
-      '',
-      '',
-      '',
-      'Recibida',
+    const fila = JSON.parse(insertParams[6]);
+    expect(fila.slice(0, 4)).toEqual(['PED-0030', '2 x Hamburguesa Tradicional (BBQ, Tocineta)', 2, 0]);
+    expect(fila[8]).toBe('Recibido');
+    // [15] enlaza la orden con su pedido: el panel no crea otra
+    expect(fila[15]).toBe('PED-0030');
+    expect(JSON.parse(fila[13])).toEqual([
+      { id: 'PED-0030-line-0', name: 'Hamburguesa Tradicional', quantity: 2, category: '', sauces: ['BBQ'] },
+      { id: 'PED-0030-line-0-addition-0', name: 'Tocineta', quantity: 2, category: 'Adiciones', parentId: 'PED-0030-line-0' },
     ]);
     expect(client.query.mock.calls[1][0]).toContain('UPDATE pedidos SET estado_produccion');
-    expect(client.query.mock.calls[1][1]).toEqual([30, 'Recibida']);
+    expect(client.query.mock.calls[1][1]).toEqual([30, 'Recibido']);
   });
 });

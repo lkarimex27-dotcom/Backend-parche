@@ -408,7 +408,7 @@ WITH ordenes_cliente AS (
          string_agg(d.cantidad::text || ' x ' || i.nombre, E'\n' ORDER BY d.id_pedido_detalle) AS productos,
          sum(d.cantidad) AS cantidad,
          to_char(p.creado_en AT TIME ZONE 'America/Bogota', 'YYYY-MM-DD') AS fecha,
-         COALESCE(p.estado_produccion, 'Recibida') AS estado
+         COALESCE(p.estado_produccion, 'Recibido') AS estado
     FROM pedidos p
     JOIN pedido_detalle d ON d.id_pedido = p.id_pedido
     JOIN insumos_productos i ON i.id_insumo_producto = d.id_insumo_producto

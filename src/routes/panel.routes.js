@@ -32,6 +32,8 @@ module.exports = (cfg) => {
       const v = String(fila[cfg.unico.posicion] ?? '').trim();
       if (!cfg.unico.ignorar.includes(v) && (await Panel.existe(cfg, cfg.unico.columna, v))) throw AppError.conflict(cfg.unico.mensaje);
     }
+    const rechazo = await cfg.rechazarAlCrear?.(fila);
+    if (rechazo) throw AppError.conflict(rechazo);
     const id = await Panel.crear(cfg, await cfg.columnas(fila, req.user.id), fila);
     res.status(201).json({ ok: true, data: { id, datos_panel: fila } });
   }));
@@ -43,7 +45,7 @@ module.exports = (cfg) => {
       const columnas = cfg.usuarioEditable ? { id_usuario, ...resto } : resto;
       let pedidoActualizado = null;
       if (cfg.modulo === 'ORDENES_PRODUCCION') {
-        const codigoPedido = /^PED-(\d+)$/i.exec(String(fila[0] ?? '').trim());
+        const codigoPedido = /^PED-(\d+)$/i.exec(String(fila[15] || fila[0] || '').trim());
         pedidoActualizado = await withTransaction(async (client) => {
           if (!(await Panel.actualizarConCliente(client, cfg, req.params.id, columnas, fila))) {
             throw AppError.notFound('Registro no encontrado');
@@ -60,6 +62,7 @@ module.exports = (cfg) => {
         throw AppError.notFound('Registro no encontrado');
       }
 
+      if (pedidoActualizado) pedidoEventos.publicarCambioPanel('pedidos');
       if (pedidoActualizado?.id_cliente != null) {
         pedidoEventos.publicarEstadoProduccion({
           idCliente: pedidoActualizado.id_cliente,
