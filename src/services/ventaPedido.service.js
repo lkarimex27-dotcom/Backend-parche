@@ -29,6 +29,7 @@ const lineas = async (c, pedido) => {
       {
         id, product: it.producto, category: categoria(it.producto), quantity: it.cantidad, unitPrice: it.precio_unitario,
         ...(detalle.salsas?.length ? { sauces: detalle.salsas } : {}),
+        ...(detalle.nota ? { note: detalle.nota } : {}),
       },
       ...(detalle.adiciones || []).map((a, j) => ({
         id: `${id}-addition-${j}`, product: a.nombre, category: categoria(a.nombre),

@@ -37,11 +37,11 @@ const obtenerPorId = async (tipo, id) =>
 const crear = async (tipo, d) =>
   (await query(
     `INSERT INTO insumos_productos
-       (nombre, tipo, medida, stock, minimo, maximo, id_categoria, costo, precio, tiene_ficha_tecnica, descripcion, etiqueta, estado)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING id_insumo_producto`,
+       (nombre, tipo, medida, stock, minimo, maximo, id_categoria, costo, precio, tiene_ficha_tecnica, descripcion, etiqueta, estado, unidades_paquete, contenido_unidad)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING id_insumo_producto`,
     [d.nombre, tipo, d.medida ?? null, d.stock ?? 0, d.minimo ?? 0, d.maximo ?? null,
      d.id_categoria, d.costo ?? 0, d.precio ?? 0, d.tiene_ficha_tecnica ?? false, d.descripcion ?? null, d.etiqueta ?? null,
-     d.estado ?? 'ACTIVO']
+     d.estado ?? 'ACTIVO', d.unidades_paquete ?? null, d.contenido_unidad ?? null]
   )).rows[0];
 
 const actualizar = async (tipo, id, d) =>
@@ -58,11 +58,25 @@ const actualizar = async (tipo, id, d) =>
         tiene_ficha_tecnica = COALESCE($11, tiene_ficha_tecnica),
         descripcion         = COALESCE($12, descripcion),
         etiqueta            = COALESCE($13, etiqueta),
-        estado              = COALESCE($14, estado)
+        estado              = COALESCE($14, estado),
+        -- null = sin cambio; solo se borra si la medida deja de ser "paq"
+        unidades_paquete    = CASE WHEN COALESCE($4, medida) <> 'paq' THEN NULL ELSE COALESCE($15, unidades_paquete) END,
+        contenido_unidad    = CASE WHEN COALESCE($4, medida) <> 'paq' THEN NULL ELSE COALESCE($16, contenido_unidad) END
       WHERE id_insumo_producto = $1 AND tipo = $2 RETURNING id_insumo_producto`,
     [id, tipo, d.nombre, d.medida, d.stock, d.minimo, d.maximo, d.id_categoria, d.costo, d.precio, d.tiene_ficha_tecnica,
-     d.descripcion, d.etiqueta, d.estado]
+     d.descripcion, d.etiqueta, d.estado, d.unidades_paquete, d.contenido_unidad]
   )).rows[0] || null;
+
+// Las recetas que usan el insumo pasan a su nueva medida (g/kg, ml/L y und/paq se convierten, no se tocan)
+const alinearMedidaFichas = async (id, medida) =>
+  (await query(
+    `UPDATE ficha_tecnica_insumos SET medida = $2::varchar
+      WHERE id_insumo_producto = $1 AND medida IS DISTINCT FROM $2::varchar
+        AND NOT (medida IN ('g', 'kg') AND $2::varchar IN ('g', 'kg'))
+        AND NOT (medida IN ('ml', 'L') AND $2::varchar IN ('ml', 'L'))
+        AND NOT (medida IN ('und', 'paq') AND $2::varchar IN ('und', 'paq'))`,
+    [id, medida]
+  )).rowCount;
 
 // Borra el insumo y su propia ficha técnica, y lo quita de la lista de proveedores que lo venden.
 // Si otro módulo tiene registros de él (compras, pérdidas, recetas), el servicio no deja borrarlo (y Postgres tampoco)
@@ -168,12 +182,12 @@ const productosSinStock = async () =>
 
 const gaseosas = async () =>
   (await query(
-    `SELECT nombre, stock <= 0 AS agotada
+    `SELECT nombre, stock <= 0 AS agotada, GREATEST(FLOOR(stock), 0)::int AS stock
         FROM insumos_productos
        WHERE tipo = 'PRODUCTO' AND nombre ILIKE 'Gaseosa %'`
   )).rows;
 
 module.exports = {
   listar, obtenerPorId, crear, actualizar, eliminar, guardarFicha, reemplazarImagen, obtenerImagen,
-  productosSinStock, gaseosas, usos, usosProducto,
+  productosSinStock, gaseosas, usos, usosProducto, alinearMedidaFichas,
 };

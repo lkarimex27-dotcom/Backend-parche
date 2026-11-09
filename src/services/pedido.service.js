@@ -51,6 +51,14 @@ const cotizar = (items, catalogo, gaseosas = []) => {
       if (!extra || agotada) throw AppError.badRequest(`La adición «${a.nombre}» no está disponible`);
       return { nombre: a.nombre, cantidad: a.cantidad, precio: extra.precio };
     });
+    // No more of each soda than its stock (counting the same soda across every line of the order)
+    for (const a of adiciones.filter((x) => /^Gaseosa /.test(x.nombre))) {
+      const g = gaseosas.find((x) => normalizar(x.nombre) === normalizar(a.nombre));
+      const pedidas = items.reduce((s, o) => s + o.cantidad * o.adiciones
+        .filter((x) => normalizar(x.nombre) === normalizar(a.nombre)).reduce((t, x) => t + x.cantidad, 0), 0);
+      if (g && g.stock != null && pedidas > g.stock)
+        throw AppError.badRequest(`Solo quedan ${g.stock} de «${a.nombre}». Pediste ${pedidas}.`);
+    }
     const unitario = producto.precio + adiciones.reduce((s, a) => s + a.cantidad * a.precio, 0);
     return {
       id_insumo_producto: producto.id_insumo_producto,
@@ -59,13 +67,13 @@ const cotizar = (items, catalogo, gaseosas = []) => {
       cantidad: it.cantidad,
       precio_unitario: producto.precio,
       subtotal: unitario * it.cantidad,
-      detalle: { salsas: it.salsas, adiciones },
+      detalle: { salsas: it.salsas, adiciones, ...(it.nota ? { nota: it.nota } : {}) },
     };
   });
 };
 
 const crear = async (d, idCliente) => {
-  const lineas = cotizar(d.items, await Pedido.catalogoActivo());
+  const lineas = cotizar(d.items, await Pedido.catalogoActivo(), await InsumoProducto.gaseosas());
   const subtotal = lineas.reduce((s, l) => s + l.subtotal, 0);
   const id = await withTransaction(async (c) => {
     const tipoEntrega = d.tipo_entrega ?? 'domicilio';

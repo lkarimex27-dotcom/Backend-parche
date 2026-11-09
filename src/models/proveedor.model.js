@@ -29,4 +29,15 @@ const actualizar = async (id, d) =>
     [id, d.nombre, d.estado, ...EXTRAS.map((k) => d[k])]
   )).rows[0] || null;
 
-module.exports = { listar, obtenerPorId, crear, actualizar };
+// Lo comprado queda en la lista de insumos que vende el proveedor (nombres separados por coma, sin repetir)
+const agregarInsumos = async (c, idProveedor, idsInsumos) => {
+  const nombres = (await c.query('SELECT nombre FROM insumos_productos WHERE id_insumo_producto = ANY($1::bigint[])', [[...new Set(idsInsumos)]]))
+    .rows.map((r) => r.nombre);
+  const { rows } = await c.query('SELECT insumos FROM proveedores WHERE id_proveedor = $1 FOR UPDATE', [idProveedor]);
+  const actuales = String(rows[0]?.insumos ?? '').split(',').map((n) => n.trim()).filter(Boolean);
+  const nuevos = nombres.filter((n) => !actuales.some((a) => a.toLowerCase() === n.toLowerCase()));
+  if (nuevos.length)
+    await c.query('UPDATE proveedores SET insumos = $2 WHERE id_proveedor = $1', [idProveedor, [...actuales, ...nuevos].join(', ')]);
+};
+
+module.exports = { listar, obtenerPorId, crear, actualizar, agregarInsumos };

@@ -50,6 +50,7 @@ const crear = async (datos) => {
     const idCompra = await Compra.crear(c, d);
     await Stock.marcar(c, 'COMPRA', `Compra #${idCompra}`);
     await guardarDetalles(c, idCompra, d.items, true);
+    await Proveedor.agregarInsumos(c, d.id_proveedor, d.items.map((it) => it.id_insumo_producto));
     return idCompra;
   });
   return obtener(id);
@@ -82,6 +83,7 @@ const actualizar = async (id, datos) => {
     await Compra.borrarDetalles(c, id);
     await Compra.actualizar(c, id, d);
     await guardarDetalles(c, id, d.items, false);
+    await Proveedor.agregarInsumos(c, d.id_proveedor, d.items.map((it) => it.id_insumo_producto));
     if (registrada) {
       await Stock.marcar(c, 'EDICION_COMPRA', `Compra #${id}`);
       await aplicarNeto(c, porInsumo(d.items, 1, porInsumo(anterior.detalles, -1)), 'No se puede quitar de la compra');

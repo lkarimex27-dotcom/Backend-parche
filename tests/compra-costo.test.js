@@ -2,7 +2,10 @@ process.env.JWT_SECRET = 'secreto_de_pruebas_secreto_de_pruebas_123';
 
 // Sin base de datos: la transacción y los modelos se simulan
 jest.mock('../src/config/db', () => ({ withTransaction: async (fn) => fn({}) }));
-jest.mock('../src/models/proveedor.model', () => ({ obtenerPorId: jest.fn(async () => ({ id_proveedor: 1 })) }));
+jest.mock('../src/models/proveedor.model', () => ({
+  obtenerPorId: jest.fn(async () => ({ id_proveedor: 1 })),
+  agregarInsumos: jest.fn(async () => undefined),
+}));
 jest.mock('../src/models/stock.model', () => ({
   ajustar: jest.fn(async () => true),
   marcar: jest.fn(async () => undefined),
@@ -22,6 +25,11 @@ describe('Precio unitario de una compra', () => {
     expect(Stock.marcar).toHaveBeenCalledWith({}, 'COMPRA', 'Compra #9');
     expect(Stock.recalcularCosto).toHaveBeenCalledWith({}, 5);
     expect(Stock.ajustar).toHaveBeenCalledWith({}, 5, 20);
+  });
+  it('lo comprado queda en la lista de insumos del proveedor', async () => {
+    const Proveedor = require('../src/models/proveedor.model');
+    await service.crear({ id_proveedor: 1, fecha: '2026-10-17', items: [{ id_insumo_producto: 5, cantidad: 2, costo_unitario: 1000 }] });
+    expect(Proveedor.agregarInsumos).toHaveBeenCalledWith({}, 1, [5]);
   });
 });
 
