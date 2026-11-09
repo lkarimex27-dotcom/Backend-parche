@@ -101,6 +101,10 @@ ALTER TABLE insumos_productos ADD COLUMN IF NOT EXISTS etiqueta VARCHAR(30);
 ALTER TABLE insumos_productos ADD COLUMN IF NOT EXISTS estado VARCHAR(20) NOT NULL DEFAULT 'ACTIVO';
 ALTER TABLE insumos_productos DROP CONSTRAINT IF EXISTS ck_insumos_productos_estado;
 ALTER TABLE insumos_productos ADD CONSTRAINT ck_insumos_productos_estado CHECK (estado IN ('ACTIVO', 'INACTIVO'));
+-- Cuántas unidades trae un paquete (insumos medidos en "paq", ej. 30 huevos)
+ALTER TABLE insumos_productos ADD COLUMN IF NOT EXISTS unidades_paquete INTEGER;
+-- En qué viene ese contenido: und (30 huevos), g (sobre de 100 g) o ml
+ALTER TABLE insumos_productos ADD COLUMN IF NOT EXISTS contenido_unidad VARCHAR(10);
 
 -- 9. PERSONAS
 CREATE TABLE IF NOT EXISTS personas (

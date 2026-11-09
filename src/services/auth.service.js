@@ -93,4 +93,4 @@ const cambiarContrasenaInicial = async (id, { nueva }) => {
   return { token: firmarToken(actualizado) };
 };
 
-module.exports = { registrar, login, me, actualizarPerfil, cambiarContrasena, cambiarContrasenaInicial };
+module.exports = { registrar, registrarVerificado, login, me, actualizarPerfil, cambiarContrasena, cambiarContrasenaInicial };
