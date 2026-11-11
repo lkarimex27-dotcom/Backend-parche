@@ -35,7 +35,8 @@ const ficha = z.object({
   insumos_principales: texto(2000),
   preparacion: texto(5000),
   ingredientes: z
-    .array(z.object({ insumo: z.string().trim().min(1).max(150), cantidad: z.number().positive(), medida: texto(50) }))
+    .array(z.object({ insumo: z.string().trim().min(1).max(150), cantidad: z.number().positive(), medida: texto(50),
+      minutos: z.number().min(0).max(600).optional() })) // minutos: tiempo de preparación de ese ingrediente
     .max(100)
     .optional(),   // sin enviar = se conserva la receta guardada
 });

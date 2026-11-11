@@ -75,3 +75,18 @@ describe('El descuento de stock no cambia con el versionado', () => {
     expect(q).not.toContain('historial');
   });
 });
+
+describe('Tiempo de preparación por ingrediente', () => {
+  it('guarda los minutos de cada ingrediente (sin minutos queda vacío)', async () => {
+    const c = clientCon(null, null);
+    await Modelo.guardarFicha(c, 3, { ingredientes: [{ insumo: 'Carne', cantidad: 70, medida: 'g', minutos: 6 }, { insumo: 'Pan', cantidad: 1 }] });
+    const inserts = c.sql.filter((s) => s.q.includes('INSERT INTO ficha_tecnica_insumos')).map((s) => s.params[4]);
+    expect(inserts).toEqual([6, null]);
+  });
+
+  it('el validador acepta minutos y rechaza negativos', () => {
+    const v = require('../src/validators/insumoProducto.validator');
+    expect(v.ficha.safeParse({ ingredientes: [{ insumo: 'Carne', cantidad: 70, minutos: 6 }] }).success).toBe(true);
+    expect(v.ficha.safeParse({ ingredientes: [{ insumo: 'Carne', cantidad: 70, minutos: -1 }] }).success).toBe(false);
+  });
+});
