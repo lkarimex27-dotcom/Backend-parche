@@ -747,3 +747,19 @@ SELECT ip.id_insumo_producto, ip.stock, ip.stock, 'SALDO_INICIAL', 'Stock al emp
 -- 35. BLOQUEO DE LOGIN: 5 intentos fallidos bloquean la cuenta 15 minutos
 ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS intentos_fallidos INT NOT NULL DEFAULT 0;
 ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS bloqueado_hasta TIMESTAMPTZ;
+
+-- 36. ROLES CON FECHAS DE CREACIÓN Y ACTUALIZACIÓN
+ALTER TABLE roles ADD COLUMN IF NOT EXISTS fecha_creacion TIMESTAMPTZ NOT NULL DEFAULT now();
+ALTER TABLE roles ADD COLUMN IF NOT EXISTS fecha_actualizacion TIMESTAMPTZ NOT NULL DEFAULT now();
+
+-- 37. HISTORIAL DE CAMBIOS DE USUARIOS: una fila por campo cambiado, con quién lo cambió
+CREATE TABLE IF NOT EXISTS auditoria_usuarios (
+    id_auditoria   BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    id_usuario     BIGINT NOT NULL REFERENCES usuarios(id_usuario) ON DELETE CASCADE,
+    campo          VARCHAR(40) NOT NULL,
+    valor_anterior TEXT,
+    valor_nuevo    TEXT,
+    cambiado_por   BIGINT REFERENCES usuarios(id_usuario) ON DELETE SET NULL,
+    fecha          TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS ix_auditoria_usuarios_usuario ON auditoria_usuarios (id_usuario, fecha DESC);
