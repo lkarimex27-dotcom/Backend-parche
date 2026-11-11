@@ -14,7 +14,7 @@ const BASE = `
                    'numero_version', f.numero_version, 'estado', f.estado,
                    'insumos_principales', f.insumos_principales,
                    'ingredientes', COALESCE((
-                     SELECT json_agg(json_build_object('insumo', ins.nombre, 'cantidad', fi.cantidad::float, 'medida', fi.medida, 'minutos', fi.minutos::float)
+                     SELECT json_agg(json_build_object('insumo', ins.nombre, 'cantidad', fi.cantidad::float, 'medida', fi.medida)
                                      ORDER BY fi.id_ficha_tecnica_insumo)
                        FROM ficha_tecnica_insumos fi
                        JOIN insumos_productos ins ON ins.id_insumo_producto = fi.id_insumo_producto
@@ -140,7 +140,7 @@ const FOTO_FICHA = `
   SELECT f.numero_version, json_build_object(
            'nombre', f.nombre, 'version', f.version, 'insumos_principales', f.insumos_principales, 'preparacion', f.preparacion,
            'ingredientes', COALESCE((
-             SELECT json_agg(json_build_object('insumo', ins.nombre, 'cantidad', fi.cantidad::float, 'medida', fi.medida, 'minutos', fi.minutos::float)
+             SELECT json_agg(json_build_object('insumo', ins.nombre, 'cantidad', fi.cantidad::float, 'medida', fi.medida)
                              ORDER BY fi.id_ficha_tecnica_insumo)
                FROM ficha_tecnica_insumos fi JOIN insumos_productos ins ON ins.id_insumo_producto = fi.id_insumo_producto
               WHERE fi.id_ficha_tecnica = f.id_ficha_tecnica), '[]'::json))::text AS contenido
@@ -186,10 +186,10 @@ const escribirFicha = async (c, id, d) => {
   await c.query('DELETE FROM ficha_tecnica_insumos WHERE id_ficha_tecnica = $1', [id_ficha_tecnica]);
   for (const ing of d.ingredientes) {
     const r = await c.query(
-      `INSERT INTO ficha_tecnica_insumos (id_ficha_tecnica, id_insumo_producto, tipo, medida, cantidad, minutos)
-       SELECT $1, id_insumo_producto, tipo, COALESCE($3::varchar, medida), $4::numeric, $5::numeric FROM insumos_productos
+      `INSERT INTO ficha_tecnica_insumos (id_ficha_tecnica, id_insumo_producto, tipo, medida, cantidad)
+       SELECT $1, id_insumo_producto, tipo, COALESCE($3::varchar, medida), $4::numeric FROM insumos_productos
         WHERE lower(nombre) = lower($2::text) AND tipo = 'INSUMO' LIMIT 1`,
-      [id_ficha_tecnica, ing.insumo, ing.medida ?? null, ing.cantidad, ing.minutos ?? null]
+      [id_ficha_tecnica, ing.insumo, ing.medida ?? null, ing.cantidad]
     );
     if (!r.rowCount) return ing.insumo; // insumo inexistente: el service revierte
   }

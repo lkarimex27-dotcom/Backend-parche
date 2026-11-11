@@ -777,6 +777,3 @@ CREATE TABLE IF NOT EXISTS fichas_tecnicas_historial (
     fecha               TIMESTAMPTZ NOT NULL DEFAULT now(),
     UNIQUE (id_insumo_producto, numero_version)
 );
-
--- 39. TIEMPO DE PREPARACIÓN EN LA FICHA TÉCNICA: minutos que toma cada ingrediente; el tiempo del producto es la suma
-ALTER TABLE ficha_tecnica_insumos ADD COLUMN IF NOT EXISTS minutos NUMERIC(6,1);
