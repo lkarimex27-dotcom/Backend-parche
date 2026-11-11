@@ -168,7 +168,15 @@ const obtenerImagen = async (idImagen) =>
   (await query('SELECT url FROM imagenes WHERE id_imagen = $1', [idImagen])).rows[0]?.url ?? null;
 
 // Un insumo "alcanza" para vender si tiene lo que pide la receta y no está por debajo de su mínimo
-const AGOTADO = 'i.stock < fi.cantidad OR i.stock < i.minimo OR i.estado <> \'ACTIVO\''
+// Lo que pide la receta pasado a la unidad del inventario (100 g de un insumo en kg = 0.1; 1 und de un paquete de 12 = 1/12)
+const NECESITA = `fi.cantidad * CASE
+    WHEN fi.medida = i.medida THEN 1
+    WHEN fi.medida IN ('g', 'ml') AND i.medida IN ('kg', 'L') THEN 0.001
+    WHEN fi.medida IN ('kg', 'L') AND i.medida IN ('g', 'ml') THEN 1000
+    WHEN i.medida = 'paq' AND i.unidades_paquete > 0 THEN
+      (CASE WHEN fi.medida IN ('kg', 'L') THEN 1000 ELSE 1 END)::numeric / i.unidades_paquete
+    ELSE 1 END`;
+const AGOTADO = `i.stock < ${NECESITA} OR i.stock < i.minimo OR i.estado <> 'ACTIVO'`
 
 // Productos con receta que hoy no se pueden preparar (algún insumo agotado o bajo su mínimo)
 const productosSinStock = async () =>
@@ -184,7 +192,7 @@ const gaseosas = async () =>
   (await query(
     `SELECT nombre, stock <= 0 AS agotada, GREATEST(FLOOR(stock), 0)::int AS stock
         FROM insumos_productos
-       WHERE tipo = 'PRODUCTO' AND nombre ILIKE 'Gaseosa %'`
+       WHERE tipo = 'PRODUCTO' AND (nombre ILIKE 'Gaseosa %' OR id_categoria IN (SELECT id_categoria FROM categorias WHERE nombre_categoria = 'Adiciones'))`
   )).rows;
 
 module.exports = {

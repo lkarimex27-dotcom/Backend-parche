@@ -30,6 +30,9 @@ const catalogo = asyncHandler(async (_req, res) => {
         etiqueta: p.etiqueta,
         precio: p.precio,
         categoria: p.nombre_categoria,
+        // Lo que el cliente puede pedir quitar: los insumos de su receta, sin empaques
+        ingredientes: [...new Set((p.ficha?.ingredientes || []).map((i) => i.insumo)
+          .filter((n) => n && !/empaque|caja|bolsa|servilleta|vaso|papel|contenedor|icopor/i.test(n)))],
         imagenes: p.imagenes,
       })),
   });

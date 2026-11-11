@@ -24,7 +24,7 @@ describe('GET /api/catalogo', () => {
     expect(res.status).toBe(200);
     expect(res.body.data[0]).toEqual({
       id: 1, nombre: 'Mini', descripcion: 'Rica', etiqueta: 'Favorita', precio: 13000,
-      categoria: 'Hamburguesas', imagenes: ['https://x/img.jpg'],
+      categoria: 'Hamburguesas', imagenes: ['https://x/img.jpg'], ingredientes: [],
     });
   });
 

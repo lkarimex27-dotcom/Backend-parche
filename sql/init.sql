@@ -719,3 +719,27 @@ UPDATE ficha_tecnica_insumos f SET medida = i.medida
  WHERE i.id_insumo_producto = f.id_insumo_producto AND f.medida IS DISTINCT FROM i.medida
    AND NOT (f.medida IN ('g', 'kg') AND i.medida IN ('g', 'kg'))
    AND NOT (f.medida IN ('ml', 'L') AND i.medida IN ('ml', 'L'));
+
+-- 34. LAS ADICIONES LLEVAN STOCK: se compran en Compras y se venden tal cual, como las gaseosas. El historial de stock
+-- también las registra; las que ya tenían stock sin movimientos lo reciben como saldo inicial.
+CREATE OR REPLACE FUNCTION registrar_movimiento_stock() RETURNS trigger AS $$
+DECLARE
+  delta NUMERIC := NEW.stock - CASE WHEN TG_OP = 'INSERT' THEN 0 ELSE OLD.stock END;
+BEGIN
+  IF delta = 0 OR NOT (NEW.tipo = 'INSUMO' OR (NEW.tipo = 'PRODUCTO' AND (NEW.nombre ILIKE 'Gaseosa %'
+       OR NEW.id_categoria IN (SELECT id_categoria FROM categorias WHERE nombre_categoria = 'Adiciones')))) THEN
+    RETURN NEW;
+  END IF;
+  INSERT INTO movimientos_stock (id_insumo_producto, cantidad, stock_resultante, origen, referencia)
+  VALUES (NEW.id_insumo_producto, delta, NEW.stock,
+          COALESCE(NULLIF(current_setting('app.mov_origen', true), ''), 'AJUSTE'),
+          NULLIF(current_setting('app.mov_ref', true), ''));
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+INSERT INTO movimientos_stock (id_insumo_producto, cantidad, stock_resultante, origen, referencia)
+SELECT ip.id_insumo_producto, ip.stock, ip.stock, 'SALDO_INICIAL', 'Stock al empezar el historial'
+  FROM insumos_productos ip JOIN categorias c ON c.id_categoria = ip.id_categoria
+ WHERE ip.tipo = 'PRODUCTO' AND c.nombre_categoria = 'Adiciones' AND ip.stock <> 0
+   AND NOT EXISTS (SELECT 1 FROM movimientos_stock m WHERE m.id_insumo_producto = ip.id_insumo_producto);
