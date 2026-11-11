@@ -71,4 +71,18 @@ const descuadres = async () =>
       ORDER BY ip.nombre`
   )).rows;
 
-module.exports = { CON_STOCK, ajustar, retirar, recalcularCosto, marcar, movimientos, descuadres };
+// Lo que salió de cada insumo activo en los últimos `dias` días (producción, pérdidas, ventas). Las correcciones de
+// compras (anular o editar) no son consumo.
+const consumoReciente = async (dias) =>
+  (await query(
+    `SELECT ip.id_insumo_producto AS id, ip.nombre, ip.medida, ip.stock::float AS stock, ip.minimo::float AS minimo,
+            COALESCE(-sum(m.cantidad) FILTER (WHERE m.cantidad < 0 AND m.origen NOT IN ('ANULACION_COMPRA', 'EDICION_COMPRA')
+                                               AND m.fecha >= now() - make_interval(days => $1)), 0)::float AS consumo
+       FROM insumos_productos ip LEFT JOIN movimientos_stock m ON m.id_insumo_producto = ip.id_insumo_producto
+      WHERE ip.estado = 'ACTIVO' AND (ip.tipo = 'INSUMO' OR (ip.tipo = 'PRODUCTO' AND (ip.nombre ILIKE 'Gaseosa %' OR ip.id_categoria IN (SELECT id_categoria FROM categorias WHERE nombre_categoria = 'Adiciones'))))
+      GROUP BY ip.id_insumo_producto, ip.nombre, ip.medida, ip.stock, ip.minimo
+      ORDER BY ip.nombre`,
+    [dias]
+  )).rows;
+
+module.exports = { CON_STOCK, ajustar, retirar, recalcularCosto, marcar, movimientos, descuadres, consumoReciente };
