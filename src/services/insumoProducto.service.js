@@ -96,6 +96,11 @@ const guardarFicha = async (tipo, id, d) => {
   return obtener(tipo, id);
 };
 
+const versionesFicha = async (tipo, id) => {
+  await obtener(tipo, id);
+  return Modelo.versionesFicha(id);
+};
+
 const reemplazarImagen = async (tipo, id, imagen) => {
   await obtener(tipo, id);
 
@@ -169,6 +174,7 @@ module.exports = {
   actualizar,
   eliminar,
   guardarFicha,
+  versionesFicha,
   reemplazarImagen,
   imagen,
   productosSinStock,

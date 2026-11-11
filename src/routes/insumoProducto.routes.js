@@ -17,6 +17,7 @@ module.exports = (tipo, modulo) => {
   router.post('/', authorize(modulo, 'CREAR'), validate(v.crearInsumoProducto), c.crear);
   router.patch('/:id', authorize(modulo, 'EDITAR'), validate(v.idParam, 'params'), validate(v.actualizarInsumoProducto), c.actualizar);
   router.delete('/:id', authorize(modulo, 'ELIMINAR'), validate(v.idParam, 'params'), c.eliminar);
+  router.get('/:id/ficha/versiones', authorize(modulo, 'VER'), validate(v.idParam, 'params'), c.versionesFicha);
   router.put('/:id/ficha', authorize(modulo, 'EDITAR'), validate(v.idParam, 'params'), validate(v.ficha), c.guardarFicha);
   router.put('/:id/imagen', authorize(modulo, 'EDITAR'), validate(v.idParam, 'params'), validate(v.imagen), c.reemplazarImagen);
   return router;

@@ -763,3 +763,17 @@ CREATE TABLE IF NOT EXISTS auditoria_usuarios (
     fecha          TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS ix_auditoria_usuarios_usuario ON auditoria_usuarios (id_usuario, fecha DESC);
+
+-- 38. VERSIONES DE LA FICHA TÉCNICA: la fila de fichas_tecnicas es la versión ACTIVA (la única que leen el menú, los
+-- agotados y la producción). Cada edición que cambia la ficha guarda la versión anterior en el historial.
+ALTER TABLE fichas_tecnicas ADD COLUMN IF NOT EXISTS numero_version INT NOT NULL DEFAULT 1;
+ALTER TABLE fichas_tecnicas ADD COLUMN IF NOT EXISTS estado VARCHAR(20) NOT NULL DEFAULT 'ACTIVA';
+CREATE TABLE IF NOT EXISTS fichas_tecnicas_historial (
+    id_historial        BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    id_insumo_producto  BIGINT NOT NULL,
+    numero_version      INT NOT NULL,
+    estado              VARCHAR(20) NOT NULL DEFAULT 'INACTIVA',
+    contenido           JSONB NOT NULL,           -- nombre, versión, preparación e ingredientes de esa versión
+    fecha               TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (id_insumo_producto, numero_version)
+);
