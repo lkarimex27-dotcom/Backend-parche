@@ -743,3 +743,7 @@ SELECT ip.id_insumo_producto, ip.stock, ip.stock, 'SALDO_INICIAL', 'Stock al emp
   FROM insumos_productos ip JOIN categorias c ON c.id_categoria = ip.id_categoria
  WHERE ip.tipo = 'PRODUCTO' AND c.nombre_categoria = 'Adiciones' AND ip.stock <> 0
    AND NOT EXISTS (SELECT 1 FROM movimientos_stock m WHERE m.id_insumo_producto = ip.id_insumo_producto);
+
+-- 35. BLOQUEO DE LOGIN: 5 intentos fallidos bloquean la cuenta 15 minutos
+ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS intentos_fallidos INT NOT NULL DEFAULT 0;
+ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS bloqueado_hasta TIMESTAMPTZ;

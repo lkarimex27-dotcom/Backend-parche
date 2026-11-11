@@ -90,3 +90,21 @@ describe('Editar una compra registrada', () => {
     expect(Stock.recalcularCosto).toHaveBeenCalledWith({}, 7);
   });
 });
+
+describe('Editar una compra anulada', () => {
+  beforeEach(() => jest.clearAllMocks());
+  const datos = { id_proveedor: 1, items: [{ id_insumo_producto: 5, cantidad: 1, costo_unitario: 100 }] };
+
+  it('se rechaza en el backend y no toca el detalle ni el stock', async () => {
+    Compra.obtenerPorId.mockResolvedValueOnce({ ...compra, estado: 'ANULADA' });
+    await expect(service.actualizar(9, datos)).rejects.toMatchObject({ statusCode: 409 });
+    expect(Compra.borrarDetalles).not.toHaveBeenCalled();
+    expect(Stock.ajustar).not.toHaveBeenCalled();
+  });
+
+  it('la reactivación explícita sigue funcionando', async () => {
+    Compra.obtenerPorId.mockResolvedValueOnce({ ...compra, estado: 'ANULADA' });
+    await service.cambiarEstado(9, 'REGISTRADA');
+    expect(Compra.cambiarEstado).toHaveBeenCalledWith({}, 9, 'REGISTRADA');
+  });
+});

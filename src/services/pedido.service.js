@@ -131,6 +131,10 @@ const subirComprobante = async (id, comprobante, idCliente) => {
 const actualizar = async (id, d, idUsuario) => {
   await withTransaction(async (c) => {
     const p = await obtener(id, c);
+    // Entregado y Cancelado son finales; el pago sí puede cambiar después (contraentrega)
+    if (d.estado && d.estado !== p.estado && ['Entregado', 'Cancelado'].includes(p.estado)) {
+      throw AppError.conflict(`El pedido ya está ${p.estado}; no se puede cambiar su estado.`);
+    }
     await Pedido.actualizar(c, id, d);
     if (d.estado && d.estado !== p.estado) {
       await Pedido.registrarEstado(c, id, d.estado, idUsuario);

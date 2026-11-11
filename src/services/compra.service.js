@@ -79,6 +79,7 @@ const actualizar = async (id, datos) => {
   const d = await preparar(datos);
   await withTransaction(async (c) => {
     const anterior = await obtener(id, c);
+    if (anterior.estado === 'ANULADA') throw AppError.conflict('La compra está anulada; reactívala antes de editarla.');
     const registrada = anterior.estado === 'REGISTRADA';
     await Compra.borrarDetalles(c, id);
     await Compra.actualizar(c, id, d);

@@ -2,6 +2,7 @@ const jwt = require('jsonwebtoken');
 const env = require('../config/env');
 const AppError = require('../errors/AppError');
 const Permiso = require('../models/permiso.model');
+const Usuario = require('../models/usuario.model');
 
 // Exige un token válido:  Authorization: Bearer <token>
 const authenticate = (req, _res, next) => {
@@ -40,4 +41,14 @@ const authorize = (modulo, privilegio) => async (req, _res, next) => {
   }
 };
 
-module.exports = { authenticate, authorize };
+// Un usuario desactivado no opera aunque conserve un token vigente (va después de authenticate)
+const requireActivo = async (req, _res, next) => {
+  try {
+    if ((await Usuario.obtenerEstado(req.user.id)) !== 'ACTIVO') throw AppError.forbidden('Tu usuario está inactivo');
+    return next();
+  } catch (err) {
+    return next(err);
+  }
+};
+
+module.exports = { authenticate, authorize, requireActivo };
