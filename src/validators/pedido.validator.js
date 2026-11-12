@@ -24,10 +24,10 @@ const crearPedido = z.object({
   items: z
     .array(z.object({
       producto: texto(150).min(1),
-      cantidad: z.number().int().positive().max(100),
+      cantidad: z.number().int().positive().max(999),
       salsas: z.array(texto(100)).max(20).default([]),
       nota: texto(200).optional(),
-      adiciones: z.array(z.object({ nombre: texto(150).min(1), cantidad: z.number().int().positive().max(50) })).max(30).default([]),
+      adiciones: z.array(z.object({ nombre: texto(150).min(1), cantidad: z.number().int().positive().max(999) })).max(30).default([]),
     }))
     .min(1, 'El pedido no tiene productos'),
 }).refine((d) => d.tipo_entrega !== 'domicilio' || d.id_barrio !== undefined || d.nombre_barrio !== undefined, {

@@ -1,7 +1,7 @@
 const router = require('express').Router();
 const c = require('../controllers/pedido.controller');
 const validate = require('../middlewares/validate.middleware');
-const { authenticate, authorize } = require('../middlewares/auth.middleware');
+const { authenticate, authorize, requireActivo } = require('../middlewares/auth.middleware');
 const v = require('../validators/pedido.validator');
 const estimador = require('../controllers/estimador.controller');
 const estimacionValidator = require('../validators/estimador.validator');
@@ -11,7 +11,7 @@ router.use(authenticate);
 
 // Cliente (cualquier usuario con sesión): hace sus pedidos, los ve y sube el comprobante de pago
 router.post('/estimacion', validate(estimacionValidator.estimar), estimador.estimar);
-router.post('/', validate(v.crearPedido), c.crear);
+router.post('/', requireActivo, validate(v.crearPedido), c.crear);
 router.get('/mios', c.listarMios);
 router.get('/mios/eventos', c.eventosMios);
 router.patch('/:id/comprobante', validate(v.idParam, 'params'), validate(v.subirComprobante), c.subirComprobante);

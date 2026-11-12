@@ -719,3 +719,61 @@ UPDATE ficha_tecnica_insumos f SET medida = i.medida
  WHERE i.id_insumo_producto = f.id_insumo_producto AND f.medida IS DISTINCT FROM i.medida
    AND NOT (f.medida IN ('g', 'kg') AND i.medida IN ('g', 'kg'))
    AND NOT (f.medida IN ('ml', 'L') AND i.medida IN ('ml', 'L'));
+
+-- 34. LAS ADICIONES LLEVAN STOCK: se compran en Compras y se venden tal cual, como las gaseosas. El historial de stock
+-- también las registra; las que ya tenían stock sin movimientos lo reciben como saldo inicial.
+CREATE OR REPLACE FUNCTION registrar_movimiento_stock() RETURNS trigger AS $$
+DECLARE
+  delta NUMERIC := NEW.stock - CASE WHEN TG_OP = 'INSERT' THEN 0 ELSE OLD.stock END;
+BEGIN
+  IF delta = 0 OR NOT (NEW.tipo = 'INSUMO' OR (NEW.tipo = 'PRODUCTO' AND (NEW.nombre ILIKE 'Gaseosa %'
+       OR NEW.id_categoria IN (SELECT id_categoria FROM categorias WHERE nombre_categoria = 'Adiciones')))) THEN
+    RETURN NEW;
+  END IF;
+  INSERT INTO movimientos_stock (id_insumo_producto, cantidad, stock_resultante, origen, referencia)
+  VALUES (NEW.id_insumo_producto, delta, NEW.stock,
+          COALESCE(NULLIF(current_setting('app.mov_origen', true), ''), 'AJUSTE'),
+          NULLIF(current_setting('app.mov_ref', true), ''));
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+INSERT INTO movimientos_stock (id_insumo_producto, cantidad, stock_resultante, origen, referencia)
+SELECT ip.id_insumo_producto, ip.stock, ip.stock, 'SALDO_INICIAL', 'Stock al empezar el historial'
+  FROM insumos_productos ip JOIN categorias c ON c.id_categoria = ip.id_categoria
+ WHERE ip.tipo = 'PRODUCTO' AND c.nombre_categoria = 'Adiciones' AND ip.stock <> 0
+   AND NOT EXISTS (SELECT 1 FROM movimientos_stock m WHERE m.id_insumo_producto = ip.id_insumo_producto);
+
+-- 35. BLOQUEO DE LOGIN: 5 intentos fallidos bloquean la cuenta 15 minutos
+ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS intentos_fallidos INT NOT NULL DEFAULT 0;
+ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS bloqueado_hasta TIMESTAMPTZ;
+
+-- 36. ROLES CON FECHAS DE CREACIÓN Y ACTUALIZACIÓN
+ALTER TABLE roles ADD COLUMN IF NOT EXISTS fecha_creacion TIMESTAMPTZ NOT NULL DEFAULT now();
+ALTER TABLE roles ADD COLUMN IF NOT EXISTS fecha_actualizacion TIMESTAMPTZ NOT NULL DEFAULT now();
+
+-- 37. HISTORIAL DE CAMBIOS DE USUARIOS: una fila por campo cambiado, con quién lo cambió
+CREATE TABLE IF NOT EXISTS auditoria_usuarios (
+    id_auditoria   BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    id_usuario     BIGINT NOT NULL REFERENCES usuarios(id_usuario) ON DELETE CASCADE,
+    campo          VARCHAR(40) NOT NULL,
+    valor_anterior TEXT,
+    valor_nuevo    TEXT,
+    cambiado_por   BIGINT REFERENCES usuarios(id_usuario) ON DELETE SET NULL,
+    fecha          TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS ix_auditoria_usuarios_usuario ON auditoria_usuarios (id_usuario, fecha DESC);
+
+-- 38. VERSIONES DE LA FICHA TÉCNICA: la fila de fichas_tecnicas es la versión ACTIVA (la única que leen el menú, los
+-- agotados y la producción). Cada edición que cambia la ficha guarda la versión anterior en el historial.
+ALTER TABLE fichas_tecnicas ADD COLUMN IF NOT EXISTS numero_version INT NOT NULL DEFAULT 1;
+ALTER TABLE fichas_tecnicas ADD COLUMN IF NOT EXISTS estado VARCHAR(20) NOT NULL DEFAULT 'ACTIVA';
+CREATE TABLE IF NOT EXISTS fichas_tecnicas_historial (
+    id_historial        BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    id_insumo_producto  BIGINT NOT NULL,
+    numero_version      INT NOT NULL,
+    estado              VARCHAR(20) NOT NULL DEFAULT 'INACTIVA',
+    contenido           JSONB NOT NULL,           -- nombre, versión, preparación e ingredientes de esa versión
+    fecha               TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (id_insumo_producto, numero_version)
+);

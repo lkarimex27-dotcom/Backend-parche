@@ -28,6 +28,14 @@ describe('cotizar (precios del pedido calculados en el servidor)', () => {
     expect(() => cotizar([linea(1, 8), linea(1, 1)], CATALOGO, stock)).toThrow('Solo quedan 8');
   });
 
+  it('una adición tampoco pasa de su stock comprado, y agotada no se vende', () => {
+    const linea = (cantidad, n) => ({ producto: 'Mini', cantidad, salsas: [], adiciones: [{ nombre: 'Queso', cantidad: n }] });
+    const stock = [{ nombre: 'Queso', agotada: false, stock: 16 }];
+    expect(() => cotizar([linea(4, 4)], CATALOGO, stock)).not.toThrow();
+    expect(() => cotizar([linea(1, 20)], CATALOGO, stock)).toThrow('Solo quedan 16 de «Queso». Pediste 20.');
+    expect(() => cotizar([linea(1, 1)], CATALOGO, [{ nombre: 'Queso', agotada: true, stock: 0 }])).toThrow('no está disponible');
+  });
+
   it('una gaseosa no se puede pedir como producto principal', () => {
     expect(() => cotizar([{ producto: 'Gaseosa Coca-Cola (Personal)', cantidad: 1, salsas: [], adiciones: [] }], CATALOGO)).toThrow('no está disponible');
   });

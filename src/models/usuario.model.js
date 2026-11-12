@@ -31,10 +31,28 @@ const obtenerPorId = async (id, c) =>
 // Incluye el hash de la contraseña: SOLO para el login. Nunca devolver al cliente.
 const obtenerParaLogin = async (correo) =>
   (await pool.query(
-    `SELECT id_usuario, correo, contrasena, estado, requiere_cambio_contrasena
+    `SELECT id_usuario, correo, contrasena, estado, requiere_cambio_contrasena, intentos_fallidos, bloqueado_hasta
        FROM usuarios WHERE lower(correo) = lower($1)`,
     [correo]
   )).rows[0] || null;
+
+// Suma un intento fallido; al llegar al máximo bloquea la cuenta y reinicia el contador para después del bloqueo
+const registrarIntentoFallido = async (id, maximo, minutos) =>
+  (await pool.query(
+    `UPDATE usuarios
+        SET bloqueado_hasta   = CASE WHEN intentos_fallidos + 1 >= $2 THEN now() + make_interval(mins => $3) ELSE bloqueado_hasta END,
+            intentos_fallidos = CASE WHEN intentos_fallidos + 1 >= $2 THEN 0 ELSE intentos_fallidos + 1 END
+      WHERE id_usuario = $1
+      RETURNING intentos_fallidos, bloqueado_hasta`,
+    [id, maximo, minutos]
+  )).rows[0] || null;
+
+const reiniciarIntentos = (id) =>
+  pool.query('UPDATE usuarios SET intentos_fallidos = 0, bloqueado_hasta = NULL WHERE id_usuario = $1', [id]);
+
+// Solo el estado: lo consulta authenticate en cada petición
+const obtenerEstado = async (id) =>
+  (await pool.query('SELECT estado FROM usuarios WHERE id_usuario = $1', [id])).rows[0]?.estado || null;
 
 // Persona (con o sin cuenta) que ya tiene ese documento: el documento es único en personas
 const documentoEnUso = async (documento) =>
@@ -157,7 +175,7 @@ const eliminar = async (c, id) => {
 
 module.exports = {
   actualizarPerfil, cambiarContrasena, cambiarContrasenaInicial, obtenerHash,
-  listar, obtenerPorId, obtenerParaLogin, documentoEnUso, crearUsuario, crearPersona,
+  listar, obtenerPorId, obtenerParaLogin, registrarIntentoFallido, reiniciarIntentos, obtenerEstado, documentoEnUso, crearUsuario, crearPersona,
   actualizarUsuario, actualizarPersona, reemplazarRoles, obtenerAdministradorPrincipal,
   reasignarRegistros, eliminar,
 };

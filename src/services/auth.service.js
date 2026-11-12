@@ -48,11 +48,24 @@ const registrar = async (d) => crearCliente(d, await bcrypt.hash(d.contrasena, 1
 // Registro confirmado por correo: la contraseña ya está hasheada al guardar el código temporal.
 const registrarVerificado = async (d) => crearCliente(d, d.contrasena_hash);
 
+const MAX_INTENTOS = 5;
+const MINUTOS_BLOQUEO = 15;
+const mensajeBloqueo = (hasta) => {
+  const min = Math.max(1, Math.ceil((new Date(hasta) - Date.now()) / 60000));
+  return `Tu cuenta está bloqueada por ${MAX_INTENTOS} intentos fallidos. Intenta de nuevo en ${min} minuto${min === 1 ? '' : 's'}.`;
+};
+
 const login = async ({ correo, contrasena }) => {
   const u = await Usuario.obtenerParaLogin(correo);
+  if (u?.bloqueado_hasta && new Date(u.bloqueado_hasta) > new Date()) throw AppError.forbidden(mensajeBloqueo(u.bloqueado_hasta));
   // Mismo mensaje para "no existe" y "clave incorrecta": no revela qué correos están registrados.
   const ok = u && (await bcrypt.compare(contrasena, u.contrasena));
-  if (!ok) throw AppError.unauthorized('Correo o contraseña incorrectos');
+  if (!ok) {
+    const r = u && (await Usuario.registrarIntentoFallido(u.id_usuario, MAX_INTENTOS, MINUTOS_BLOQUEO));
+    if (r?.bloqueado_hasta && new Date(r.bloqueado_hasta) > new Date()) throw AppError.forbidden(mensajeBloqueo(r.bloqueado_hasta));
+    throw AppError.unauthorized('Correo o contraseña incorrectos');
+  }
+  if (u.intentos_fallidos || u.bloqueado_hasta) await Usuario.reiniciarIntentos(u.id_usuario);
   if (u.estado !== 'ACTIVO') throw AppError.forbidden('Tu usuario está inactivo');
   return {
     token: firmarToken(u),

@@ -30,6 +30,9 @@ const catalogo = asyncHandler(async (_req, res) => {
         etiqueta: p.etiqueta,
         precio: p.precio,
         categoria: p.nombre_categoria,
+        // Lo que el cliente puede pedir quitar: los insumos de su receta, sin empaques
+        ingredientes: [...new Set((p.ficha?.ingredientes || []).map((i) => i.insumo)
+          .filter((n) => n && !/empaque|caja|bolsa|servilleta|vaso|papel|contenedor|icopor/i.test(n)))],
         imagenes: p.imagenes,
       })),
   });
@@ -40,6 +43,8 @@ const gaseosas = asyncHandler(async (_req, res) => res.json({ ok: true, data: aw
 
 const guardarFicha = asyncHandler(async (req, res) =>
   res.json({ ok: true, data: await service.guardarFicha(req.tipo, req.params.id, req.body) }));
+const versionesFicha = asyncHandler(async (req, res) =>
+  res.json({ ok: true, data: await service.versionesFicha(req.tipo, req.params.id) }));
 const reemplazarImagen = asyncHandler(async (req, res) =>
   res.json({ ok: true, data: await service.reemplazarImagen(req.tipo, req.params.id, req.body.imagen) }));
 
@@ -50,4 +55,4 @@ const imagen = asyncHandler(async (req, res) => {
   res.send(bytes);
 });
 
-module.exports = { listar, obtener, crear, actualizar, eliminar, catalogo, gaseosas, guardarFicha, reemplazarImagen, imagen };
+module.exports = { listar, obtener, crear, actualizar, eliminar, catalogo, gaseosas, guardarFicha, versionesFicha, reemplazarImagen, imagen };

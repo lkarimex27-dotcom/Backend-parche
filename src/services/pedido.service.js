@@ -47,12 +47,13 @@ const cotizar = (items, catalogo, gaseosas = []) => {
     const adiciones = it.adiciones.map((a) => {
       const esGaseosa = /^Gaseosa .+ \(.+\)$/.test(a.nombre);
       const extra = buscar(a.nombre, [esGaseosa ? 'Bebidas' : 'Adiciones']);
-      const agotada = esGaseosa && gaseosas.some((g) => g.agotada && normalizar(g.nombre) === normalizar(a.nombre));
+      // `gaseosas` trae también las adiciones: las dos llevan stock comprado
+      const agotada = gaseosas.some((g) => g.agotada && normalizar(g.nombre) === normalizar(a.nombre));
       if (!extra || agotada) throw AppError.badRequest(`La adición «${a.nombre}» no está disponible`);
       return { nombre: a.nombre, cantidad: a.cantidad, precio: extra.precio };
     });
-    // No more of each soda than its stock (counting the same soda across every line of the order)
-    for (const a of adiciones.filter((x) => /^Gaseosa /.test(x.nombre))) {
+    // No more of each soda or addition than its stock (counting it across every line of the order)
+    for (const a of adiciones) {
       const g = gaseosas.find((x) => normalizar(x.nombre) === normalizar(a.nombre));
       const pedidas = items.reduce((s, o) => s + o.cantidad * o.adiciones
         .filter((x) => normalizar(x.nombre) === normalizar(a.nombre)).reduce((t, x) => t + x.cantidad, 0), 0);
@@ -130,6 +131,10 @@ const subirComprobante = async (id, comprobante, idCliente) => {
 const actualizar = async (id, d, idUsuario) => {
   await withTransaction(async (c) => {
     const p = await obtener(id, c);
+    // Entregado y Cancelado son finales; el pago sí puede cambiar después (contraentrega)
+    if (d.estado && d.estado !== p.estado && ['Entregado', 'Cancelado'].includes(p.estado)) {
+      throw AppError.conflict(`El pedido ya está ${p.estado}; no se puede cambiar su estado.`);
+    }
     await Pedido.actualizar(c, id, d);
     if (d.estado && d.estado !== p.estado) {
       await Pedido.registrarEstado(c, id, d.estado, idUsuario);

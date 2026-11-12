@@ -2,9 +2,9 @@ const AppError = require('../errors/AppError');
 const { query } = require('../config/db');
 
 // Movimientos de stock. Siempre dentro de la transacción (`c`) de la compra, pérdida o producción.
-// Llevan stock los insumos y las gaseosas de reventa: productos "Gaseosa <sabor> (<tamaño>)" (categoría «Bebidas»),
-// que se compran y se venden tal cual. Devuelve false si el id no lleva stock (el service revierte).
-const CON_STOCK = `(tipo = 'INSUMO' OR (tipo = 'PRODUCTO' AND nombre ILIKE 'Gaseosa %'))`;
+// Llevan stock los insumos, las gaseosas de reventa (productos "Gaseosa <sabor> (<tamaño>)" de «Bebidas») y las
+// adiciones (productos de «Adiciones»), que se compran y se venden tal cual. Devuelve false si el id no lleva stock (el service revierte).
+const CON_STOCK = `(tipo = 'INSUMO' OR (tipo = 'PRODUCTO' AND (nombre ILIKE 'Gaseosa %' OR id_categoria IN (SELECT id_categoria FROM categorias WHERE nombre_categoria = 'Adiciones'))))`;
 // shortcut: el stock no baja de 0 (igual que el panel); validar existencias cuando todo el stock se registre por compras.
 const ajustar = async (c, idInsumo, delta) =>
   (await c.query(
@@ -65,10 +65,24 @@ const descuadres = async () =>
   (await query(
     `SELECT ip.id_insumo_producto AS id, ip.nombre, ip.stock::float AS stock, COALESCE(sum(m.cantidad), 0)::float AS suma_movimientos
        FROM insumos_productos ip LEFT JOIN movimientos_stock m ON m.id_insumo_producto = ip.id_insumo_producto
-      WHERE (ip.tipo = 'INSUMO' OR (ip.tipo = 'PRODUCTO' AND ip.nombre ILIKE 'Gaseosa %'))
+      WHERE (ip.tipo = 'INSUMO' OR (ip.tipo = 'PRODUCTO' AND (ip.nombre ILIKE 'Gaseosa %' OR ip.id_categoria IN (SELECT id_categoria FROM categorias WHERE nombre_categoria = 'Adiciones'))))
       GROUP BY ip.id_insumo_producto, ip.nombre, ip.stock
      HAVING ip.stock <> COALESCE(sum(m.cantidad), 0)
       ORDER BY ip.nombre`
   )).rows;
 
-module.exports = { CON_STOCK, ajustar, retirar, recalcularCosto, marcar, movimientos, descuadres };
+// Lo que salió de cada insumo activo en los últimos `dias` días (producción, pérdidas, ventas). Las correcciones de
+// compras (anular o editar) no son consumo.
+const consumoReciente = async (dias) =>
+  (await query(
+    `SELECT ip.id_insumo_producto AS id, ip.nombre, ip.medida, ip.stock::float AS stock, ip.minimo::float AS minimo,
+            COALESCE(-sum(m.cantidad) FILTER (WHERE m.cantidad < 0 AND m.origen NOT IN ('ANULACION_COMPRA', 'EDICION_COMPRA')
+                                               AND m.fecha >= now() - make_interval(days => $1)), 0)::float AS consumo
+       FROM insumos_productos ip LEFT JOIN movimientos_stock m ON m.id_insumo_producto = ip.id_insumo_producto
+      WHERE ip.estado = 'ACTIVO' AND (ip.tipo = 'INSUMO' OR (ip.tipo = 'PRODUCTO' AND (ip.nombre ILIKE 'Gaseosa %' OR ip.id_categoria IN (SELECT id_categoria FROM categorias WHERE nombre_categoria = 'Adiciones'))))
+      GROUP BY ip.id_insumo_producto, ip.nombre, ip.medida, ip.stock, ip.minimo
+      ORDER BY ip.nombre`,
+    [dias]
+  )).rows;
+
+module.exports = { CON_STOCK, ajustar, retirar, recalcularCosto, marcar, movimientos, descuadres, consumoReciente };

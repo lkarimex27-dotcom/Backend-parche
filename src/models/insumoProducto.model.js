@@ -11,6 +11,7 @@ const BASE = `
          ) AS imagenes,
          (SELECT json_build_object(
                    'nombre', f.nombre, 'version', f.version, 'preparacion', f.preparacion,
+                   'numero_version', f.numero_version, 'estado', f.estado,
                    'insumos_principales', f.insumos_principales,
                    'ingredientes', COALESCE((
                      SELECT json_agg(json_build_object('insumo', ins.nombre, 'cantidad', fi.cantidad::float, 'medida', fi.medida)
@@ -88,6 +89,7 @@ const eliminar = (tipo, id) =>
       [id]
     );
     await c.query('DELETE FROM fichas_tecnicas WHERE id_insumo_producto = $1', [id]);
+    await c.query('DELETE FROM fichas_tecnicas_historial WHERE id_insumo_producto = $1', [id]);
     const nombre = (await c.query('SELECT nombre FROM insumos_productos WHERE id_insumo_producto = $1', [id])).rows[0]?.nombre;
     if (nombre) {
       await c.query(
@@ -133,8 +135,44 @@ const usosProducto = async (id) =>
     [id]
   )).rows[0];
 
-// Ficha técnica: una por producto/insumo; la receta se reemplaza completa
+// Contenido de la ficha activa (sin ids), para comparar y para guardar en el historial
+const FOTO_FICHA = `
+  SELECT f.numero_version, json_build_object(
+           'nombre', f.nombre, 'version', f.version, 'insumos_principales', f.insumos_principales, 'preparacion', f.preparacion,
+           'ingredientes', COALESCE((
+             SELECT json_agg(json_build_object('insumo', ins.nombre, 'cantidad', fi.cantidad::float, 'medida', fi.medida)
+                             ORDER BY fi.id_ficha_tecnica_insumo)
+               FROM ficha_tecnica_insumos fi JOIN insumos_productos ins ON ins.id_insumo_producto = fi.id_insumo_producto
+              WHERE fi.id_ficha_tecnica = f.id_ficha_tecnica), '[]'::json))::text AS contenido
+    FROM fichas_tecnicas f WHERE f.id_insumo_producto = $1`;
+
+// Ficha técnica: la fila de fichas_tecnicas es SIEMPRE la versión activa (la que usan el menú, los agotados y la
+// producción). Si una edición cambia algo, la versión anterior queda en fichas_tecnicas_historial y sube el número.
 const guardarFicha = async (c, id, d) => {
+  const antes = (await c.query(FOTO_FICHA, [id])).rows[0];
+  const faltante = await escribirFicha(c, id, d);
+  if (faltante || !antes) return faltante;
+  const despues = (await c.query(FOTO_FICHA, [id])).rows[0];
+  if (despues && despues.contenido !== antes.contenido) {
+    await c.query(
+      `INSERT INTO fichas_tecnicas_historial (id_insumo_producto, numero_version, estado, contenido)
+       VALUES ($1, $2, 'INACTIVA', $3::jsonb)`,
+      [id, antes.numero_version, antes.contenido]
+    );
+    await c.query('UPDATE fichas_tecnicas SET numero_version = numero_version + 1 WHERE id_insumo_producto = $1', [id]);
+  }
+  return null;
+};
+
+// Versiones anteriores de la ficha, la más reciente primero
+const versionesFicha = async (id) =>
+  (await query(
+    `SELECT numero_version, estado, contenido, fecha FROM fichas_tecnicas_historial
+      WHERE id_insumo_producto = $1 ORDER BY numero_version DESC`,
+    [id]
+  )).rows;
+
+const escribirFicha = async (c, id, d) => {
   const { id_ficha_tecnica } = (await c.query(
     `INSERT INTO fichas_tecnicas (id_insumo_producto, nombre, version, insumos_principales, preparacion)
      VALUES ($1, $2, $3, $4, $5)
@@ -168,7 +206,15 @@ const obtenerImagen = async (idImagen) =>
   (await query('SELECT url FROM imagenes WHERE id_imagen = $1', [idImagen])).rows[0]?.url ?? null;
 
 // Un insumo "alcanza" para vender si tiene lo que pide la receta y no está por debajo de su mínimo
-const AGOTADO = 'i.stock < fi.cantidad OR i.stock < i.minimo OR i.estado <> \'ACTIVO\''
+// Lo que pide la receta pasado a la unidad del inventario (100 g de un insumo en kg = 0.1; 1 und de un paquete de 12 = 1/12)
+const NECESITA = `fi.cantidad * CASE
+    WHEN fi.medida = i.medida THEN 1
+    WHEN fi.medida IN ('g', 'ml') AND i.medida IN ('kg', 'L') THEN 0.001
+    WHEN fi.medida IN ('kg', 'L') AND i.medida IN ('g', 'ml') THEN 1000
+    WHEN i.medida = 'paq' AND i.unidades_paquete > 0 THEN
+      (CASE WHEN fi.medida IN ('kg', 'L') THEN 1000 ELSE 1 END)::numeric / i.unidades_paquete
+    ELSE 1 END`;
+const AGOTADO = `i.stock < ${NECESITA} OR i.stock < i.minimo OR i.estado <> 'ACTIVO'`
 
 // Productos con receta que hoy no se pueden preparar (algún insumo agotado o bajo su mínimo)
 const productosSinStock = async () =>
@@ -184,10 +230,10 @@ const gaseosas = async () =>
   (await query(
     `SELECT nombre, stock <= 0 AS agotada, GREATEST(FLOOR(stock), 0)::int AS stock
         FROM insumos_productos
-       WHERE tipo = 'PRODUCTO' AND nombre ILIKE 'Gaseosa %'`
+       WHERE tipo = 'PRODUCTO' AND (nombre ILIKE 'Gaseosa %' OR id_categoria IN (SELECT id_categoria FROM categorias WHERE nombre_categoria = 'Adiciones'))`
   )).rows;
 
 module.exports = {
-  listar, obtenerPorId, crear, actualizar, eliminar, guardarFicha, reemplazarImagen, obtenerImagen,
+  listar, obtenerPorId, crear, actualizar, eliminar, guardarFicha, versionesFicha, reemplazarImagen, obtenerImagen,
   productosSinStock, gaseosas, usos, usosProducto, alinearMedidaFichas,
 };

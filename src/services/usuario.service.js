@@ -3,6 +3,7 @@ const env = require('../config/env');
 const Usuario = require('../models/usuario.model');
 const { withTransaction } = require('../config/db');
 const AppError = require('../errors/AppError');
+const Auditoria = require('../models/auditoria.model');
 const { contrasenaProvisional, enviarProvisional } = require('../utils/provisional');
 
 const ROUNDS = 10;
@@ -107,8 +108,21 @@ const actualizar = async (id, d, idQuienEdita) => {
     await Usuario.actualizarUsuario(c, id, { correo: d.correo, estado: d.estado });
     await Usuario.actualizarPersona(c, id, d);
     if (d.roles) asegurarRoles(await Usuario.reemplazarRoles(c, id, d.roles));
+    await Auditoria.registrar(c, cambios(usuario, d, id, idQuienEdita));
   });
   return obtener(id);
+};
+
+// Campos que quedan en el historial del usuario
+const AUDITADOS = ['correo', 'estado', 'nombre', 'tipo_documento', 'documento', 'telefono', 'direccion', 'barrio', 'telefono_emergencia', 'roles'];
+const texto = (v) => (v === undefined || v === null ? null : Array.isArray(v) ? [...v].sort().join(', ') : String(v));
+const cambios = (antes, d, id, porQuien) =>
+  AUDITADOS.filter((k) => d[k] !== undefined && texto(d[k]) !== texto(antes[k]))
+    .map((k) => ({ id_usuario: id, campo: k, valor_anterior: texto(antes[k]), valor_nuevo: texto(d[k]), cambiado_por: porQuien ?? null }));
+
+const historial = async (id) => {
+  await obtener(id);
+  return Auditoria.listarDeUsuario(id);
 };
 
 const eliminar = async (id, idQuienElimina) => {
@@ -134,4 +148,4 @@ const eliminar = async (id, idQuienElimina) => {
   });
 };
 
-module.exports = { listar, obtener, crear, actualizar, eliminar };
+module.exports = { listar, obtener, crear, actualizar, eliminar, historial };

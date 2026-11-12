@@ -20,4 +20,6 @@ const eliminar = asyncHandler(async (req, res) => {
   res.status(204).send();
 });
 
-module.exports = { listar, obtener, crear, actualizar, eliminar, listarClientes, obtenerCliente };
+const historial = asyncHandler(async (req, res) => res.json({ ok: true, data: await service.historial(req.params.id) }));
+
+module.exports = { listar, obtener, crear, actualizar, eliminar, listarClientes, obtenerCliente, historial };

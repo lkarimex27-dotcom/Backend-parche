@@ -13,13 +13,29 @@ const crear = async ({ nombre_rol, descripcion, estado }) =>
 
 const actualizar = async (id, { nombre_rol, descripcion, estado }) =>
   (await pool.query(
-    `UPDATE roles SET nombre_rol = $2, descripcion = COALESCE($3, descripcion), estado = COALESCE($4, estado)
+    `UPDATE roles SET nombre_rol = $2, descripcion = COALESCE($3, descripcion), estado = COALESCE($4, estado),
+            fecha_actualizacion = now()
       WHERE id_rol = $1 RETURNING *`,
     [id, nombre_rol, descripcion, estado]
   )).rows[0] || null;
 
-const eliminar = async (id) =>
-  (await pool.query('DELETE FROM roles WHERE id_rol = $1', [id])).rowCount > 0;
+// Los permisos del rol se van con él (el service ya verificó que esté inactivo y sin usuarios)
+const eliminar = async (c, id) => {
+  await c.query('DELETE FROM permisos WHERE id_rol = $1', [id]);
+  return (await c.query('DELETE FROM roles WHERE id_rol = $1', [id])).rowCount > 0;
+};
+
+const contarUsuarios = async (id) =>
+  Number((await pool.query('SELECT count(*) FROM roles_usuario WHERE id_rol = $1', [id])).rows[0].count);
+
+const correosDeUsuarios = async (id) =>
+  (await pool.query(
+    `SELECT u.correo, pe.nombre FROM roles_usuario ru
+       JOIN usuarios u ON u.id_usuario = ru.id_usuario
+       LEFT JOIN personas pe ON pe.id_usuario = u.id_usuario
+      WHERE ru.id_rol = $1`,
+    [id]
+  )).rows;
 
 const listarModulos = async () => (await pool.query('SELECT * FROM modulos ORDER BY id_modulo')).rows;
 const listarPrivilegios = async () => (await pool.query('SELECT * FROM privilegios ORDER BY id_privilegio')).rows;
@@ -58,6 +74,6 @@ const reemplazarPermisos = async (c, idRol, permisos) => {
 };
 
 module.exports = {
-  listar, obtenerPorId, crear, actualizar, eliminar,
+  listar, obtenerPorId, crear, actualizar, eliminar, contarUsuarios, correosDeUsuarios,
   listarModulos, listarPrivilegios, permisosDeRol, reemplazarPermisos,
 };
