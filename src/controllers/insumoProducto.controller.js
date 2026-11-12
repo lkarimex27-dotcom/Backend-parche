@@ -17,7 +17,7 @@ const eliminar = asyncHandler(async (req, res) => {
 // Menú público: solo productos activos que hoy se pueden preparar (su receta tiene stock)
 // y solo lo que ve el cliente (sin costo ni stock).
 const catalogo = asyncHandler(async (_req, res) => {
-  const [productos, sinStock] = await Promise.all([service.listar('PRODUCTO', {}), service.productosSinStock()]);
+  const [productos, sinStock] = await Promise.all([service.listar('PRODUCTO', { catalogo: true }), service.productosSinStock()]);
   const agotado = new Set(sinStock);
   res.json({
     ok: true,

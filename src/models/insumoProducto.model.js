@@ -1,11 +1,12 @@
 const { query, withTransaction } = require('../config/db');
 
 // Fotos subidas (data URL) se devuelven como /imagenes/<id> (GET /api/imagenes/:id) para no inflar los listados.
+// left(url, 5) y no LIKE: LIKE lee la foto completa (MB) de cada producto; left solo sus primeros bytes.
 // La ficha técnica va completa (nombre, versión, preparación y receta con sus insumos).
 const BASE = `
   SELECT ip.*, c.nombre_categoria,
          COALESCE(
-           (SELECT json_agg(CASE WHEN i.url LIKE 'data:%' THEN '/imagenes/' || i.id_imagen ELSE i.url END ORDER BY i.id_imagen)
+           (SELECT json_agg(CASE WHEN left(i.url, 5) = 'data:' THEN '/imagenes/' || i.id_imagen ELSE i.url END ORDER BY i.id_imagen)
               FROM imagenes i WHERE i.id_producto = ip.id_insumo_producto),
            '[]'::json
          ) AS imagenes,
@@ -23,13 +24,30 @@ const BASE = `
     FROM insumos_productos ip
     JOIN categorias c ON c.id_categoria = ip.id_categoria`;
 
-// `tipo` = 'INSUMO' | 'PRODUCTO' (la tabla es una sola; el módulo decide qué parte ve)
-const listar = async (tipo, { id_categoria, bajoMinimo } = {}) => {
+// La tienda solo necesita esto: sin costo, stock, preparación ni cantidades de la receta (pesa mucho menos)
+const BASE_CATALOGO = `
+  SELECT ip.id_insumo_producto, ip.nombre, ip.descripcion, ip.etiqueta, ip.precio, ip.estado, c.nombre_categoria,
+         COALESCE(
+           (SELECT json_agg(CASE WHEN left(i.url, 5) = 'data:' THEN '/imagenes/' || i.id_imagen ELSE i.url END ORDER BY i.id_imagen)
+              FROM imagenes i WHERE i.id_producto = ip.id_insumo_producto),
+           '[]'::json
+         ) AS imagenes,
+         (SELECT json_build_object('ingredientes', COALESCE(json_agg(json_build_object('insumo', ins.nombre) ORDER BY fi.id_ficha_tecnica_insumo), '[]'::json))
+            FROM fichas_tecnicas f
+            JOIN ficha_tecnica_insumos fi ON fi.id_ficha_tecnica = f.id_ficha_tecnica
+            JOIN insumos_productos ins ON ins.id_insumo_producto = fi.id_insumo_producto
+           WHERE f.id_insumo_producto = ip.id_insumo_producto) AS ficha
+    FROM insumos_productos ip
+    JOIN categorias c ON c.id_categoria = ip.id_categoria`;
+
+// `tipo` = 'INSUMO' | 'PRODUCTO' (la tabla es una sola; el módulo decide qué parte ve). `catalogo`: versión liviana de la tienda
+const listar = async (tipo, { id_categoria, bajoMinimo, catalogo } = {}) => {
   const where = ['ip.tipo = $1'];
   const params = [tipo];
   if (id_categoria) { params.push(id_categoria); where.push(`ip.id_categoria = $${params.length}`); }
   if (bajoMinimo) where.push('ip.stock <= ip.minimo');
-  return (await query(`${BASE} WHERE ${where.join(' AND ')} ORDER BY ip.id_insumo_producto`, params)).rows;
+  if (catalogo) where.push("ip.estado = 'ACTIVO'");
+  return (await query(`${catalogo ? BASE_CATALOGO : BASE} WHERE ${where.join(' AND ')} ORDER BY ip.id_insumo_producto`, params)).rows;
 };
 
 const obtenerPorId = async (tipo, id) =>
