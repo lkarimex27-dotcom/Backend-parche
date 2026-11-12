@@ -1,6 +1,6 @@
 // Sin base de datos: se simula el client de la transacción y se miran las consultas
 const mockQuery = jest.fn();
-jest.mock('../src/config/db', () => ({ query: (...a) => mockQuery(...a), withTransaction: async (fn) => fn({ query: (...a) => mockQuery(...a) }) }));
+jest.mock('../config/db', () => ({ query: (...a) => mockQuery(...a), withTransaction: async (fn) => fn({ query: (...a) => mockQuery(...a) }) }));
 const Modelo = require('../src/models/insumoProducto.model');
 const Consumo = require('../src/services/consumo.service');
 

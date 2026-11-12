@@ -1,4 +1,4 @@
-const { pool } = require('../config/db');
+const { pool } = require('../../config/db');
 
 // Historial de cambios de un usuario: una fila por campo cambiado
 const registrar = async (c, filas) => {

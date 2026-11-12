@@ -1,6 +1,6 @@
 // Sin base de datos: modelos, transacción y eventos se simulan
 let mockPedido;
-jest.mock('../src/config/db', () => ({ withTransaction: async (fn) => fn({}) }));
+jest.mock('../config/db', () => ({ withTransaction: async (fn) => fn({}) }));
 jest.mock('../src/models/pedido.model', () => ({
   obtenerPorId: jest.fn(async () => mockPedido),
   actualizar: jest.fn(async () => undefined),

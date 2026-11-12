@@ -1,6 +1,6 @@
 // Sin base de datos: modelo de rol, transacción y correo se simulan
 let mockRol;
-jest.mock('../src/config/db', () => ({ withTransaction: async (fn) => fn({ query: jest.fn() }) }));
+jest.mock('../config/db', () => ({ withTransaction: async (fn) => fn({ query: jest.fn() }) }));
 jest.mock('../src/models/rol.model', () => ({
   obtenerPorId: jest.fn(async () => mockRol),
   actualizar: jest.fn(async (id, d) => ({ ...mockRol, ...d })),
