@@ -1,7 +1,7 @@
 process.env.JWT_SECRET = 'secreto_de_pruebas_secreto_de_pruebas_123';
 
 // Sin base de datos ni Gmail: se simulan la cuenta, la persona, los roles y el envío del correo
-jest.mock('../src/config/db', () => ({ withTransaction: (fn) => fn({}) }));
+jest.mock('../config/db', () => ({ withTransaction: (fn) => fn({}) }));
 jest.mock('../src/models/usuario.model', () => ({
   crearUsuario: jest.fn(async () => ({ id_usuario: 9 })),
   crearPersona: jest.fn(async () => undefined),

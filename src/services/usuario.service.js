@@ -1,7 +1,7 @@
 const bcrypt = require('bcryptjs');
-const env = require('../config/env');
+const env = require('../../config/env');
 const Usuario = require('../models/usuario.model');
-const { withTransaction } = require('../config/db');
+const { withTransaction } = require('../../config/db');
 const AppError = require('../errors/AppError');
 const Auditoria = require('../models/auditoria.model');
 const { contrasenaProvisional, enviarProvisional } = require('../utils/provisional');

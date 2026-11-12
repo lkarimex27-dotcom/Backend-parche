@@ -1,13 +1,13 @@
 jest.mock('nodemailer', () => ({
   createTransport: jest.fn(),
 }));
-jest.mock('../src/config/env', () => ({
+jest.mock('../config/env', () => ({
   mailUser: 'sender@example.test',
   mailPass: 'test-application-password',
 }));
 
 const nodemailer = require('nodemailer');
-const env = require('../src/config/env');
+const env = require('../config/env');
 const { enviarCorreo } = require('../src/utils/mailer');
 
 describe('Servicio de envío por Gmail', () => {

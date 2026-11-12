@@ -1,7 +1,7 @@
 process.env.JWT_SECRET = 'secreto_de_pruebas_secreto_de_pruebas_123';
 
 // Sin base de datos: la transacción y los modelos se simulan
-jest.mock('../src/config/db', () => ({ withTransaction: async (fn) => fn({}) }));
+jest.mock('../config/db', () => ({ withTransaction: async (fn) => fn({}) }));
 jest.mock('../src/models/proveedor.model', () => ({
   obtenerPorId: jest.fn(async () => ({ id_proveedor: 1 })),
   agregarInsumos: jest.fn(async () => undefined),

@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const nodemailer = require('nodemailer');
-const env = require('../config/env');
+const env = require('../../config/env');
 const AppError = require('../errors/AppError');
 
 // Gmail exige una "contraseña de aplicación" (no la contraseña normal de la cuenta) en MAIL_PASS

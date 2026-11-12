@@ -1,5 +1,5 @@
 const Domicilio = require('../models/domicilio.model');
-const { withTransaction } = require('../config/db');
+const { withTransaction } = require('../../config/db');
 const AppError = require('../errors/AppError');
 
 const listar = () => Domicilio.listar();

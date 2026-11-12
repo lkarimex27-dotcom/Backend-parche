@@ -1,4 +1,4 @@
-const { query, withTransaction } = require('../config/db');
+const { query, withTransaction } = require('../../config/db');
 
 // Fotos subidas (data URL) se devuelven como /imagenes/<id> (GET /api/imagenes/:id) para no inflar los listados.
 // La ficha técnica va completa (nombre, versión, preparación y receta con sus insumos).

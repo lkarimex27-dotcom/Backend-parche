@@ -1,5 +1,5 @@
 const AppError = require('../errors/AppError');
-const env = require('../config/env');
+const env = require('../../config/env');
 
 const notFound = (req, _res, next) => {
   next(AppError.notFound(`Ruta no encontrada: ${req.method} ${req.originalUrl}`));

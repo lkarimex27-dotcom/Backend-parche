@@ -6,7 +6,7 @@ jest.mock('../src/models/panel.model', () => ({
   existe: jest.fn(async (_cfg, _col, v) => mockConVenta.has(v)),
   crear: jest.fn(async () => 99),
 }));
-jest.mock('../src/config/db', () => ({ query: jest.fn(async () => ({ rows: [] })) }));
+jest.mock('../config/db', () => ({ query: jest.fn(async () => ({ rows: [] })) }));
 jest.mock('../src/middlewares/auth.middleware', () => ({
   authenticate: (req, _res, next) => { req.user = { id: 1 }; next(); },
   authorize: () => (_req, _res, next) => next(),
@@ -15,7 +15,7 @@ const express = require('express');
 const request = require('supertest');
 const Panel = require('../src/models/panel.model');
 const panelRoutes = require('../src/routes/panel.routes');
-const { ventas } = require('../src/config/panel.modulos');
+const { ventas } = require('../config/panel.modulos');
 const { errorHandler } = require('../src/middlewares/error.middleware');
 
 const app = express();

@@ -1,8 +1,8 @@
-jest.mock('../src/config/db', () => ({
+jest.mock('../config/db', () => ({
   query: jest.fn(),
 }));
 
-const { query } = require('../src/config/db');
+const { query } = require('../config/db');
 const Permiso = require('../src/models/permiso.model');
 const { authorize } = require('../src/middlewares/auth.middleware');
 

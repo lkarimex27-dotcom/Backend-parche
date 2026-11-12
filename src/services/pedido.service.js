@@ -1,8 +1,8 @@
 const Pedido = require('../models/pedido.model');
 const InsumoProducto = require('../models/insumoProducto.model');
 const Barrio = require('../models/barrio.model');
-const { withTransaction } = require('../config/db');
-const { PEDIDO_MONTO_APROBACION } = require('../config/constants');
+const { withTransaction } = require('../../config/db');
+const { PEDIDO_MONTO_APROBACION } = require('../../config/constants');
 const AppError = require('../errors/AppError');
 const Estimador = require('./estimador.service');
 const VentaPedido = require('./ventaPedido.service');

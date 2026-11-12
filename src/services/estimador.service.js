@@ -1,7 +1,7 @@
 const Barrio = require('../models/barrio.model');
 const Pedido = require('../models/pedido.model');
 const AppError = require('../errors/AppError');
-const { ESTIMADOR } = require('../config/constants');
+const { ESTIMADOR } = require('../../config/constants');
 
 const minutosValidos = (value) => Number.isFinite(Number(value)) && Number(value) > 0;
 const enteroMinutos = (value) => Math.max(1, Math.round(Number(value)));

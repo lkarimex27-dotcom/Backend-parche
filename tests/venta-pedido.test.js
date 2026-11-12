@@ -18,7 +18,7 @@ const mockC = {
     return { rows: [], rowCount: 0 };
   }),
 };
-jest.mock('../src/config/db', () => ({ withTransaction: (fn) => fn(mockC), query: jest.fn(async () => ({ rows: [] })) }));
+jest.mock('../config/db', () => ({ withTransaction: (fn) => fn(mockC), query: jest.fn(async () => ({ rows: [] })) }));
 jest.mock('../src/models/panel.model', () => ({
   crearConCliente: jest.fn(async (_c, _cfg, _columnas, fila) => { mockVentas.push(fila); return mockVentas.length }),
 }));

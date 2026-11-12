@@ -1,4 +1,4 @@
-const { query, withTransaction } = require('../config/db');
+const { query, withTransaction } = require('../../config/db');
 
 const exec = (c) => c || { query };
 

@@ -1,5 +1,5 @@
 const Rol = require('../models/rol.model');
-const { withTransaction } = require('../config/db');
+const { withTransaction } = require('../../config/db');
 const AppError = require('../errors/AppError');
 const { enviarCorreo } = require('../utils/mailer');
 

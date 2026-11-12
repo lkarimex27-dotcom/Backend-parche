@@ -1,4 +1,4 @@
-const { query } = require('../config/db');
+const { query } = require('../../config/db');
 
 // `tipo` = 'INSUMO' | 'PRODUCTO'. Cada pantalla del panel solo ve el suyo.
 const listar = async (tipo) =>

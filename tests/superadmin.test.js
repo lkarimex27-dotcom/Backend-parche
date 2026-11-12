@@ -11,7 +11,7 @@ jest.mock('../src/models/usuario.model', () => ({
   actualizarPersona: jest.fn(async () => {}),
   reemplazarRoles: jest.fn(async () => true),
 }));
-jest.mock('../src/config/db', () => ({ withTransaction: (fn) => fn({ query: jest.fn() }) }));
+jest.mock('../config/db', () => ({ withTransaction: (fn) => fn({ query: jest.fn() }) }));
 const service = require('../src/services/usuario.service');
 
 describe('Superadministrador (admin@minifood.com)', () => {

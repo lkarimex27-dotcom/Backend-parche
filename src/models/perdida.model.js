@@ -1,4 +1,4 @@
-const { query } = require('../config/db');
+const { query } = require('../../config/db');
 
 const SELECT = `
   SELECT pe.id_perdida, pe.id_insumo_producto, i.nombre AS insumo, i.medida, pe.cantidad::float AS cantidad,

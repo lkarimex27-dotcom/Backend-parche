@@ -1,4 +1,4 @@
-const { pool } = require('../config/db');
+const { pool } = require('../../config/db');
 
 const listar = async () => (await pool.query('SELECT * FROM roles ORDER BY id_rol')).rows;
 

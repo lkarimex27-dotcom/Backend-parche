@@ -1,7 +1,7 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const env = require('../config/env');
-const { withTransaction } = require('../config/db');
+const env = require('../../config/env');
+const { withTransaction } = require('../../config/db');
 const Usuario = require('../models/usuario.model');
 const Permiso = require('../models/permiso.model');
 const AppError = require('../errors/AppError');

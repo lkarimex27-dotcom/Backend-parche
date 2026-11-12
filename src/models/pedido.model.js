@@ -1,5 +1,5 @@
-const { query } = require('../config/db');
-const { ESTIMADOR } = require('../config/constants');
+const { query } = require('../../config/db');
+const { ESTIMADOR } = require('../../config/constants');
 
 const SELECT = `
   SELECT p.id_pedido, p.id_cliente, u.correo, COALESCE(pe.nombre, p.nombre_contacto) AS cliente,

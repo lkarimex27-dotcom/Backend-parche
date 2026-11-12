@@ -1,6 +1,6 @@
 const app = require('./app');
-const env = require('./config/env');
-const { testConnection, pool } = require('./config/db');
+const env = require('../config/env');
+const { testConnection, pool } = require('../config/db');
 
 const start = async () => {
   if (!env.databaseUrl) {

@@ -3,7 +3,7 @@ jest.mock('../src/models/barrio.model');
 jest.mock('../src/models/insumoProducto.model', () => ({
   gaseosas: jest.fn(),
 }));
-jest.mock('../src/config/db', () => ({
+jest.mock('../config/db', () => ({
   withTransaction: jest.fn((fn) => fn({})),
 }));
 

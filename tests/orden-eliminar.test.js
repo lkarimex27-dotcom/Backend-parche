@@ -14,7 +14,7 @@ const express = require('express');
 const request = require('supertest');
 const Panel = require('../src/models/panel.model');
 const panelRoutes = require('../src/routes/panel.routes');
-const { ordenes_produccion } = require('../src/config/panel.modulos');
+const { ordenes_produccion } = require('../config/panel.modulos');
 const { errorHandler } = require('../src/middlewares/error.middleware');
 
 const app = express();

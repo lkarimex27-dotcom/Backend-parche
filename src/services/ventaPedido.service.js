@@ -1,4 +1,4 @@
-const modulos = require('../config/panel.modulos');
+const modulos = require('../../config/panel.modulos');
 const Panel = require('../models/panel.model');
 
 // La venta de un pedido de la tienda la crea el servidor cuando el pedido queda «Pagado» (una sola por pedido).

@@ -1,9 +1,9 @@
 
 const Modelo = require('../models/insumoProducto.model');
-const { withTransaction } = require('../config/db');
+const { withTransaction } = require('../../config/db');
 const Categoria = require('../models/categoria.model');
 const AppError = require('../errors/AppError');
-const cloudinary = require('../config/cloudinary');
+const cloudinary = require('../../config/cloudinary');
 
 const NOMBRE = { INSUMO: 'Insumo', PRODUCTO: 'Producto' };
 

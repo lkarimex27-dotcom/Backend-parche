@@ -1,7 +1,7 @@
 const Compra = require('../models/compra.model');
 const Proveedor = require('../models/proveedor.model');
 const Stock = require('../models/stock.model');
-const { withTransaction } = require('../config/db');
+const { withTransaction } = require('../../config/db');
 const AppError = require('../errors/AppError');
 
 // Una compra REGISTRADA suma sus cantidades al stock; ANULADA no cuenta.

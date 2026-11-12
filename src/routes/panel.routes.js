@@ -5,7 +5,7 @@ const asyncHandler = require('../utils/asyncHandler');
 const validate = require('../middlewares/validate.middleware');
 const { authenticate, authorize } = require('../middlewares/auth.middleware');
 const AppError = require('../errors/AppError');
-const { withTransaction } = require('../config/db');
+const { withTransaction } = require('../../config/db');
 const Pedido = require('../models/pedido.model');
 const pedidoEventos = require('../services/pedidoEventos.service');
 
@@ -15,7 +15,7 @@ const cuerpo = z.object({
   datos_panel: z.array(z.union([z.string().max(100_000), z.number(), z.null()])).min(1).max(40),
 });
 
-// Fábrica: panelRoutes(require('../config/panel.modulos').ventas) -> /api/ventas
+// Fábrica: panelRoutes(require('../../config/panel.modulos').ventas) -> /api/ventas
 // Al crear, id_usuario = quien registra (o lo que diga la config); al editar se conserva salvo usuarioEditable.
 module.exports = (cfg) => {
   const router = Router();
