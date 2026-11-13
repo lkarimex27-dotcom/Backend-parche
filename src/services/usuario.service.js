@@ -30,37 +30,9 @@ const crear = async (d) => {
   if (!esCliente && normalizarRol(d.tipo_documento || '') === 'TARJETA_DE_IDENTIDAD') {
     throw AppError.badRequest('La tarjeta de identidad solo está permitida para clientes.');
   }
-  const rolTemporal = d.roles.find((rol) => normalizarRol(rol) !== 'CLIENTE');
-  // Un cliente creado sin contraseña recibe una provisional por correo
-  const contrasenaInicial = esCliente
-    ? d.contrasena || contrasenaProvisional()
-    : rolTemporal && env.defaultPasswords[`DEFAULT_PASSWORD_${normalizarRol(rolTemporal)}`];
-  if (!contrasenaInicial) {
-    throw AppError.badRequest(
-      esCliente
-        ? 'La contraseña es obligatoria para las cuentas de cliente.'
-        : `Configura DEFAULT_PASSWORD_${normalizarRol(rolTemporal || d.roles[0])} en el entorno del servidor.`
-    );
-  }
-  if (!esCliente) {
-    const configuredPasswords = Object.values(env.defaultPasswords).filter(Boolean);
-    const isStrong =
-      contrasenaInicial.length >= 8 &&
-      contrasenaInicial.length <= 72 &&
-      /[A-Z]/.test(contrasenaInicial) &&
-      /[a-z]/.test(contrasenaInicial) &&
-      /\d/.test(contrasenaInicial);
-    if (!isStrong) {
-      throw AppError.badRequest(
-        'La contraseña temporal configurada para este rol debe cumplir la política de seguridad.'
-      );
-    }
-    if (new Set(configuredPasswords).size !== configuredPasswords.length) {
-      throw AppError.badRequest(
-        'Configura una contraseña temporal diferente para cada rol de personal.'
-      );
-    }
-  }
+  // Todo usuario creado por el administrador recibe una contraseña provisional por correo
+  // (un cliente puede traer la suya); al entrar por primera vez debe cambiarla
+  const contrasenaInicial = (esCliente && d.contrasena) || contrasenaProvisional();
   const requiereCambioContrasena = !esCliente || !d.contrasena;
   const hash = await bcrypt.hash(contrasenaInicial, ROUNDS);
   const id = await withTransaction(async (c) => {
