@@ -42,7 +42,8 @@ const catalogoActivo = async () =>
   (await query(
     `SELECT i.id_insumo_producto, i.nombre, i.precio::float AS precio, c.nombre_categoria AS categoria
        FROM insumos_productos i JOIN categorias c ON c.id_categoria = i.id_categoria
-      WHERE i.tipo = 'PRODUCTO' AND i.estado = 'ACTIVO'`
+      WHERE i.tipo = 'PRODUCTO' AND i.estado = 'ACTIVO'
+     UNION ALL ${require('./insumoProducto.model').SALSAS_CASA}`
   )).rows;
 
 const crear = async (c, d) =>

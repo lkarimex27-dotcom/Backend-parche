@@ -165,6 +165,7 @@ const imagen = async (idImagen) => {
 };
 
 const productosSinStock = () => Modelo.productosSinStock();
+const salsasDeLaCasa = () => Modelo.salsasDeLaCasa();
 const gaseosas = () => Modelo.gaseosas();
 
 module.exports = {
@@ -178,5 +179,6 @@ module.exports = {
   reemplazarImagen,
   imagen,
   productosSinStock,
+  salsasDeLaCasa,
   gaseosas,
 };

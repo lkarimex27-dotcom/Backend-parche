@@ -251,7 +251,15 @@ const gaseosas = async () =>
        WHERE tipo = 'PRODUCTO' AND (nombre ILIKE 'Gaseosa %' OR id_categoria IN (SELECT id_categoria FROM categorias WHERE nombre_categoria = 'Adiciones'))`
   )).rows;
 
+// Productos de insumo (ej. salsas de la casa) que hoy tienen stock: el cliente los elige como salsa (sin costo)
+const SALSAS_CASA = `SELECT id_insumo_producto, nombre, 0::float AS precio, 'Salsas' AS categoria
+   FROM insumos_productos
+  WHERE tipo = 'INSUMO' AND tiene_ficha_tecnica AND estado = 'ACTIVO' AND stock > 0`;
+const salsasDeLaCasa = async () => (await query(SALSAS_CASA)).rows;
+
 module.exports = {
+  SALSAS_CASA,
+  salsasDeLaCasa,
   listar, obtenerPorId, crear, actualizar, eliminar, guardarFicha, versionesFicha, reemplazarImagen, obtenerImagen,
   productosSinStock, gaseosas, usos, usosProducto, alinearMedidaFichas,
 };

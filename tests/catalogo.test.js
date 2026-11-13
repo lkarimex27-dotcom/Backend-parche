@@ -15,6 +15,7 @@ jest.mock('../src/services/insumoProducto.service', () => ({
     prod(6, 'Coca-Cola', 'Sabores de bebida'),
   ]),
   productosSinStock: jest.fn(async () => [3]),
+  salsasDeLaCasa: jest.fn(async () => [{ id_insumo_producto: 9, nombre: 'Salsa de la casa' }, { id_insumo_producto: 10, nombre: 'Mini' }]),
 }));
 const app = require('../src/app');
 
@@ -30,6 +31,6 @@ describe('GET /api/catalogo', () => {
 
   it('no muestra los productos cuya receta no tiene stock (las bebidas no son insumos: siempre salen)', async () => {
     const res = await request(app).get('/api/catalogo');
-    expect(res.body.data.map((p) => p.nombre)).toEqual(['Mini', 'Personal', 'Coca-Cola']);
+    expect(res.body.data.map((p) => p.nombre)).toEqual(['Mini', 'Personal', 'Coca-Cola', 'Salsa de la casa']); // salsa de la casa con stock; 'Mini' no se repite
   });
 });
