@@ -30,4 +30,27 @@ const descontar = ({ numero_orden, insumos }, idUsuario) =>
     }
   });
 
-module.exports = { descontar };
+// Suma al stock lo que se preparó de un producto de insumo (ej. una salsa de la casa) al terminar su orden.
+// Una sola vez por orden: la marca '<orden>#ENTRADA' en consumos_produccion evita sumarlo dos veces.
+const ingresar = ({ numero_orden, productos }, idUsuario) =>
+  withTransaction(async (c) => {
+    const marca = `${numero_orden}#ENTRADA`.slice(0, 50);
+    const nuevo = await c.query(
+      `INSERT INTO consumos_produccion (numero_orden, detalle, id_usuario) VALUES ($1, $2, $3)
+       ON CONFLICT (numero_orden) DO NOTHING`,
+      [marca, JSON.stringify(productos), idUsuario]
+    );
+    if (!nuevo.rowCount) return false;
+    await Stock.marcar(c, 'PRODUCCION_ENTRADA', `Orden ${numero_orden}`);
+    for (const { insumo, cantidad } of productos) {
+      const r = await c.query(
+        `UPDATE insumos_productos SET stock = stock + $2::numeric
+          WHERE lower(nombre) = lower($1) AND tipo = 'INSUMO' AND tiene_ficha_tecnica`,
+        [insumo, cantidad]
+      );
+      if (!r.rowCount) throw AppError.badRequest(`«${insumo}» no es un producto de insumo`);
+    }
+    return true;
+  });
+
+module.exports = { descontar, ingresar };
