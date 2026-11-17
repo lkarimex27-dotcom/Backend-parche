@@ -47,7 +47,7 @@ const listar = async (tipo, { id_categoria, bajoMinimo, catalogo } = {}) => {
   if (id_categoria) { params.push(id_categoria); where.push(`ip.id_categoria = $${params.length}`); }
   if (bajoMinimo) where.push('ip.stock <= ip.minimo');
   if (catalogo) where.push("ip.estado = 'ACTIVO'");
-  return (await query(`${catalogo ? BASE_CATALOGO : BASE} WHERE ${where.join(' AND ')} ORDER BY ip.id_insumo_producto`, params)).rows;
+  return (await query(`${catalogo ? BASE_CATALOGO : BASE} WHERE ${where.join(' AND ')} ORDER BY ip.id_insumo_producto DESC`, params)).rows;
 };
 
 const obtenerPorId = async (tipo, id) =>

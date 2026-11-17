@@ -2,7 +2,7 @@ const { query } = require('../config/db');
 
 const listar = async ({ estado } = {}) =>
   (await query(
-    `SELECT * FROM proveedores ${estado ? 'WHERE estado = $1' : ''} ORDER BY nombre`,
+    `SELECT * FROM proveedores ${estado ? 'WHERE estado = $1' : ''} ORDER BY id_proveedor DESC`,
     estado ? [estado] : []
   )).rows;
 

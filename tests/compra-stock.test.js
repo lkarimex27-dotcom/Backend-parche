@@ -34,10 +34,10 @@ describe('Anular una compra', () => {
   beforeEach(() => jest.clearAllMocks());
 
   it('retira lo comprado por insumo (sin recortar a 0) y la anula', async () => {
-    await service.cambiarEstado(9, 'ANULADA');
+    await service.cambiarEstado(9, 'ANULADA', 'Pedido equivocado');
     expect(Stock.retirar).toHaveBeenCalledWith({}, 5, 10, 'No se puede anular la compra');
     expect(Stock.retirar).toHaveBeenCalledWith({}, 7, 3, 'No se puede anular la compra');
-    expect(Compra.cambiarEstado).toHaveBeenCalledWith({}, 9, 'ANULADA');
+    expect(Compra.cambiarEstado).toHaveBeenCalledWith({}, 9, 'ANULADA', 'Pedido equivocado');
     expect(Stock.marcar).toHaveBeenCalledWith({}, 'ANULACION_COMPRA', 'Compra #9');
   });
 
@@ -51,17 +51,11 @@ describe('Anular una compra', () => {
 describe('Reactivar una compra anulada', () => {
   beforeEach(() => jest.clearAllMocks());
 
-  it('devuelve al stock exactamente lo que anular quitó y recalcula el costo', async () => {
-    compra.estado = 'ANULADA';
-    try {
-      await service.cambiarEstado(9, 'REGISTRADA');
-    } finally {
-      compra.estado = 'REGISTRADA';
-    }
-    expect(Stock.ajustar).toHaveBeenCalledWith({}, 5, 10);
-    expect(Stock.ajustar).toHaveBeenCalledWith({}, 7, 3);
-    expect(Stock.retirar).not.toHaveBeenCalled();
-    expect(Stock.recalcularCosto).toHaveBeenCalledWith({}, 5);
+  it('se rechaza (auditoría): no toca el stock ni el estado', async () => {
+    Compra.obtenerPorId.mockResolvedValueOnce({ ...compra, estado: 'ANULADA' });
+    await expect(service.cambiarEstado(9, 'ANULADA', 'otra vez')).rejects.toMatchObject({ statusCode: 409 });
+    expect(Stock.ajustar).not.toHaveBeenCalled();
+    expect(Compra.cambiarEstado).not.toHaveBeenCalled();
   });
 });
 
@@ -100,11 +94,5 @@ describe('Editar una compra anulada', () => {
     await expect(service.actualizar(9, datos)).rejects.toMatchObject({ statusCode: 409 });
     expect(Compra.borrarDetalles).not.toHaveBeenCalled();
     expect(Stock.ajustar).not.toHaveBeenCalled();
-  });
-
-  it('la reactivación explícita sigue funcionando', async () => {
-    Compra.obtenerPorId.mockResolvedValueOnce({ ...compra, estado: 'ANULADA' });
-    await service.cambiarEstado(9, 'REGISTRADA');
-    expect(Compra.cambiarEstado).toHaveBeenCalledWith({}, 9, 'REGISTRADA');
   });
 });

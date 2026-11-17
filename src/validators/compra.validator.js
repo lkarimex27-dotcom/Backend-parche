@@ -21,6 +21,7 @@ const compra = z.object({
     .min(1, 'Agrega al menos un insumo'),
 });
 
-const estado = z.object({ estado: z.enum(['REGISTRADA', 'ANULADA']) });
+// Anular exige un motivo (queda en el detalle); una compra anulada no se reactiva
+const estado = z.object({ estado: z.literal('ANULADA'), motivo: z.string().trim().min(5, 'Escribe el motivo de la anulación (mínimo 5 caracteres).').max(300) });
 
 module.exports = { idParam, crearCompra: compra, actualizarCompra: compra, estado };

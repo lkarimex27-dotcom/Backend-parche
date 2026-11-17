@@ -32,6 +32,7 @@ const start = async () => {
   // Columnas nuevas que el código ya usa: se crean solas si la base aún no corrió `npm run db:init`
   await pool.query('ALTER TABLE insumos_productos ADD COLUMN IF NOT EXISTS unidades_paquete INTEGER');
   await pool.query('ALTER TABLE insumos_productos ADD COLUMN IF NOT EXISTS contenido_unidad VARCHAR(10)');
+  await pool.query('ALTER TABLE compras ADD COLUMN IF NOT EXISTS motivo_anulacion TEXT');
 
   const server = app.listen(env.port, () => {
     console.log(`Servidor listo en http://localhost:${env.port}/api/health`);

@@ -79,7 +79,7 @@ const actualizar = async (id, datos) => {
   const d = await preparar(datos);
   await withTransaction(async (c) => {
     const anterior = await obtener(id, c);
-    if (anterior.estado === 'ANULADA') throw AppError.conflict('La compra está anulada; reactívala antes de editarla.');
+    if (anterior.estado === 'ANULADA') throw AppError.conflict('La compra está anulada y no se puede editar.');
     const registrada = anterior.estado === 'REGISTRADA';
     await Compra.borrarDetalles(c, id);
     await Compra.actualizar(c, id, d);
@@ -94,14 +94,15 @@ const actualizar = async (id, datos) => {
   return obtener(id);
 };
 
-// Anular descuenta del stock lo que la compra había sumado (falla si ya se usó); reactivar lo vuelve a sumar
-const cambiarEstado = async (id, estado) => {
+// Anular descuenta del stock lo que la compra había sumado (falla si ya se usó). Por auditoría no se reactiva:
+// si se anuló por error, se registra una compra nueva.
+const cambiarEstado = async (id, estado, motivo) => {
   await withTransaction(async (c) => {
     const compra = await obtener(id, c);
-    if (compra.estado === estado) return;
-    await Stock.marcar(c, estado === 'ANULADA' ? 'ANULACION_COMPRA' : 'REACTIVACION_COMPRA', `Compra #${id}`);
-    await aplicarNeto(c, porInsumo(compra.detalles, estado === 'ANULADA' ? -1 : 1), 'No se puede anular la compra');
-    await Compra.cambiarEstado(c, id, estado);
+    if (compra.estado === 'ANULADA') throw AppError.conflict('La compra ya está anulada y no se puede reactivar; registra una compra nueva.');
+    await Stock.marcar(c, 'ANULACION_COMPRA', `Compra #${id}`);
+    await aplicarNeto(c, porInsumo(compra.detalles, -1), 'No se puede anular la compra');
+    await Compra.cambiarEstado(c, id, estado, motivo);
     await recalcularCostos(c, compra.detalles);
   });
   return obtener(id);

@@ -5,7 +5,7 @@ const SELECT = `
   SELECT co.id_compra, co.id_proveedor, pr.nombre AS proveedor,
          to_char(co.fecha, 'YYYY-MM-DD') AS fecha,
          to_char(co.fecha_registro AT TIME ZONE 'America/Bogota', 'YYYY-MM-DD') AS fecha_registro,
-         co.subtotal, co.iva, co.total, co.estado,
+         co.subtotal, co.iva, co.total, co.estado, co.motivo_anulacion,
          COALESCE((SELECT json_agg(json_build_object(
                      'id_insumo_producto', d.id_insumo_producto, 'insumo', i.nombre, 'medida', d.medida,
                      'cantidad', d.cantidad::float, 'costo_unitario', d.costo_unitario::float, 'subtotal', d.subtotal::float)
@@ -32,7 +32,8 @@ const actualizar = (c, id, d) =>
     [id, d.id_proveedor, d.fecha, d.subtotal, d.iva, d.subtotal + d.iva]
   );
 
-const cambiarEstado = (c, id, estado) => c.query('UPDATE compras SET estado = $2 WHERE id_compra = $1', [id, estado]);
+const cambiarEstado = (c, id, estado, motivo = null) =>
+  c.query('UPDATE compras SET estado = $2, motivo_anulacion = $3 WHERE id_compra = $1', [id, estado, motivo]);
 
 const borrarDetalles = (c, id) => c.query('DELETE FROM detalle_compras WHERE id_compra = $1', [id]);
 
