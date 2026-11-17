@@ -768,6 +768,9 @@ CREATE INDEX IF NOT EXISTS ix_auditoria_usuarios_usuario ON auditoria_usuarios (
 -- agotados y la producción). Cada edición que cambia la ficha guarda la versión anterior en el historial.
 ALTER TABLE fichas_tecnicas ADD COLUMN IF NOT EXISTS numero_version INT NOT NULL DEFAULT 1;
 ALTER TABLE fichas_tecnicas ADD COLUMN IF NOT EXISTS estado VARCHAR(20) NOT NULL DEFAULT 'ACTIVA';
+-- Auditoría de compras: motivo obligatorio al anular y cómo vino cada insumo (caja, paquete, bulto)
+ALTER TABLE compras ADD COLUMN IF NOT EXISTS motivo_anulacion TEXT;
+ALTER TABLE detalle_compras ADD COLUMN IF NOT EXISTS empaque VARCHAR(80);
 CREATE TABLE IF NOT EXISTS fichas_tecnicas_historial (
     id_historial        BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     id_insumo_producto  BIGINT NOT NULL,

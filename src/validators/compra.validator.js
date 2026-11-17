@@ -17,6 +17,7 @@ const compra = z.object({
       id_insumo_producto: z.number().int().positive(),
       cantidad: z.number().positive(),
       costo_unitario: z.number().nonnegative(),
+      empaque: z.string().trim().max(80).nullable().optional(),
     }))
     .min(1, 'Agrega al menos un insumo'),
 });

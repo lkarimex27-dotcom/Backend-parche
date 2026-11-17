@@ -8,7 +8,8 @@ const SELECT = `
          co.subtotal, co.iva, co.total, co.estado, co.motivo_anulacion,
          COALESCE((SELECT json_agg(json_build_object(
                      'id_insumo_producto', d.id_insumo_producto, 'insumo', i.nombre, 'medida', d.medida,
-                     'cantidad', d.cantidad::float, 'costo_unitario', d.costo_unitario::float, 'subtotal', d.subtotal::float)
+                     'cantidad', d.cantidad::float, 'costo_unitario', d.costo_unitario::float, 'subtotal', d.subtotal::float,
+                     'empaque', d.empaque)
                      ORDER BY d.id_detalle_compra)
                      FROM detalle_compras d JOIN insumos_productos i ON i.id_insumo_producto = d.id_insumo_producto
                     WHERE d.id_compra = co.id_compra), '[]'::json) AS detalles
@@ -39,9 +40,9 @@ const borrarDetalles = (c, id) => c.query('DELETE FROM detalle_compras WHERE id_
 
 const crearDetalle = (c, idCompra, it) =>
   c.query(
-    `INSERT INTO detalle_compras (id_compra, id_insumo_producto, medida, cantidad, costo_unitario, subtotal)
-     SELECT $1, $2, medida, $3::numeric, $4::numeric, $3::numeric * $4::numeric FROM insumos_productos WHERE id_insumo_producto = $2`,
-    [idCompra, it.id_insumo_producto, it.cantidad, it.costo_unitario]
+    `INSERT INTO detalle_compras (id_compra, id_insumo_producto, medida, cantidad, costo_unitario, subtotal, empaque)
+     SELECT $1, $2, medida, $3::numeric, $4::numeric, $3::numeric * $4::numeric, $5 FROM insumos_productos WHERE id_insumo_producto = $2`,
+    [idCompra, it.id_insumo_producto, it.cantidad, it.costo_unitario, it.empaque || null]
   );
 
 // Estados de las compras a ese proveedor en esa fecha (una pérdida guarda su compra como texto, no por id)

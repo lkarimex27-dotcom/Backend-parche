@@ -33,6 +33,8 @@ const start = async () => {
   await pool.query('ALTER TABLE insumos_productos ADD COLUMN IF NOT EXISTS unidades_paquete INTEGER');
   await pool.query('ALTER TABLE insumos_productos ADD COLUMN IF NOT EXISTS contenido_unidad VARCHAR(10)');
   await pool.query('ALTER TABLE compras ADD COLUMN IF NOT EXISTS motivo_anulacion TEXT');
+  // Cómo vino la compra (ej. «3 Caja × 24 paq»); cantidad y costo ya se guardan en la unidad del insumo
+  await pool.query('ALTER TABLE detalle_compras ADD COLUMN IF NOT EXISTS empaque VARCHAR(80)');
 
   const server = app.listen(env.port, () => {
     console.log(`Servidor listo en http://localhost:${env.port}/api/health`);
