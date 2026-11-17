@@ -38,10 +38,10 @@ const catalogo = asyncHandler(async (_req, res) => {
           .filter((n) => n && !/empaque|caja|bolsa|servilleta|vaso|papel|contenedor|icopor/i.test(n)))],
         imagenes: p.imagenes,
       }))
-      // Las salsas que preparamos (productos de insumo con stock) también se ofrecen como salsa
+      // Lo que preparamos (productos de insumo con stock): gratis como salsa, o con su precio como adición
       .concat(salsasCasa.filter((s) => !yaSalsa.has(s.nombre.trim().toLowerCase())).map((s) => ({
-        id: s.id_insumo_producto, nombre: s.nombre, descripcion: null, etiqueta: null, precio: 0,
-        categoria: 'Salsas', ingredientes: [], imagenes: [],
+        id: s.id_insumo_producto, nombre: s.nombre, descripcion: null, etiqueta: null, precio: s.precio ?? 0,
+        categoria: s.categoria || 'Salsas', ingredientes: [], imagenes: [],
       }))),
   });
 });

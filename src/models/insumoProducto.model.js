@@ -56,11 +56,11 @@ const obtenerPorId = async (tipo, id) =>
 const crear = async (tipo, d) =>
   (await query(
     `INSERT INTO insumos_productos
-       (nombre, tipo, medida, stock, minimo, maximo, id_categoria, costo, precio, tiene_ficha_tecnica, descripcion, etiqueta, estado, unidades_paquete, contenido_unidad)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING id_insumo_producto`,
+       (nombre, tipo, medida, stock, minimo, maximo, id_categoria, costo, precio, tiene_ficha_tecnica, descripcion, etiqueta, estado, unidades_paquete, contenido_unidad, porcion)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING id_insumo_producto`,
     [d.nombre, tipo, d.medida ?? null, d.stock ?? 0, d.minimo ?? 0, d.maximo ?? null,
      d.id_categoria, d.costo ?? 0, d.precio ?? 0, d.tiene_ficha_tecnica ?? false, d.descripcion ?? null, d.etiqueta ?? null,
-     d.estado ?? 'ACTIVO', d.unidades_paquete ?? null, d.contenido_unidad ?? null]
+     d.estado ?? 'ACTIVO', d.unidades_paquete ?? null, d.contenido_unidad ?? null, d.porcion ?? null]
   )).rows[0];
 
 const actualizar = async (tipo, id, d) =>
@@ -80,10 +80,11 @@ const actualizar = async (tipo, id, d) =>
         estado              = COALESCE($14, estado),
         -- null = sin cambio; solo se borra si la medida deja de ser "paq"
         unidades_paquete    = CASE WHEN COALESCE($4, medida) <> 'paq' THEN NULL ELSE COALESCE($15, unidades_paquete) END,
-        contenido_unidad    = CASE WHEN COALESCE($4, medida) <> 'paq' THEN NULL ELSE COALESCE($16, contenido_unidad) END
+        contenido_unidad    = CASE WHEN COALESCE($4, medida) <> 'paq' THEN NULL ELSE COALESCE($16, contenido_unidad) END,
+        porcion             = COALESCE($17, porcion)
       WHERE id_insumo_producto = $1 AND tipo = $2 RETURNING id_insumo_producto`,
     [id, tipo, d.nombre, d.medida, d.stock, d.minimo, d.maximo, d.id_categoria, d.costo, d.precio, d.tiene_ficha_tecnica,
-     d.descripcion, d.etiqueta, d.estado, d.unidades_paquete, d.contenido_unidad]
+     d.descripcion, d.etiqueta, d.estado, d.unidades_paquete, d.contenido_unidad, d.porcion]
   )).rows[0] || null;
 
 // Las recetas que usan el insumo pasan a su nueva medida (g/kg, ml/L y und/paq se convierten, no se tocan)
@@ -252,7 +253,10 @@ const gaseosas = async () =>
   )).rows;
 
 // Productos de insumo (ej. salsas de la casa) que hoy tienen stock: el cliente los elige como salsa (sin costo)
-const SALSAS_CASA = `SELECT id_insumo_producto, nombre, 0::float AS precio, 'Salsas' AS categoria
+// Productos de insumo con stock que se ofrecen en el pedido: precio 0 = cortesía (sale en «Salsas», gratis);
+// con precio = adicional que se cobra (sale en «Adiciones»)
+const SALSAS_CASA = `SELECT id_insumo_producto, nombre, COALESCE(precio, 0)::float AS precio,
+        CASE WHEN COALESCE(precio, 0) > 0 THEN 'Adiciones' ELSE 'Salsas' END AS categoria
    FROM insumos_productos
   WHERE tipo = 'INSUMO' AND tiene_ficha_tecnica AND estado = 'ACTIVO' AND stock > 0`;
 const salsasDeLaCasa = async () => (await query(SALSAS_CASA)).rows;

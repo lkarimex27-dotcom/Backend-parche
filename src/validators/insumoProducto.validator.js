@@ -18,6 +18,7 @@ const crearInsumoProducto = z.object({
   id_categoria: z.number().int().positive(),
   costo: z.number().nonnegative().optional(),
   precio: z.number().nonnegative().optional(),
+  porcion: z.number().positive().max(100000).nullable().optional(), // salsa de la casa: lo que sale por cada una servida
   tiene_ficha_tecnica: z.boolean().optional(),
   descripcion: z.string().trim().max(500).optional(),  // se muestra en el menú del cliente
   etiqueta: z.string().trim().max(30).optional(),      // ej. "Favorita", "Nuevo"

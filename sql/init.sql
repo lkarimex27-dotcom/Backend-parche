@@ -771,6 +771,8 @@ ALTER TABLE fichas_tecnicas ADD COLUMN IF NOT EXISTS estado VARCHAR(20) NOT NULL
 -- Auditoría de compras: motivo obligatorio al anular y cómo vino cada insumo (caja, paquete, bulto)
 ALTER TABLE compras ADD COLUMN IF NOT EXISTS motivo_anulacion TEXT;
 ALTER TABLE detalle_compras ADD COLUMN IF NOT EXISTS empaque VARCHAR(80);
+-- Salsa de la casa: porción que sale del stock por cada una que se sirve (en la medida del insumo)
+ALTER TABLE insumos_productos ADD COLUMN IF NOT EXISTS porcion DECIMAL(12,3);
 CREATE TABLE IF NOT EXISTS fichas_tecnicas_historial (
     id_historial        BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     id_insumo_producto  BIGINT NOT NULL,
