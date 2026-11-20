@@ -15,7 +15,7 @@ const compra = z.object({
   items: z
     .array(z.object({
       id_insumo_producto: z.number().int().positive(),
-      cantidad: z.number().positive(),
+      cantidad: z.number().int('Va en números enteros (g, ml o und)').positive(),
       costo_unitario: z.number().nonnegative(),
       empaque: z.string().trim().max(80).nullable().optional(),
     }))

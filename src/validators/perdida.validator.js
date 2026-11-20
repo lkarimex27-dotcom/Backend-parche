@@ -7,7 +7,7 @@ const idParam = z.object({ id: z.coerce.number().int().positive() });
 
 const perdida = z.object({
   id_insumo_producto: z.number().int().positive(),
-  cantidad: z.number().positive(),
+  cantidad: z.number().int('Va en números enteros (g, ml o und)').positive(),
   motivo: z.string().trim().max(150).optional(),
   responsable: z.string().trim().max(150).optional(),
   fecha: z
@@ -20,7 +20,7 @@ const perdida = z.object({
 });
 
 const devolver = z.object({
-  cantidad: z.number().positive('La cantidad a devolver debe ser mayor que 0').optional(),
+  cantidad: z.number().int('Va en números enteros (g, ml o und)').positive('La cantidad a devolver debe ser mayor que 0').optional(),
   motivo: z.string().trim().min(3, 'Escribe por qué se devuelve a la compra').max(500),
 });
 

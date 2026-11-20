@@ -15,7 +15,13 @@ const obtener = async (tipo, id) => {
   return r;
 };
 
+const { BASES } = require('../utils/unidadesEnteras');
+
 const validar = async (tipo, d) => {
+  // Un insumo se maneja en su unidad más pequeña y en enteros (1,5 kg = 1500 g); cajas y paquetes se compran en Compras
+  if (tipo === 'INSUMO' && d.medida != null && !BASES.includes(d.medida)) {
+    throw AppError.badRequest('Un insumo se mide en g, ml o und (números enteros). Las cajas y paquetes se registran al comprar.');
+  }
   if (d.maximo != null && d.minimo != null && d.maximo < d.minimo) {
     throw AppError.badRequest('El máximo no puede ser menor que el mínimo');
   }
