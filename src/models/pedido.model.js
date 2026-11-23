@@ -9,6 +9,8 @@ const SELECT = `
            'telefono', p.telefono_contacto
          ) AS destinatario,
          p.estado, p.estado_produccion, p.estado_pago, p.motivo_rechazo_pago, p.comprobante, p.produccion_autorizada,
+         CASE WHEN jsonb_array_length(p.comprobantes) > 0 THEN p.comprobantes
+              WHEN p.comprobante IS NULL THEN '[]'::jsonb ELSE jsonb_build_array(p.comprobante) END AS comprobantes,
          p.registros_produccion, p.id_barrio, p.estimacion_inicial,
          p.subtotal::float AS subtotal, p.costo_domicilio_cop::float AS costo_domicilio_cop,
          p.total::float AS total, p.abono::float AS abono, p.creado_en,
@@ -50,8 +52,9 @@ const crear = async (c, d) =>
   (await c.query(
     `INSERT INTO pedidos (id_cliente, estado, nombre_contacto, telefono_contacto, tipo_entrega, direccion_entrega, observacion,
                           metodo_pago, estado_pago, comprobante, subtotal, costo_domicilio_cop, total,
-                          id_barrio, estimacion_inicial, abono)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING id_pedido`,
+                          id_barrio, estimacion_inicial, abono, comprobantes)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16,
+             CASE WHEN $10::text IS NULL THEN '[]'::jsonb ELSE jsonb_build_array($10::text) END) RETURNING id_pedido`,
     [d.id_cliente, d.estado, d.nombre, d.telefono, d.tipo_entrega ?? 'domicilio', d.direccion, d.notas ?? null, d.pago, d.estado_pago,
      d.comprobante ?? null, d.subtotal, d.costo_domicilio_cop, d.total, d.id_barrio,
      JSON.stringify(d.estimacion_inicial), d.abono ?? null]
@@ -203,7 +206,19 @@ const estadisticasDesplazamiento = async (idBarrio, c) =>
     [idBarrio, ESTIMADOR.HISTORIAL_DIAS]
   )).rows[0];
 
+// Un comprobante más: queda en la lista y como el último (el que revisa el panel). Devuelve cuántos hay.
+const agregarComprobante = async (c, id, comprobante) =>
+  (await c.query(
+    `UPDATE pedidos
+        SET comprobante = $2,
+            comprobantes = (CASE WHEN jsonb_array_length(comprobantes) = 0 AND comprobante IS NOT NULL
+                                 THEN jsonb_build_array(comprobante) ELSE comprobantes END) || jsonb_build_array($2::text)
+      WHERE id_pedido = $1 RETURNING jsonb_array_length(comprobantes) AS n`,
+    [id, comprobante]
+  )).rows[0]?.n ?? 0;
+
 module.exports = {
+  agregarComprobante,
   listar, listarDeCliente, obtenerPorId, catalogoActivo, crear, crearDetalle, crearOrdenProduccion, registrarEstado,
   actualizarEstadoProduccion, actualizar, colaCocina, estadisticasDesplazamiento,
 };

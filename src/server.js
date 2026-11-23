@@ -39,6 +39,8 @@ const start = async () => {
   await pool.query('ALTER TABLE insumos_productos ADD COLUMN IF NOT EXISTS porcion DECIMAL(12,3)');
   // Pedidos de $150.000 o más: el 50% que se paga por adelantado
   await pool.query('ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS abono DECIMAL(12,2)');
+  // Todos los comprobantes que el cliente envió (abono, saldo, uno que reemplaza a uno rechazado...)
+  await pool.query("ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS comprobantes JSONB NOT NULL DEFAULT '[]'");
 
   const server = app.listen(env.port, () => {
     console.log(`Servidor listo en http://localhost:${env.port}/api/health`);

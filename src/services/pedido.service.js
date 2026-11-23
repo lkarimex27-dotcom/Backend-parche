@@ -119,15 +119,20 @@ const crear = async (d, idCliente) => {
   return obtener(id);
 };
 
-// El cliente sube (o cambia) el comprobante; si se lo habían rechazado, vuelve a revisión
+// El cliente envía otro comprobante (puede mandar varios: el abono y el saldo, o uno nuevo si le rechazaron el anterior).
+// Se guardan todos; si se lo habían rechazado, vuelve a revisión.
+const MAX_COMPROBANTES = 5;
 const subirComprobante = async (id, comprobante, idCliente) => {
   await withTransaction(async (c) => {
     const p = await obtener(id, c);
     if (p.id_cliente !== idCliente) throw AppError.notFound('Pedido no encontrado');
-    await Pedido.actualizar(c, id, {
-      comprobante,
-      ...(p.estado_pago === 'Rechazado' && { estado_pago: 'Pendiente de verificación', motivo_rechazo_pago: null }),
-    });
+    if (p.estado_pago === 'Pagado' || ['Cancelado', 'Entregado'].includes(p.estado))
+      throw AppError.conflict('Este pedido ya no recibe comprobantes.');
+    if ((p.comprobantes?.length ?? 0) >= MAX_COMPROBANTES)
+      throw AppError.conflict(`Ya enviaste ${MAX_COMPROBANTES} comprobantes; escríbenos si necesitas enviar otro.`);
+    await Pedido.agregarComprobante(c, id, comprobante);
+    if (p.estado_pago === 'Rechazado')
+      await Pedido.actualizar(c, id, { estado_pago: 'Pendiente de verificación', motivo_rechazo_pago: null });
   });
   return obtener(id);
 };
