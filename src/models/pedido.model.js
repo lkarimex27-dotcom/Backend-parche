@@ -54,10 +54,13 @@ const crear = async (c, d) =>
                           metodo_pago, estado_pago, comprobante, subtotal, costo_domicilio_cop, total,
                           id_barrio, estimacion_inicial, abono, comprobantes)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16,
-             CASE WHEN $10::text IS NULL THEN '[]'::jsonb ELSE jsonb_build_array($10::text) END) RETURNING id_pedido`,
+             CASE WHEN $10::text IS NULL THEN '[]'::jsonb
+                  ELSE jsonb_build_array(jsonb_build_object('imagen', $10::text, 'referencia', $17::text, 'valor', $18::numeric,
+                                                            'hash', $19::text, 'subido_en', now())) END) RETURNING id_pedido`,
     [d.id_cliente, d.estado, d.nombre, d.telefono, d.tipo_entrega ?? 'domicilio', d.direccion, d.notas ?? null, d.pago, d.estado_pago,
      d.comprobante ?? null, d.subtotal, d.costo_domicilio_cop, d.total, d.id_barrio,
-     JSON.stringify(d.estimacion_inicial), d.abono ?? null]
+     JSON.stringify(d.estimacion_inicial), d.abono ?? null,
+     d.soporte?.referencia ?? null, d.soporte?.valor ?? null, d.soporte?.hash ?? null]
   )).rows[0].id_pedido;
 
 const crearDetalle = (c, idPedido, it) =>
@@ -206,19 +209,46 @@ const estadisticasDesplazamiento = async (idBarrio, c) =>
     [idBarrio, ESTIMADOR.HISTORIAL_DIAS]
   )).rows[0];
 
-// Un comprobante más: queda en la lista y como el último (el que revisa el panel). Devuelve cuántos hay.
-const agregarComprobante = async (c, id, comprobante) =>
+// Un comprobante más ({ imagen, referencia, valor, hash }): queda en la lista y como el último (el que revisa el panel)
+const agregarComprobante = async (c, id, s) =>
   (await c.query(
     `UPDATE pedidos
         SET comprobante = $2,
             comprobantes = (CASE WHEN jsonb_array_length(comprobantes) = 0 AND comprobante IS NOT NULL
-                                 THEN jsonb_build_array(comprobante) ELSE comprobantes END) || jsonb_build_array($2::text)
+                                 THEN jsonb_build_array(comprobante) ELSE comprobantes END)
+                           || jsonb_build_array(jsonb_build_object('imagen', $2::text, 'referencia', $3::text, 'valor', $4::numeric,
+                                                                   'hash', $5::text, 'subido_en', now()))
       WHERE id_pedido = $1 RETURNING jsonb_array_length(comprobantes) AS n`,
-    [id, comprobante]
+    [id, s.imagen, s.referencia, s.valor, s.hash]
   )).rows[0]?.n ?? 0;
 
+// Quita el comprobante en la posición `indice`; el último que quede pasa a ser «el comprobante»
+const quitarComprobante = async (c, id, indice) =>
+  (await c.query(
+    `WITH lista AS (
+       SELECT COALESCE(jsonb_agg(e ORDER BY i), '[]'::jsonb) AS v
+         FROM pedidos p, jsonb_array_elements(p.comprobantes) WITH ORDINALITY AS t(e, i)
+        WHERE p.id_pedido = $1 AND i - 1 <> $2)
+     UPDATE pedidos SET comprobantes = lista.v,
+            comprobante = CASE WHEN jsonb_array_length(lista.v) = 0 THEN NULL
+                               ELSE COALESCE(lista.v -> -1 ->> 'imagen', lista.v ->> -1) END
+       FROM lista WHERE id_pedido = $1 RETURNING jsonb_array_length(lista.v) AS n`,
+    [id, indice]
+  )).rows[0]?.n ?? 0;
+
+// Huella y referencia de los comprobantes de los demás pedidos (los viejos, solo imagen: su huella se calcula aquí)
+const soportesDeOtros = async (c, idPedido) =>
+  (await c.query(
+    `SELECT p.id_pedido,
+            CASE WHEN jsonb_typeof(e) = 'string' THEN encode(sha256(convert_to(e #>> '{}', 'UTF8')), 'hex') ELSE e ->> 'hash' END AS hash,
+            CASE WHEN jsonb_typeof(e) = 'object' THEN e ->> 'referencia' END AS referencia
+       FROM pedidos p, jsonb_array_elements(p.comprobantes) e
+      WHERE p.id_pedido <> $1`,
+    [idPedido]
+  )).rows;
+
 module.exports = {
-  agregarComprobante,
+  agregarComprobante, quitarComprobante, soportesDeOtros,
   listar, listarDeCliente, obtenerPorId, catalogoActivo, crear, crearDetalle, crearOrdenProduccion, registrarEstado,
   actualizarEstadoProduccion, actualizar, colaCocina, estadisticasDesplazamiento,
 };

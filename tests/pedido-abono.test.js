@@ -11,7 +11,7 @@ const service = require('../src/services/pedido.service');
 // Para recoger (sin domicilio): el total es solo lo pedido
 const pedido = (cantidad, extra = {}) => ({
   nombre: 'Cliente', telefono: '3000000000', direccion: 'Calle 1', tipo_entrega: 'recoger',
-  pago: 'Nequi', comprobante: 'data:image/png;base64,AAAA',
+  pago: 'Nequi', comprobante: 'data:image/png;base64,AAAA', referencia_pago: 'M100', valor_pago: 84500,
   items: [{ producto: 'Mini', cantidad, salsas: [], adiciones: [] }], ...extra,
 });
 
@@ -24,6 +24,7 @@ describe('Pedidos de $150.000 o más: abono del 50%', () => {
     Pedido.colaCocina.mockResolvedValue([]);
     Pedido.estadisticasDesplazamiento.mockResolvedValue({ observaciones: 0 });
     Pedido.crear.mockResolvedValue(30);
+    Pedido.soportesDeOtros.mockResolvedValue([]);
     Pedido.obtenerPorId.mockResolvedValue({ id_pedido: 30 });
   });
 
