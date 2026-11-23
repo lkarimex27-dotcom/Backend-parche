@@ -1,6 +1,7 @@
 // Módulos del panel cuya lógica vive en la app: se guarda la fila completa (datos_panel) y, de ella,
 // las columnas principales de cada tabla. `columnas(fila, idUsuario)` lee las posiciones de la fila del panel.
 const { query } = require('./db');
+const Reglas = require('../utils/reglasPanel');
 
 const hoy = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' }); // AAAA-MM-DD
 const fecha = (v) => (/^\d{4}-\d{2}-\d{2}$/.test(String(v ?? '')) ? String(v) : hoy());
@@ -38,6 +39,7 @@ module.exports = {
     modulo: 'VENTAS',
     // Un pedido tiene una sola venta (posición 9 de la fila = pedido asociado)
     unico: { columna: 'pedido_asociado', posicion: 9, ignorar: ['', 'Sin pedido'], mensaje: 'Ese pedido ya tiene su venta registrada.' },
+    revisar: Reglas.revisarVenta,
     // id_usuario = el vendedor elegido en el panel (si no es del personal, quien la registra); cambia al editar
     usuarioEditable: true,
     columnas: async (r, idUsuario) => ({
@@ -61,6 +63,7 @@ module.exports = {
     borrar: true,
     // Solo se elimina mientras no ha empezado (estado Recibido)
     borrarSi: { columna: 'estado', valor: 'Recibido', mensaje: 'Solo se puede eliminar una orden de producción en estado Recibido.' },
+    revisar: (anterior, nueva) => Reglas.revisarProduccion(anterior, nueva),
     columnas: (r) => ({
       numero_orden: txt(r[0], 50),
       productos: txt(r[1], 2000),
@@ -99,6 +102,7 @@ module.exports = {
     tabla: 'pedidos',
     id: 'id_pedido',
     modulo: 'PEDIDOS',
+    revisar: Reglas.revisarPedidoPanel,
     columnas: (r) => ({
       codigo: txt(r[0], 30),
       nombre_contacto: txt(r[1]),
@@ -123,6 +127,7 @@ module.exports = {
     tabla: 'devoluciones',
     id: 'id_devolucion',
     modulo: 'DEVOLUCIONES',
+    revisar: Reglas.revisarDevolucion,
     columnas: async (r, idUsuario) => ({
       id_usuario: idUsuario,
       codigo: txt(r[0], 30),
