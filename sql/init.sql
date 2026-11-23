@@ -773,6 +773,8 @@ ALTER TABLE compras ADD COLUMN IF NOT EXISTS motivo_anulacion TEXT;
 ALTER TABLE detalle_compras ADD COLUMN IF NOT EXISTS empaque VARCHAR(80);
 -- Salsa de la casa: porción que sale del stock por cada una que se sirve (en la medida del insumo)
 ALTER TABLE insumos_productos ADD COLUMN IF NOT EXISTS porcion DECIMAL(12,3);
+-- Pedidos de $150.000 o más: abono del 50% por adelantado (el saldo se paga al recibir)
+ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS abono DECIMAL(12,2);
 CREATE TABLE IF NOT EXISTS fichas_tecnicas_historial (
     id_historial        BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     id_insumo_producto  BIGINT NOT NULL,

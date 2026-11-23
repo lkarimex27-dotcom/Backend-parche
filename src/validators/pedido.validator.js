@@ -39,7 +39,7 @@ const subirComprobante = z.object({ comprobante });
 const actualizarPedido = z
   .object({
     estado: texto(30).min(1),
-    estado_pago: z.enum(['Pendiente', 'Pendiente de verificación', 'Pagado', 'Rechazado']),
+    estado_pago: z.enum(['Pendiente', 'Pendiente de verificación', 'Abonado', 'Pagado', 'Rechazado']),
     motivo_rechazo_pago: texto(500).nullable(),
     produccion_autorizada: z.boolean(),
     registros_produccion: z.array(z.array(z.union([z.string(), z.number()]))).max(200),

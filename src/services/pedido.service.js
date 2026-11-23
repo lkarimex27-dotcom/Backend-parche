@@ -92,7 +92,12 @@ const crear = async (d, idCliente) => {
       throw AppError.conflict('No se pudo calcular el domicilio. Costo de domicilio por confirmar para este barrio.');
     }
     const total = subtotal + costoDomicilio;
-    const estado = subtotal >= PEDIDO_MONTO_APROBACION ? 'Por confirmar' : 'Recibido';
+    // $150.000 o más: lo confirma El Parche y se abona el 50% por transferencia (con comprobante); el saldo al recibir
+    const conAbono = total >= PEDIDO_MONTO_APROBACION;
+    if (conAbono && (d.pago === 'Efectivo' || !d.comprobante)) {
+      throw AppError.badRequest('Los pedidos de $150.000 o más se confirman con un abono del 50% por transferencia: sube el comprobante.');
+    }
+    const estado = conAbono ? 'Por confirmar' : 'Recibido';
     const idPedido = await Pedido.crear(c, {
       ...d,
       tipo_entrega: tipoEntrega,
@@ -104,6 +109,7 @@ const crear = async (d, idCliente) => {
       estado,
       estimacion_inicial: estimacionInicial,
       estado_pago: d.pago === 'Efectivo' ? 'Pendiente' : 'Pendiente de verificación',
+      abono: conAbono ? Math.ceil(total / 2) : null,
     });
     for (const l of lineas) await Pedido.crearDetalle(c, idPedido, l);
     await Pedido.crearOrdenProduccion(c, idPedido, lineas, d.notas);
