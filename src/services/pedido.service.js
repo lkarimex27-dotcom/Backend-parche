@@ -113,7 +113,7 @@ const crear = async (d, idCliente) => {
       abono: conAbono ? Math.ceil(total / 2) : null,
     });
     for (const l of lineas) await Pedido.crearDetalle(c, idPedido, l);
-    await Pedido.crearOrdenProduccion(c, idPedido, lineas, d.notas);
+    // La orden de producción no nace aquí: el panel la crea cuando el pedido pasa a «Confirmado»
     await Pedido.registrarEstado(c, idPedido, estado, idCliente);
     return idPedido;
   });
