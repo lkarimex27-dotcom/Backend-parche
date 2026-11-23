@@ -7,6 +7,7 @@ const AppError = require('../errors/AppError');
 const Estimador = require('./estimador.service');
 const VentaPedido = require('./ventaPedido.service');
 const Eventos = require('./pedidoEventos.service');
+const Correos = require('./pedidoCorreos.service');
 
 const normalizar = (s) => String(s).normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toLowerCase();
 
@@ -140,8 +141,10 @@ const subirComprobante = async (id, comprobante, idCliente) => {
 // Panel: cambia estado, pago y autorización de producción (deja historial si cambia el estado).
 // Al quedar «Pagado» se crea su venta (una sola), y la venta sigue el estado del pedido.
 const actualizar = async (id, d, idUsuario) => {
+  let antes;
   await withTransaction(async (c) => {
     const p = await obtener(id, c);
+    antes = p.estado;
     // Entregado y Cancelado son finales; el pago sí puede cambiar después (contraentrega)
     if (d.estado && d.estado !== p.estado && ['Entregado', 'Cancelado'].includes(p.estado)) {
       throw AppError.conflict(`El pedido ya está ${p.estado}; no se puede cambiar su estado.`);
@@ -159,6 +162,8 @@ const actualizar = async (id, d, idUsuario) => {
     }
   });
   const pedido = await obtener(id);
+  // Correo al cliente: «ya está en proceso» y «va en camino» (o «listo para recoger»)
+  Correos.avisarCambio(antes, pedido);
   // Avisa al cliente para que su detalle del pedido se actualice sin recargar
   Eventos.publicarEstadoProduccion({
     idCliente: pedido.id_cliente, idPedido: pedido.id_pedido, estado: pedido.estado, estado_produccion: pedido.estado_produccion,
