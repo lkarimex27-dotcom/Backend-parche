@@ -40,8 +40,13 @@ const antes = JSON.parse(fs.readFileSync(path.join(carpeta, archivo), 'utf8')).i
       return;
     }
     await c.query('BEGIN');
+    // La columna la crea el servidor al arrancar; por si este script corre antes de reiniciarlo
+    await c.query('ALTER TABLE insumos_productos ADD COLUMN IF NOT EXISTS empaque VARCHAR(10)');
     for (const x of cambios)
-      await c.query('UPDATE insumos_productos SET unidades_paquete = $2, contenido_unidad = $3 WHERE id_insumo_producto = $1', [x.id, x.n, x.contenido]);
+      await c.query(
+        "UPDATE insumos_productos SET unidades_paquete = $2, contenido_unidad = $3, empaque = COALESCE(empaque, 'Paquete') WHERE id_insumo_producto = $1",
+        [x.id, x.n, x.contenido],
+      );
     await c.query('COMMIT');
     console.log(`\nListo: ${cambios.length} insumo(s) recuperaron su paquete (respaldo ${archivo}).`);
   } catch (e) {

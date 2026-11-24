@@ -56,11 +56,11 @@ const obtenerPorId = async (tipo, id) =>
 const crear = async (tipo, d) =>
   (await query(
     `INSERT INTO insumos_productos
-       (nombre, tipo, medida, stock, minimo, maximo, id_categoria, costo, precio, tiene_ficha_tecnica, descripcion, etiqueta, estado, unidades_paquete, contenido_unidad, porcion)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING id_insumo_producto`,
+       (nombre, tipo, medida, stock, minimo, maximo, id_categoria, costo, precio, tiene_ficha_tecnica, descripcion, etiqueta, estado, unidades_paquete, contenido_unidad, porcion, empaque)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING id_insumo_producto`,
     [d.nombre, tipo, d.medida ?? null, d.stock ?? 0, d.minimo ?? 0, d.maximo ?? null,
      d.id_categoria, d.costo ?? 0, d.precio ?? 0, d.tiene_ficha_tecnica ?? false, d.descripcion ?? null, d.etiqueta ?? null,
-     d.estado ?? 'ACTIVO', d.unidades_paquete ?? null, d.contenido_unidad ?? null, d.porcion ?? null]
+     d.estado ?? 'ACTIVO', d.unidades_paquete ?? null, d.contenido_unidad ?? null, d.porcion ?? null, d.empaque ?? null]
   )).rows[0];
 
 const actualizar = async (tipo, id, d) =>
@@ -81,11 +81,12 @@ const actualizar = async (tipo, id, d) =>
         -- El paquete en que se compra (pan x 12 und, queso x 20 tajadas): solo cambia si el formulario lo envía; null lo quita
         unidades_paquete    = CASE WHEN $18 THEN $15::int ELSE unidades_paquete END,
         contenido_unidad    = CASE WHEN $18 THEN $16 ELSE contenido_unidad END,
+        empaque             = CASE WHEN $18 THEN $19 ELSE empaque END,
         porcion             = COALESCE($17, porcion)
       WHERE id_insumo_producto = $1 AND tipo = $2 RETURNING id_insumo_producto`,
     [id, tipo, d.nombre, d.medida, d.stock, d.minimo, d.maximo, d.id_categoria, d.costo, d.precio, d.tiene_ficha_tecnica,
      d.descripcion, d.etiqueta, d.estado, d.unidades_paquete ?? null, d.contenido_unidad ?? null, d.porcion,
-     d.unidades_paquete !== undefined]
+     d.unidades_paquete !== undefined, d.empaque ?? null]
   )).rows[0] || null;
 
 // Las recetas que usan el insumo pasan a su nueva medida (g/kg, ml/L y und/paq se convierten, no se tocan)

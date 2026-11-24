@@ -14,6 +14,7 @@ const crearInsumoProducto = z.object({
   minimo: z.number().int('Va en números enteros (g, ml o und)').nonnegative().optional(),
   unidades_paquete: z.number().int('Va en números enteros (g, ml o und)').positive().max(100000).nullable().optional(), // cuánto trae su paquete
   contenido_unidad: z.enum(['und', 'g', 'ml']).nullable().optional(), // en qué viene ese contenido (la medida del insumo)
+  empaque: z.enum(['Paquete', 'Caja', 'Bulto']).nullable().optional(), // en qué se compra: «Caja, trae 25 und» (sobres de sal)
   maximo: z.number().nonnegative().optional(),
   id_categoria: z.number().int().positive(),
   costo: z.number().nonnegative().optional(),
