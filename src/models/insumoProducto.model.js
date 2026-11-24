@@ -78,13 +78,14 @@ const actualizar = async (tipo, id, d) =>
         descripcion         = COALESCE($12, descripcion),
         etiqueta            = COALESCE($13, etiqueta),
         estado              = COALESCE($14, estado),
-        -- null = sin cambio; solo se borra si la medida deja de ser "paq"
-        unidades_paquete    = CASE WHEN COALESCE($4, medida) <> 'paq' THEN NULL ELSE COALESCE($15, unidades_paquete) END,
-        contenido_unidad    = CASE WHEN COALESCE($4, medida) <> 'paq' THEN NULL ELSE COALESCE($16, contenido_unidad) END,
+        -- El paquete en que se compra (pan x 12 und, queso x 20 tajadas): solo cambia si el formulario lo envía; null lo quita
+        unidades_paquete    = CASE WHEN $18 THEN $15::int ELSE unidades_paquete END,
+        contenido_unidad    = CASE WHEN $18 THEN $16 ELSE contenido_unidad END,
         porcion             = COALESCE($17, porcion)
       WHERE id_insumo_producto = $1 AND tipo = $2 RETURNING id_insumo_producto`,
     [id, tipo, d.nombre, d.medida, d.stock, d.minimo, d.maximo, d.id_categoria, d.costo, d.precio, d.tiene_ficha_tecnica,
-     d.descripcion, d.etiqueta, d.estado, d.unidades_paquete, d.contenido_unidad, d.porcion]
+     d.descripcion, d.etiqueta, d.estado, d.unidades_paquete ?? null, d.contenido_unidad ?? null, d.porcion,
+     d.unidades_paquete !== undefined]
   )).rows[0] || null;
 
 // Las recetas que usan el insumo pasan a su nueva medida (g/kg, ml/L y und/paq se convierten, no se tocan)
