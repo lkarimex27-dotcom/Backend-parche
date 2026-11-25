@@ -11,7 +11,7 @@ const SELECT = `
     LEFT JOIN usuarios u ON u.id_usuario = p.id_usuario
    WHERE p.tipo = 'CLIENTE'`;
 
-const listar = async () => (await query(`${SELECT} ORDER BY p.id_persona`)).rows;
+const listar = async () => (await query(`${SELECT} ORDER BY p.id_persona DESC`)).rows;
 
 const obtenerPorId = async (id) => (await query(`${SELECT} AND p.id_persona = $1`, [id])).rows[0] || null;
 

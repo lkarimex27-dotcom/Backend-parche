@@ -1,11 +1,12 @@
 const { query, withTransaction } = require('../../config/db');
 
 // Fotos subidas (data URL) se devuelven como /imagenes/<id> (GET /api/imagenes/:id) para no inflar los listados.
+// left(url, 5) y no LIKE: LIKE lee la foto completa (MB) de cada producto; left solo sus primeros bytes.
 // La ficha técnica va completa (nombre, versión, preparación y receta con sus insumos).
 const BASE = `
   SELECT ip.*, c.nombre_categoria,
          COALESCE(
-           (SELECT json_agg(CASE WHEN i.url LIKE 'data:%' THEN '/imagenes/' || i.id_imagen ELSE i.url END ORDER BY i.id_imagen)
+           (SELECT json_agg(CASE WHEN left(i.url, 5) = 'data:' THEN '/imagenes/' || i.id_imagen ELSE i.url END ORDER BY i.id_imagen)
               FROM imagenes i WHERE i.id_producto = ip.id_insumo_producto),
            '[]'::json
          ) AS imagenes,
@@ -23,13 +24,30 @@ const BASE = `
     FROM insumos_productos ip
     JOIN categorias c ON c.id_categoria = ip.id_categoria`;
 
-// `tipo` = 'INSUMO' | 'PRODUCTO' (la tabla es una sola; el módulo decide qué parte ve)
-const listar = async (tipo, { id_categoria, bajoMinimo } = {}) => {
+// La tienda solo necesita esto: sin costo, stock, preparación ni cantidades de la receta (pesa mucho menos)
+const BASE_CATALOGO = `
+  SELECT ip.id_insumo_producto, ip.nombre, ip.descripcion, ip.etiqueta, ip.precio, ip.estado, c.nombre_categoria,
+         COALESCE(
+           (SELECT json_agg(CASE WHEN left(i.url, 5) = 'data:' THEN '/imagenes/' || i.id_imagen ELSE i.url END ORDER BY i.id_imagen)
+              FROM imagenes i WHERE i.id_producto = ip.id_insumo_producto),
+           '[]'::json
+         ) AS imagenes,
+         (SELECT json_build_object('ingredientes', COALESCE(json_agg(json_build_object('insumo', ins.nombre) ORDER BY fi.id_ficha_tecnica_insumo), '[]'::json))
+            FROM fichas_tecnicas f
+            JOIN ficha_tecnica_insumos fi ON fi.id_ficha_tecnica = f.id_ficha_tecnica
+            JOIN insumos_productos ins ON ins.id_insumo_producto = fi.id_insumo_producto
+           WHERE f.id_insumo_producto = ip.id_insumo_producto) AS ficha
+    FROM insumos_productos ip
+    JOIN categorias c ON c.id_categoria = ip.id_categoria`;
+
+// `tipo` = 'INSUMO' | 'PRODUCTO' (la tabla es una sola; el módulo decide qué parte ve). `catalogo`: versión liviana de la tienda
+const listar = async (tipo, { id_categoria, bajoMinimo, catalogo } = {}) => {
   const where = ['ip.tipo = $1'];
   const params = [tipo];
   if (id_categoria) { params.push(id_categoria); where.push(`ip.id_categoria = $${params.length}`); }
   if (bajoMinimo) where.push('ip.stock <= ip.minimo');
-  return (await query(`${BASE} WHERE ${where.join(' AND ')} ORDER BY ip.id_insumo_producto`, params)).rows;
+  if (catalogo) where.push("ip.estado = 'ACTIVO'");
+  return (await query(`${catalogo ? BASE_CATALOGO : BASE} WHERE ${where.join(' AND ')} ORDER BY ip.id_insumo_producto DESC`, params)).rows;
 };
 
 const obtenerPorId = async (tipo, id) =>
@@ -38,11 +56,11 @@ const obtenerPorId = async (tipo, id) =>
 const crear = async (tipo, d) =>
   (await query(
     `INSERT INTO insumos_productos
-       (nombre, tipo, medida, stock, minimo, maximo, id_categoria, costo, precio, tiene_ficha_tecnica, descripcion, etiqueta, estado, unidades_paquete, contenido_unidad)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING id_insumo_producto`,
+       (nombre, tipo, medida, stock, minimo, maximo, id_categoria, costo, precio, tiene_ficha_tecnica, descripcion, etiqueta, estado, unidades_paquete, contenido_unidad, porcion, empaque)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING id_insumo_producto`,
     [d.nombre, tipo, d.medida ?? null, d.stock ?? 0, d.minimo ?? 0, d.maximo ?? null,
      d.id_categoria, d.costo ?? 0, d.precio ?? 0, d.tiene_ficha_tecnica ?? false, d.descripcion ?? null, d.etiqueta ?? null,
-     d.estado ?? 'ACTIVO', d.unidades_paquete ?? null, d.contenido_unidad ?? null]
+     d.estado ?? 'ACTIVO', d.unidades_paquete ?? null, d.contenido_unidad ?? null, d.porcion ?? null, d.empaque ?? null]
   )).rows[0];
 
 const actualizar = async (tipo, id, d) =>
@@ -60,12 +78,15 @@ const actualizar = async (tipo, id, d) =>
         descripcion         = COALESCE($12, descripcion),
         etiqueta            = COALESCE($13, etiqueta),
         estado              = COALESCE($14, estado),
-        -- null = sin cambio; solo se borra si la medida deja de ser "paq"
-        unidades_paquete    = CASE WHEN COALESCE($4, medida) <> 'paq' THEN NULL ELSE COALESCE($15, unidades_paquete) END,
-        contenido_unidad    = CASE WHEN COALESCE($4, medida) <> 'paq' THEN NULL ELSE COALESCE($16, contenido_unidad) END
+        -- El paquete en que se compra (pan x 12 und, queso x 20 tajadas): solo cambia si el formulario lo envía; null lo quita
+        unidades_paquete    = CASE WHEN $18 THEN $15::int ELSE unidades_paquete END,
+        contenido_unidad    = CASE WHEN $18 THEN $16 ELSE contenido_unidad END,
+        empaque             = CASE WHEN $18 THEN $19 ELSE empaque END,
+        porcion             = COALESCE($17, porcion)
       WHERE id_insumo_producto = $1 AND tipo = $2 RETURNING id_insumo_producto`,
     [id, tipo, d.nombre, d.medida, d.stock, d.minimo, d.maximo, d.id_categoria, d.costo, d.precio, d.tiene_ficha_tecnica,
-     d.descripcion, d.etiqueta, d.estado, d.unidades_paquete, d.contenido_unidad]
+     d.descripcion, d.etiqueta, d.estado, d.unidades_paquete ?? null, d.contenido_unidad ?? null, d.porcion,
+     d.unidades_paquete !== undefined, d.empaque ?? null]
   )).rows[0] || null;
 
 // Las recetas que usan el insumo pasan a su nueva medida (g/kg, ml/L y und/paq se convierten, no se tocan)
@@ -233,7 +254,18 @@ const gaseosas = async () =>
        WHERE tipo = 'PRODUCTO' AND (nombre ILIKE 'Gaseosa %' OR id_categoria IN (SELECT id_categoria FROM categorias WHERE nombre_categoria = 'Adiciones'))`
   )).rows;
 
+// Productos de insumo (ej. salsas de la casa) que hoy tienen stock: el cliente los elige como salsa (sin costo)
+// Productos de insumo con stock que se ofrecen en el pedido: precio 0 = cortesía (sale en «Salsas», gratis);
+// con precio = adicional que se cobra (sale en «Adiciones»)
+const SALSAS_CASA = `SELECT id_insumo_producto, nombre, COALESCE(precio, 0)::float AS precio,
+        CASE WHEN COALESCE(precio, 0) > 0 THEN 'Adiciones' ELSE 'Salsas' END AS categoria
+   FROM insumos_productos
+  WHERE tipo = 'INSUMO' AND tiene_ficha_tecnica AND estado = 'ACTIVO' AND stock > 0`;
+const salsasDeLaCasa = async () => (await query(SALSAS_CASA)).rows;
+
 module.exports = {
+  SALSAS_CASA,
+  salsasDeLaCasa,
   listar, obtenerPorId, crear, actualizar, eliminar, guardarFicha, versionesFicha, reemplazarImagen, obtenerImagen,
   productosSinStock, gaseosas, usos, usosProducto, alinearMedidaFichas,
 };

@@ -9,9 +9,11 @@ const SELECT = `
            'telefono', p.telefono_contacto
          ) AS destinatario,
          p.estado, p.estado_produccion, p.estado_pago, p.motivo_rechazo_pago, p.comprobante, p.produccion_autorizada,
+         CASE WHEN jsonb_array_length(p.comprobantes) > 0 THEN p.comprobantes
+              WHEN p.comprobante IS NULL THEN '[]'::jsonb ELSE jsonb_build_array(p.comprobante) END AS comprobantes,
          p.registros_produccion, p.id_barrio, p.estimacion_inicial,
          p.subtotal::float AS subtotal, p.costo_domicilio_cop::float AS costo_domicilio_cop,
-         p.total::float AS total, p.creado_en,
+         p.total::float AS total, p.abono::float AS abono, p.creado_en,
          b.nombre AS barrio,
          COALESCE((SELECT json_agg(json_build_object(
                      'producto', i.nombre, 'cantidad', d.cantidad::float, 'precio_unitario', d.precio_unitario::float,
@@ -42,18 +44,23 @@ const catalogoActivo = async () =>
   (await query(
     `SELECT i.id_insumo_producto, i.nombre, i.precio::float AS precio, c.nombre_categoria AS categoria
        FROM insumos_productos i JOIN categorias c ON c.id_categoria = i.id_categoria
-      WHERE i.tipo = 'PRODUCTO' AND i.estado = 'ACTIVO'`
+      WHERE i.tipo = 'PRODUCTO' AND i.estado = 'ACTIVO'
+     UNION ALL ${require('./insumoProducto.model').SALSAS_CASA}`
   )).rows;
 
 const crear = async (c, d) =>
   (await c.query(
     `INSERT INTO pedidos (id_cliente, estado, nombre_contacto, telefono_contacto, tipo_entrega, direccion_entrega, observacion,
                           metodo_pago, estado_pago, comprobante, subtotal, costo_domicilio_cop, total,
-                          id_barrio, estimacion_inicial)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING id_pedido`,
+                          id_barrio, estimacion_inicial, abono, comprobantes)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16,
+             CASE WHEN $10::text IS NULL THEN '[]'::jsonb
+                  ELSE jsonb_build_array(jsonb_build_object('imagen', $10::text, 'referencia', $17::text, 'valor', $18::numeric,
+                                                            'hash', $19::text, 'subido_en', now())) END) RETURNING id_pedido`,
     [d.id_cliente, d.estado, d.nombre, d.telefono, d.tipo_entrega ?? 'domicilio', d.direccion, d.notas ?? null, d.pago, d.estado_pago,
      d.comprobante ?? null, d.subtotal, d.costo_domicilio_cop, d.total, d.id_barrio,
-     JSON.stringify(d.estimacion_inicial)]
+     JSON.stringify(d.estimacion_inicial), d.abono ?? null,
+     d.soporte?.referencia ?? null, d.soporte?.valor ?? null, d.soporte?.hash ?? null]
   )).rows[0].id_pedido;
 
 const crearDetalle = (c, idPedido, it) =>
@@ -202,7 +209,46 @@ const estadisticasDesplazamiento = async (idBarrio, c) =>
     [idBarrio, ESTIMADOR.HISTORIAL_DIAS]
   )).rows[0];
 
+// Un comprobante más ({ imagen, referencia, valor, hash }): queda en la lista y como el último (el que revisa el panel)
+const agregarComprobante = async (c, id, s) =>
+  (await c.query(
+    `UPDATE pedidos
+        SET comprobante = $2,
+            comprobantes = (CASE WHEN jsonb_array_length(comprobantes) = 0 AND comprobante IS NOT NULL
+                                 THEN jsonb_build_array(comprobante) ELSE comprobantes END)
+                           || jsonb_build_array(jsonb_build_object('imagen', $2::text, 'referencia', $3::text, 'valor', $4::numeric,
+                                                                   'hash', $5::text, 'subido_en', now()))
+      WHERE id_pedido = $1 RETURNING jsonb_array_length(comprobantes) AS n`,
+    [id, s.imagen, s.referencia, s.valor, s.hash]
+  )).rows[0]?.n ?? 0;
+
+// Quita el comprobante en la posición `indice`; el último que quede pasa a ser «el comprobante»
+const quitarComprobante = async (c, id, indice) =>
+  (await c.query(
+    `WITH lista AS (
+       SELECT COALESCE(jsonb_agg(e ORDER BY i), '[]'::jsonb) AS v
+         FROM pedidos p, jsonb_array_elements(p.comprobantes) WITH ORDINALITY AS t(e, i)
+        WHERE p.id_pedido = $1 AND i - 1 <> $2)
+     UPDATE pedidos SET comprobantes = lista.v,
+            comprobante = CASE WHEN jsonb_array_length(lista.v) = 0 THEN NULL
+                               ELSE COALESCE(lista.v -> -1 ->> 'imagen', lista.v ->> -1) END
+       FROM lista WHERE id_pedido = $1 RETURNING jsonb_array_length(lista.v) AS n`,
+    [id, indice]
+  )).rows[0]?.n ?? 0;
+
+// Huella y referencia de los comprobantes de los demás pedidos (los viejos, solo imagen: su huella se calcula aquí)
+const soportesDeOtros = async (c, idPedido) =>
+  (await c.query(
+    `SELECT p.id_pedido,
+            CASE WHEN jsonb_typeof(e) = 'string' THEN encode(sha256(convert_to(e #>> '{}', 'UTF8')), 'hex') ELSE e ->> 'hash' END AS hash,
+            CASE WHEN jsonb_typeof(e) = 'object' THEN e ->> 'referencia' END AS referencia
+       FROM pedidos p, jsonb_array_elements(p.comprobantes) e
+      WHERE p.id_pedido <> $1`,
+    [idPedido]
+  )).rows;
+
 module.exports = {
+  agregarComprobante, quitarComprobante, soportesDeOtros,
   listar, listarDeCliente, obtenerPorId, catalogoActivo, crear, crearDetalle, crearOrdenProduccion, registrarEstado,
   actualizarEstadoProduccion, actualizar, colaCocina, estadisticasDesplazamiento,
 };

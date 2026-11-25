@@ -10,14 +10,16 @@ const filtros = z.object({
 const crearInsumoProducto = z.object({
   nombre: z.string().trim().min(2).max(150),
   medida: z.string().trim().max(50).optional(),     // ej. kg, g, und
-  stock: z.number().nonnegative().optional(),
-  minimo: z.number().nonnegative().optional(),
-  unidades_paquete: z.number().int().positive().max(100000).nullable().optional(), // cuánto trae un "paq"
-  contenido_unidad: z.enum(['und', 'g', 'ml']).nullable().optional(), // en qué viene ese contenido
+  stock: z.number().int('Va en números enteros (g, ml o und)').nonnegative().optional(),
+  minimo: z.number().int('Va en números enteros (g, ml o und)').nonnegative().optional(),
+  unidades_paquete: z.number().int('Va en números enteros (g, ml o und)').positive().max(100000).nullable().optional(), // cuánto trae su paquete
+  contenido_unidad: z.enum(['und', 'g', 'ml']).nullable().optional(), // en qué viene ese contenido (la medida del insumo)
+  empaque: z.enum(['Paquete', 'Caja', 'Bulto']).nullable().optional(), // en qué se compra: «Caja, trae 25 und» (sobres de sal)
   maximo: z.number().nonnegative().optional(),
   id_categoria: z.number().int().positive(),
   costo: z.number().nonnegative().optional(),
   precio: z.number().nonnegative().optional(),
+  porcion: z.number().int('Va en números enteros (g, ml o und)').positive().max(100000).nullable().optional(), // salsa de la casa: lo que sale por cada una servida
   tiene_ficha_tecnica: z.boolean().optional(),
   descripcion: z.string().trim().max(500).optional(),  // se muestra en el menú del cliente
   etiqueta: z.string().trim().max(30).optional(),      // ej. "Favorita", "Nuevo"
@@ -35,7 +37,7 @@ const ficha = z.object({
   insumos_principales: texto(2000),
   preparacion: texto(5000),
   ingredientes: z
-    .array(z.object({ insumo: z.string().trim().min(1).max(150), cantidad: z.number().positive(), medida: texto(50) }))
+    .array(z.object({ insumo: z.string().trim().min(1).max(150), cantidad: z.number().int('Va en números enteros (g, ml o und)').positive(), medida: texto(50) }))
     .max(100)
     .optional(),   // sin enviar = se conserva la receta guardada
 });

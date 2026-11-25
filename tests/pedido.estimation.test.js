@@ -75,12 +75,8 @@ describe('integración de la estimación inicial al crear un pedido', () => {
     expect(Pedido.crearDetalle).toHaveBeenCalledWith(client, 22, expect.objectContaining({
       subtotal: 13000,
     }));
-    expect(Pedido.crearOrdenProduccion).toHaveBeenCalledWith(
-      client,
-      22,
-      expect.arrayContaining([expect.objectContaining({ producto: 'Hamburguesa Mini' })]),
-      undefined // sin notas del cliente
-    );
+    // Recibir el pedido no crea su orden de producción (nace al confirmarlo en el panel)
+    expect(Pedido.crearOrdenProduccion).not.toHaveBeenCalled();
   });
 
   it('resuelve el barrio por nombre y persiste su ID sin cambiar el precio', async () => {

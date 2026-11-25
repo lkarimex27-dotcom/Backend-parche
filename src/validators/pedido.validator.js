@@ -21,6 +21,9 @@ const crearPedido = z.object({
   notas: texto(1000).optional(),
   pago: texto(30).min(1),   // Efectivo, Nequi, Daviplata...
   comprobante: comprobante.optional(),
+  // Con comprobante: la referencia que da el banco y cuánto se transfirió (los revisa el validador)
+  referencia_pago: texto(40).min(3, 'Escribe la referencia de la transferencia').optional(),
+  valor_pago: z.number().int().positive().max(10_000_000).optional(),
   items: z
     .array(z.object({
       producto: texto(150).min(1),
@@ -32,14 +35,21 @@ const crearPedido = z.object({
     .min(1, 'El pedido no tiene productos'),
 }).refine((d) => d.tipo_entrega !== 'domicilio' || d.id_barrio !== undefined || d.nombre_barrio !== undefined, {
   message: 'Selecciona un barrio válido',
+}).refine((d) => !d.comprobante || (d.referencia_pago && d.valor_pago), {
+  message: 'Escribe la referencia y el valor de la transferencia',
 });
 
-const subirComprobante = z.object({ comprobante });
+const subirComprobante = z.object({
+  comprobante,
+  referencia: texto(40).min(3, 'Escribe la referencia de la transferencia'),
+  valor: z.number().int().positive().max(10_000_000),
+});
+const quitarComprobante = z.object({ id: z.coerce.number().int().positive(), indice: z.coerce.number().int().min(0).max(20) });
 
 const actualizarPedido = z
   .object({
     estado: texto(30).min(1),
-    estado_pago: z.enum(['Pendiente', 'Pendiente de verificación', 'Pagado', 'Rechazado']),
+    estado_pago: z.enum(['Pendiente', 'Pendiente de verificación', 'Abonado', 'Pagado', 'Rechazado']),
     motivo_rechazo_pago: texto(500).nullable(),
     produccion_autorizada: z.boolean(),
     registros_produccion: z.array(z.array(z.union([z.string(), z.number()]))).max(200),
@@ -47,4 +57,4 @@ const actualizarPedido = z
   .partial()
   .refine((o) => Object.keys(o).length > 0, { message: 'Envía al menos un campo' });
 
-module.exports = { idParam, crearPedido, subirComprobante, actualizarPedido };
+module.exports = { idParam, crearPedido, subirComprobante, actualizarPedido, quitarComprobante };

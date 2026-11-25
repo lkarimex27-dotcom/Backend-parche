@@ -29,7 +29,7 @@ describe('Usuario creado desde el admin (módulo Usuarios)', () => {
     expect(asunto).toMatch(/Bienvenido/);
     // La contraseña va en la franja amarilla del correo (celda con letter-spacing)
     const provisional = /letter-spacing:\d+px;[^"]*white-space:nowrap">([^<]+)<\/td>/.exec(html)[1];
-    expect(provisional).toBe(process.env.DEFAULT_PASSWORD_CAJERO);
+    expect(provisional).toMatch(/^(?=.*[A-Z])(?=.*[a-z])(?=.*\d).{10}$/); // aleatoria, sin depender del .env
     expect(html).toContain('¡Hola, <strong>Pedro</strong>!');
     expect(html).toContain('Entra con <strong>cajero@parche.co</strong>.');
 

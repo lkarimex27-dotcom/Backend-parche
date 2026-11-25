@@ -7,6 +7,6 @@ const crear = asyncHandler(async (req, res) => res.status(201).json({ ok: true, 
 const actualizar = asyncHandler(async (req, res) =>
   res.json({ ok: true, data: await service.actualizar(req.params.id, req.body) }));
 const cambiarEstado = asyncHandler(async (req, res) =>
-  res.json({ ok: true, data: await service.cambiarEstado(req.params.id, req.body.estado) }));
+  res.json({ ok: true, data: await service.cambiarEstado(req.params.id, req.body.estado, req.body.motivo) }));
 
 module.exports = { listar, obtener, crear, actualizar, cambiarEstado };

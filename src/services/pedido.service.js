@@ -7,6 +7,8 @@ const AppError = require('../errors/AppError');
 const Estimador = require('./estimador.service');
 const VentaPedido = require('./ventaPedido.service');
 const Eventos = require('./pedidoEventos.service');
+const Correos = require('./pedidoCorreos.service');
+const Soporte = require('../utils/soportePago');
 
 const normalizar = (s) => String(s).normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toLowerCase();
 
@@ -92,7 +94,22 @@ const crear = async (d, idCliente) => {
       throw AppError.conflict('No se pudo calcular el domicilio. Costo de domicilio por confirmar para este barrio.');
     }
     const total = subtotal + costoDomicilio;
-    const estado = subtotal >= PEDIDO_MONTO_APROBACION ? 'Por confirmar' : 'Recibido';
+    // $150.000 o más: lo confirma El Parche y se abona el 50% por transferencia (con comprobante); el saldo al recibir
+    const conAbono = total >= PEDIDO_MONTO_APROBACION;
+    if (conAbono && (d.pago === 'Efectivo' || !d.comprobante)) {
+      throw AppError.badRequest('Los pedidos de $150.000 o más se confirman con un abono del 50% por transferencia: sube el comprobante.');
+    }
+    const estado = conAbono ? 'Por confirmar' : 'Recibido';
+    // Validador del comprobante: cubre lo que se debe, su referencia y su imagen no se usaron en otro pedido
+    let soporte = null;
+    if (d.comprobante) {
+      soporte = { referencia: d.referencia_pago, valor: d.valor_pago, hash: Soporte.huella(d.comprobante) };
+      const error = Soporte.revisar({
+        pedido: { total, abono: conAbono ? Math.ceil(total / 2) : null, estado_pago: 'Pendiente de verificación' },
+        ...soporte, otros: await Pedido.soportesDeOtros(c, 0),
+      });
+      if (error) throw AppError.badRequest(error);
+    }
     const idPedido = await Pedido.crear(c, {
       ...d,
       tipo_entrega: tipoEntrega,
@@ -104,24 +121,37 @@ const crear = async (d, idCliente) => {
       estado,
       estimacion_inicial: estimacionInicial,
       estado_pago: d.pago === 'Efectivo' ? 'Pendiente' : 'Pendiente de verificación',
+      abono: conAbono ? Math.ceil(total / 2) : null,
+      soporte,
     });
     for (const l of lineas) await Pedido.crearDetalle(c, idPedido, l);
-    await Pedido.crearOrdenProduccion(c, idPedido, lineas, d.notas);
+    // La orden de producción no nace aquí: el panel la crea cuando el pedido pasa a «Confirmado»
     await Pedido.registrarEstado(c, idPedido, estado, idCliente);
     return idPedido;
   });
   return obtener(id);
 };
 
-// El cliente sube (o cambia) el comprobante; si se lo habían rechazado, vuelve a revisión
-const subirComprobante = async (id, comprobante, idCliente) => {
+// El cliente envía otro comprobante (puede mandar varios: el abono y el saldo, o uno nuevo si le rechazaron el anterior).
+// Se guardan todos; si se lo habían rechazado, vuelve a revisión.
+const MAX_COMPROBANTES = 5;
+const subirComprobante = async (id, { comprobante, referencia, valor }, idCliente) => {
   await withTransaction(async (c) => {
     const p = await obtener(id, c);
     if (p.id_cliente !== idCliente) throw AppError.notFound('Pedido no encontrado');
-    await Pedido.actualizar(c, id, {
-      comprobante,
-      ...(p.estado_pago === 'Rechazado' && { estado_pago: 'Pendiente de verificación', motivo_rechazo_pago: null }),
+    if (p.estado_pago === 'Pagado' || ['Cancelado', 'Entregado'].includes(p.estado))
+      throw AppError.conflict('Este pedido ya no recibe comprobantes.');
+    if ((p.comprobantes?.length ?? 0) >= MAX_COMPROBANTES)
+      throw AppError.conflict(`Ya enviaste ${MAX_COMPROBANTES} comprobantes; quita uno o escríbenos.`);
+    const hash = Soporte.huella(comprobante);
+    const error = Soporte.revisar({
+      pedido: p, referencia, valor, hash, otros: await Pedido.soportesDeOtros(c, p.id_pedido),
+      propios: (p.comprobantes || []).map(Soporte.comoSoporte).map((s) => ({ hash: s.hash || Soporte.huella(s.imagen) })),
     });
+    if (error) throw AppError.badRequest(error);
+    await Pedido.agregarComprobante(c, id, { imagen: comprobante, referencia, valor, hash });
+    if (p.estado_pago === 'Rechazado')
+      await Pedido.actualizar(c, id, { estado_pago: 'Pendiente de verificación', motivo_rechazo_pago: null });
   });
   return obtener(id);
 };
@@ -129,8 +159,10 @@ const subirComprobante = async (id, comprobante, idCliente) => {
 // Panel: cambia estado, pago y autorización de producción (deja historial si cambia el estado).
 // Al quedar «Pagado» se crea su venta (una sola), y la venta sigue el estado del pedido.
 const actualizar = async (id, d, idUsuario) => {
+  let antes;
   await withTransaction(async (c) => {
     const p = await obtener(id, c);
+    antes = p.estado;
     // Entregado y Cancelado son finales; el pago sí puede cambiar después (contraentrega)
     if (d.estado && d.estado !== p.estado && ['Entregado', 'Cancelado'].includes(p.estado)) {
       throw AppError.conflict(`El pedido ya está ${p.estado}; no se puede cambiar su estado.`);
@@ -148,6 +180,8 @@ const actualizar = async (id, d, idUsuario) => {
     }
   });
   const pedido = await obtener(id);
+  // Correo al cliente: «ya está en proceso» y «va en camino» (o «listo para recoger»)
+  Correos.avisarCambio(antes, pedido);
   // Avisa al cliente para que su detalle del pedido se actualice sin recargar
   Eventos.publicarEstadoProduccion({
     idCliente: pedido.id_cliente, idPedido: pedido.id_pedido, estado: pedido.estado, estado_produccion: pedido.estado_produccion,
@@ -155,4 +189,18 @@ const actualizar = async (id, d, idUsuario) => {
   return pedido;
 };
 
-module.exports = { listar, listarMios, obtener, crear, subirComprobante, actualizar, cotizar };
+// El cliente quita un comprobante que subió por error, mientras nadie lo haya aprobado
+const quitarComprobante = async (id, indice, idCliente) => {
+  await withTransaction(async (c) => {
+    const p = await obtener(id, c);
+    if (p.id_cliente !== idCliente) throw AppError.notFound('Pedido no encontrado');
+    if (['Abonado', 'Pagado'].includes(p.estado_pago) || ['Cancelado', 'Entregado'].includes(p.estado))
+      throw AppError.conflict('Este comprobante ya se revisó; no se puede quitar.');
+    if (indice >= (p.comprobantes?.length ?? 0)) throw AppError.notFound('Comprobante no encontrado');
+    const quedan = await Pedido.quitarComprobante(c, id, indice);
+    if (!quedan && p.estado_pago === 'Pendiente de verificación') await Pedido.actualizar(c, id, { estado_pago: 'Pendiente' });
+  });
+  return obtener(id);
+};
+
+module.exports = { listar, listarMios, obtener, crear, subirComprobante, quitarComprobante, actualizar, cotizar };

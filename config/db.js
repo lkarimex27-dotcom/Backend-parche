@@ -14,7 +14,8 @@ const pool = new Pool({
   ssl: esLocal ? false : { rejectUnauthorized: false },
   max: 10,
   idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 10000,
+  // Neon a veces responde lento (red o arranque en frío): 30 s antes de rendirse, en vez de un 500 a los 10 s
+  connectionTimeoutMillis: 30000,
 });
 
 pool.on('error', (err) => {

@@ -15,6 +15,11 @@ jest.mock('../src/services/insumoProducto.service', () => ({
     prod(6, 'Coca-Cola', 'Sabores de bebida'),
   ]),
   productosSinStock: jest.fn(async () => [3]),
+  salsasDeLaCasa: jest.fn(async () => [
+    { id_insumo_producto: 9, nombre: 'Salsa de la casa', precio: 0, categoria: 'Salsas' },
+    { id_insumo_producto: 10, nombre: 'Mini', precio: 0, categoria: 'Salsas' },
+    { id_insumo_producto: 11, nombre: 'Guacamole', precio: 2500, categoria: 'Adiciones' },
+  ]),
 }));
 const app = require('../src/app');
 
@@ -30,6 +35,13 @@ describe('GET /api/catalogo', () => {
 
   it('no muestra los productos cuya receta no tiene stock (las bebidas no son insumos: siempre salen)', async () => {
     const res = await request(app).get('/api/catalogo');
-    expect(res.body.data.map((p) => p.nombre)).toEqual(['Mini', 'Personal', 'Coca-Cola']);
+    expect(res.body.data.map((p) => p.nombre)).toEqual(['Mini', 'Personal', 'Coca-Cola', 'Salsa de la casa', 'Guacamole']); // con stock; 'Mini' no se repite
+  });
+
+  it('un producto de insumo gratis sale como salsa y uno con precio como adición que se cobra', async () => {
+    const res = await request(app).get('/api/catalogo');
+    const por = (n) => res.body.data.find((p) => p.nombre === n);
+    expect(por('Salsa de la casa')).toMatchObject({ precio: 0, categoria: 'Salsas' });
+    expect(por('Guacamole')).toMatchObject({ precio: 2500, categoria: 'Adiciones' });
   });
 });

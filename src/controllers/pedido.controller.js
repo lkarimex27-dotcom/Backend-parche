@@ -33,8 +33,10 @@ const obtener = asyncHandler(async (req, res) => res.json({ ok: true, data: awai
 const crear = asyncHandler(async (req, res) =>
   res.status(201).json({ ok: true, data: await service.crear(req.body, req.user.id) }));
 const subirComprobante = asyncHandler(async (req, res) =>
-  res.json({ ok: true, data: await service.subirComprobante(req.params.id, req.body.comprobante, req.user.id) }));
+  res.json({ ok: true, data: await service.subirComprobante(req.params.id, req.body, req.user.id) }));
+const quitarComprobante = asyncHandler(async (req, res) =>
+  res.json({ ok: true, data: await service.quitarComprobante(req.params.id, req.params.indice, req.user.id) }));
 const actualizar = asyncHandler(async (req, res) =>
   res.json({ ok: true, data: await service.actualizar(req.params.id, req.body, req.user.id) }));
 
-module.exports = { listar, listarMios, eventosMios, obtener, crear, subirComprobante, actualizar };
+module.exports = { listar, listarMios, eventosMios, obtener, crear, subirComprobante, quitarComprobante, actualizar };

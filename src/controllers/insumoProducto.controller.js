@@ -17,8 +17,11 @@ const eliminar = asyncHandler(async (req, res) => {
 // Menú público: solo productos activos que hoy se pueden preparar (su receta tiene stock)
 // y solo lo que ve el cliente (sin costo ni stock).
 const catalogo = asyncHandler(async (_req, res) => {
-  const [productos, sinStock] = await Promise.all([service.listar('PRODUCTO', {}), service.productosSinStock()]);
+  const [productos, sinStock, salsasCasa] = await Promise.all([
+    service.listar('PRODUCTO', { catalogo: true }), service.productosSinStock(), service.salsasDeLaCasa(),
+  ]);
   const agotado = new Set(sinStock);
+  const yaSalsa = new Set(productos.map((p) => p.nombre.trim().toLowerCase()));
   res.json({
     ok: true,
     data: productos
@@ -34,7 +37,12 @@ const catalogo = asyncHandler(async (_req, res) => {
         ingredientes: [...new Set((p.ficha?.ingredientes || []).map((i) => i.insumo)
           .filter((n) => n && !/empaque|caja|bolsa|servilleta|vaso|papel|contenedor|icopor/i.test(n)))],
         imagenes: p.imagenes,
-      })),
+      }))
+      // Lo que preparamos (productos de insumo con stock): gratis como salsa, o con su precio como adición
+      .concat(salsasCasa.filter((s) => !yaSalsa.has(s.nombre.trim().toLowerCase())).map((s) => ({
+        id: s.id_insumo_producto, nombre: s.nombre, descripcion: null, etiqueta: null, precio: s.precio ?? 0,
+        categoria: s.categoria || 'Salsas', ingredientes: [], imagenes: [],
+      }))),
   });
 });
 

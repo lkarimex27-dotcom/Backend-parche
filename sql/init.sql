@@ -103,6 +103,8 @@ ALTER TABLE insumos_productos DROP CONSTRAINT IF EXISTS ck_insumos_productos_est
 ALTER TABLE insumos_productos ADD CONSTRAINT ck_insumos_productos_estado CHECK (estado IN ('ACTIVO', 'INACTIVO'));
 -- Cuántas unidades trae un paquete (insumos medidos en "paq", ej. 30 huevos)
 ALTER TABLE insumos_productos ADD COLUMN IF NOT EXISTS unidades_paquete INTEGER;
+-- En qué se compra: Paquete, Caja o Bulto (trae unidades_paquete de su medida: caja de sal con 25 sobres)
+ALTER TABLE insumos_productos ADD COLUMN IF NOT EXISTS empaque VARCHAR(10);
 -- En qué viene ese contenido: und (30 huevos), g (sobre de 100 g) o ml
 ALTER TABLE insumos_productos ADD COLUMN IF NOT EXISTS contenido_unidad VARCHAR(10);
 
@@ -768,6 +770,15 @@ CREATE INDEX IF NOT EXISTS ix_auditoria_usuarios_usuario ON auditoria_usuarios (
 -- agotados y la producción). Cada edición que cambia la ficha guarda la versión anterior en el historial.
 ALTER TABLE fichas_tecnicas ADD COLUMN IF NOT EXISTS numero_version INT NOT NULL DEFAULT 1;
 ALTER TABLE fichas_tecnicas ADD COLUMN IF NOT EXISTS estado VARCHAR(20) NOT NULL DEFAULT 'ACTIVA';
+-- Auditoría de compras: motivo obligatorio al anular y cómo vino cada insumo (caja, paquete, bulto)
+ALTER TABLE compras ADD COLUMN IF NOT EXISTS motivo_anulacion TEXT;
+ALTER TABLE detalle_compras ADD COLUMN IF NOT EXISTS empaque VARCHAR(80);
+-- Salsa de la casa: porción que sale del stock por cada una que se sirve (en la medida del insumo)
+ALTER TABLE insumos_productos ADD COLUMN IF NOT EXISTS porcion DECIMAL(12,3);
+-- Pedidos de $150.000 o más: abono del 50% por adelantado (el saldo se paga al recibir)
+ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS abono DECIMAL(12,2);
+-- Todos los comprobantes que el cliente envió; «comprobante» sigue siendo el último
+ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS comprobantes JSONB NOT NULL DEFAULT '[]';
 CREATE TABLE IF NOT EXISTS fichas_tecnicas_historial (
     id_historial        BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     id_insumo_producto  BIGINT NOT NULL,
