@@ -1,5 +1,5 @@
 const AppError = require('../errors/AppError');
-const { query } = require('../config/db');
+const { query } = require('../../config/db');
 
 // Movimientos de stock. Siempre dentro de la transacción (`c`) de la compra, pérdida o producción.
 // Llevan stock los insumos, las gaseosas de reventa (productos "Gaseosa <sabor> (<tamaño>)" de «Bebidas») y las

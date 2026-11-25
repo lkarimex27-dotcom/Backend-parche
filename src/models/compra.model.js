@@ -1,4 +1,4 @@
-const { query } = require('../config/db');
+const { query } = require('../../config/db');
 
 // Fechas como texto (YYYY-MM-DD) para que no se corran por zona horaria
 const SELECT = `

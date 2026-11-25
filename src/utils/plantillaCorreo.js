@@ -1,4 +1,4 @@
-const env = require('../config/env');
+const env = require('../../config/env');
 
 // Colores de la marca (los mismos del front)
 const MOSTAZA = '#F2B230';

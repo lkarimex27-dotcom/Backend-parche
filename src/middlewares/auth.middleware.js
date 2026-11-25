@@ -1,5 +1,5 @@
 const jwt = require('jsonwebtoken');
-const env = require('../config/env');
+const env = require('../../config/env');
 const AppError = require('../errors/AppError');
 const Permiso = require('../models/permiso.model');
 const Usuario = require('../models/usuario.model');

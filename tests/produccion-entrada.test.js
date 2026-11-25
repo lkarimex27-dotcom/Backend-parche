@@ -1,6 +1,6 @@
 // Sin base de datos: la transacción y el stock se simulan
 const mockQuery = jest.fn();
-jest.mock('../src/config/db', () => ({ withTransaction: async (fn) => fn({ query: mockQuery }) }));
+jest.mock('../config/db', () => ({ withTransaction: async (fn) => fn({ query: mockQuery }) }));
 jest.mock('../src/models/stock.model', () => ({ marcar: jest.fn(async () => undefined) }));
 const service = require('../src/services/consumo.service');
 

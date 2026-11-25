@@ -1,5 +1,5 @@
 const router = require('express').Router();
-const { testConnection } = require('../config/db');
+const { testConnection } = require('../../config/db');
 const asyncHandler = require('../utils/asyncHandler');
 
 router.get('/', (_req, res) => res.json({ ok: true, servicio: 'parche-backend', hora: new Date() }));

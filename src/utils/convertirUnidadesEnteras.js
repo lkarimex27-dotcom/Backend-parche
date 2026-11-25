@@ -6,7 +6,7 @@
 require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
-const { pool } = require('../config/db');
+const { pool } = require('../../config/db');
 const { BASES, destino, convertir, limpio } = require('./unidadesEnteras');
 
 const PRUEBA = process.argv.includes('--prueba');

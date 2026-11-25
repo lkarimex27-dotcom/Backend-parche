@@ -1,9 +1,9 @@
 // Carga el catálogo base (roles, privilegios, módulos, permisos) y el primer administrador.
 // Es idempotente: se puede correr las veces que quieras.   npm run db:seed
 const bcrypt = require('bcryptjs');
-const env = require('../config/env');
-const { pool, withTransaction } = require('../config/db');
-const { ROLES, PRIVILEGIOS, MODULOS, PERMISOS_INICIALES } = require('../config/constants');
+const env = require('../../config/env');
+const { pool, withTransaction } = require('../../config/db');
+const { ROLES, PRIVILEGIOS, MODULOS, PERMISOS_INICIALES } = require('../../config/constants');
 
 const insertarNombres = (c, tabla, columna, nombres) =>
   c.query(

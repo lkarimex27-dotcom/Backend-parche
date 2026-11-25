@@ -1,4 +1,4 @@
-const { query } = require('../config/db');
+const { query } = require('../../config/db');
 
 const SELECT = `
   SELECT p.id_pedido, p.id_cliente, COALESCE(pe.nombre, p.nombre_contacto) AS cliente,

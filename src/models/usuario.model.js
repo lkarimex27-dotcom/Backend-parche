@@ -1,4 +1,4 @@
-const { pool } = require('../config/db');
+const { pool } = require('../../config/db');
 
 const exec = (c) => c || pool; // permite usar un client de transacción
 

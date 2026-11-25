@@ -1,7 +1,7 @@
 const Perdida = require('../models/perdida.model');
 const Compra = require('../models/compra.model');
 const Stock = require('../models/stock.model');
-const { withTransaction } = require('../config/db');
+const { withTransaction } = require('../../config/db');
 const AppError = require('../errors/AppError');
 
 // Una pérdida descuenta su cantidad del stock del insumo.

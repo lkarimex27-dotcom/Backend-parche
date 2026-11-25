@@ -1,7 +1,7 @@
 // Ejecuta sql/init.sql contra Neon:  npm run db:init
 const fs = require('fs');
 const path = require('path');
-const { pool } = require('../config/db');
+const { pool } = require('../../config/db');
 
 (async () => {
   try {

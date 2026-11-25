@@ -12,7 +12,7 @@ const express = require('express');
 const request = require('supertest');
 const Panel = require('../src/models/panel.model');
 const panelRoutes = require('../src/routes/panel.routes');
-const { productos_no_conformes } = require('../src/config/panel.modulos');
+const { productos_no_conformes } = require('../config/panel.modulos');
 const { errorHandler } = require('../src/middlewares/error.middleware');
 
 const app = express();

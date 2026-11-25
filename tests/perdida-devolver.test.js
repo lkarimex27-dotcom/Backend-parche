@@ -7,7 +7,7 @@ const perdidas = {
   2: { id_perdida: 2, id_insumo_producto: 5, cantidad: 4, estado: 'DEVUELTA', observacion: 'Compra a Panadería del 17 de octubre de 2026' },
   3: { id_perdida: 3, id_insumo_producto: 5, cantidad: 4, estado: 'REGISTRADA', observacion: null },
 };
-jest.mock('../src/config/db', () => ({ withTransaction: async (fn) => fn({}) }));
+jest.mock('../config/db', () => ({ withTransaction: async (fn) => fn({}) }));
 jest.mock('../src/models/stock.model', () => ({ ajustar: jest.fn(async () => true) }));
 jest.mock('../src/models/perdida.model', () => ({
   obtenerPorId: jest.fn(async (id) => perdidas[id]),

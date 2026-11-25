@@ -1,7 +1,7 @@
 // Reglas de negocio de los módulos del panel que se guardan como fila completa (datos_panel).
 // Antes solo las aplicaba la app; ahora también el servidor: `revisar(anterior, nueva)` devuelve el motivo del
 // rechazo o null. anterior = null al crear.
-const { PEDIDO_MONTO_APROBACION } = require('../config/constants');
+const { PEDIDO_MONTO_APROBACION } = require('../../config/constants');
 
 const texto = (v) => String(v ?? '').trim();
 const anulado = (v) => /^anulad/i.test(texto(v));

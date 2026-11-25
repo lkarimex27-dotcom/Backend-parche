@@ -1,6 +1,6 @@
 // Sin base de datos: modelos y transacción se simulan
 const mockClient = { query: jest.fn(async () => ({ rows: [] })) };
-jest.mock('../src/config/db', () => ({ withTransaction: (fn) => fn(mockClient) }));
+jest.mock('../config/db', () => ({ withTransaction: (fn) => fn(mockClient) }));
 jest.mock('../src/models/usuario.model', () => ({
   obtenerPorId: jest.fn(async () => ({ id_usuario: 5, correo: 'ana@x.com', estado: 'ACTIVO', nombre: 'Ana', telefono: '300', roles: ['CAJERO'] })),
   actualizarUsuario: jest.fn(async () => {}),

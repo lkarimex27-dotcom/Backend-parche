@@ -1,4 +1,4 @@
-jest.mock('../src/config/db', () => ({ query: jest.fn(), withTransaction: (callback) => callback({}) }));
+jest.mock('../config/db', () => ({ query: jest.fn(), withTransaction: (callback) => callback({}) }));
 jest.mock('../src/models/pedido.model');
 jest.mock('../src/services/ventaPedido.service');
 

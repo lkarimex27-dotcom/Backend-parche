@@ -1,4 +1,4 @@
-const { withTransaction } = require('../config/db');
+const { withTransaction } = require('../../config/db');
 const AppError = require('../errors/AppError');
 const Stock = require('../models/stock.model');
 

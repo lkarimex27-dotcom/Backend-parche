@@ -1,7 +1,7 @@
 jest.mock('../src/models/pedido.model');
 jest.mock('../src/models/barrio.model');
 jest.mock('../src/models/insumoProducto.model', () => ({ gaseosas: jest.fn() }));
-jest.mock('../src/config/db', () => ({ withTransaction: jest.fn((fn) => fn({})) }));
+jest.mock('../config/db', () => ({ withTransaction: jest.fn((fn) => fn({})) }));
 
 const Pedido = require('../src/models/pedido.model');
 const Barrio = require('../src/models/barrio.model');

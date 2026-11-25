@@ -1,5 +1,5 @@
-const { query } = require('../config/db');
-const { ESTIMADOR } = require('../config/constants');
+const { query } = require('../../config/db');
+const { ESTIMADOR } = require('../../config/constants');
 
 const listarDisponibles = async (busqueda) =>
   (await query(

@@ -1,7 +1,7 @@
 const mockClientQuery = jest.fn();
 const mockWithTransaction = jest.fn((callback) => callback({ query: mockClientQuery }));
 
-jest.mock('../src/config/db', () => ({
+jest.mock('../config/db', () => ({
   query: jest.fn(),
   withTransaction: (callback) => mockWithTransaction(callback),
 }));
@@ -86,8 +86,8 @@ describe('Panel.crearPar', () => {
 });
 
 describe('pedidos_panel.rechazarAlCrear', () => {
-  const PANEL = require('../src/config/panel.modulos');
-  const db = require('../src/config/db');
+  const PANEL = require('../config/panel.modulos');
+  const db = require('../config/db');
 
   it('rechaza volver a crear un pedido de la tienda', async () => {
     db.query.mockResolvedValueOnce({ rowCount: 1 });

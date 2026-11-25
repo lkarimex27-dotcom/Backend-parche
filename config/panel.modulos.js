@@ -1,7 +1,7 @@
 // Módulos del panel cuya lógica vive en la app: se guarda la fila completa (datos_panel) y, de ella,
 // las columnas principales de cada tabla. `columnas(fila, idUsuario)` lee las posiciones de la fila del panel.
 const { query } = require('./db');
-const Reglas = require('../utils/reglasPanel');
+const Reglas = require('../src/utils/reglasPanel');
 
 const hoy = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' }); // AAAA-MM-DD
 const fecha = (v) => (/^\d{4}-\d{2}-\d{2}$/.test(String(v ?? '')) ? String(v) : hoy());

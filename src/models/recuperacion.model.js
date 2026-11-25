@@ -1,4 +1,4 @@
-const { query } = require('../config/db');
+const { query } = require('../../config/db');
 
 // Un código vigente por usuario: pedir otro reemplaza el anterior
 const guardar = (idUsuario, codigoHash, minutos) =>

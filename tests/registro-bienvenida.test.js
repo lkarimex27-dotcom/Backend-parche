@@ -1,7 +1,7 @@
 process.env.JWT_SECRET = 'secreto_de_pruebas_secreto_de_pruebas_123';
 
 // Sin base de datos ni Gmail: registro público desde la web del cliente
-jest.mock('../src/config/db', () => ({ withTransaction: (fn) => fn({}) }));
+jest.mock('../config/db', () => ({ withTransaction: (fn) => fn({}) }));
 jest.mock('../src/models/usuario.model', () => ({
   crearUsuario: jest.fn(async () => ({ id_usuario: 30 })),
   crearPersona: jest.fn(async () => undefined),

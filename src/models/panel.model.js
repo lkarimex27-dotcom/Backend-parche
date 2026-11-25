@@ -1,4 +1,4 @@
-const { query, withTransaction } = require('../config/db');
+const { query, withTransaction } = require('../../config/db');
 const AppError = require('../errors/AppError');
 
 // Consultas genéricas para los módulos de config/panel.modulos.js (tabla e id vienen de esa config, no del usuario)

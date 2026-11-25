@@ -1,4 +1,4 @@
-const { query, withTransaction } = require('../config/db');
+const { query, withTransaction } = require('../../config/db');
 
 // Fotos subidas (data URL) se devuelven como /imagenes/<id> (GET /api/imagenes/:id) para no inflar los listados.
 // left(url, 5) y no LIKE: LIKE lee la foto completa (MB) de cada producto; left solo sus primeros bytes.

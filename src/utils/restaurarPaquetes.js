@@ -6,7 +6,7 @@
 require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
-const { pool } = require('../config/db');
+const { pool } = require('../../config/db');
 
 const APLICAR = process.argv.includes('--aplicar');
 const carpeta = path.join(__dirname, '../../respaldos');
