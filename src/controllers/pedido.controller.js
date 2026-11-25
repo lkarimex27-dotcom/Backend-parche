@@ -39,4 +39,7 @@ const quitarComprobante = asyncHandler(async (req, res) =>
 const actualizar = asyncHandler(async (req, res) =>
   res.json({ ok: true, data: await service.actualizar(req.params.id, req.body, req.user.id) }));
 
-module.exports = { listar, listarMios, eventosMios, obtener, crear, subirComprobante, quitarComprobante, actualizar };
+const solicitarDevolucion = asyncHandler(async (req, res) =>
+  res.json({ ok: true, data: await service.solicitarDevolucion(req.params.id, req.body, req.user.id) }));
+
+module.exports = { listar, listarMios, eventosMios, obtener, crear, subirComprobante, quitarComprobante, solicitarDevolucion, actualizar };

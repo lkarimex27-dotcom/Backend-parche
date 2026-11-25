@@ -779,6 +779,8 @@ ALTER TABLE insumos_productos ADD COLUMN IF NOT EXISTS porcion DECIMAL(12,3);
 ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS abono DECIMAL(12,2);
 -- Todos los comprobantes que el cliente envió; «comprobante» sigue siendo el último
 ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS comprobantes JSONB NOT NULL DEFAULT '[]';
+-- Devolución que pide el cliente (hasta 24 h después de hacer el pedido): { motivo, solicitada_en }
+ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS devolucion JSONB;
 CREATE TABLE IF NOT EXISTS fichas_tecnicas_historial (
     id_historial        BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     id_insumo_producto  BIGINT NOT NULL,

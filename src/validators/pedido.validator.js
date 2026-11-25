@@ -57,4 +57,6 @@ const actualizarPedido = z
   .partial()
   .refine((o) => Object.keys(o).length > 0, { message: 'Envía al menos un campo' });
 
-module.exports = { idParam, crearPedido, subirComprobante, actualizarPedido, quitarComprobante };
+const solicitarDevolucion = z.object({ motivo: texto(300).min(10, 'Cuéntanos qué pasó (mínimo 10 caracteres).') });
+
+module.exports = { idParam, crearPedido, subirComprobante, actualizarPedido, quitarComprobante, solicitarDevolucion };
