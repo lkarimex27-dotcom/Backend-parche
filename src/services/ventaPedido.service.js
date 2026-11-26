@@ -57,7 +57,7 @@ const asegurarVenta = async (c, pedido, idUsuario) => {
   //  10 estado del pedido, 11 productos (JSON)] — las mismas columnas de una venta hecha en el panel
   const fila = [
     codigo, vendedor, pedido.cliente || pedido.nombre_contacto || '', hoy(), tipoVenta(pedido.direccion_entrega),
-    pedido.metodo_pago === 'Efectivo' ? 'Efectivo' : 'Transferencia', total, total, '', pedidoCodigo, pedido.estado,
+    pedido.pago_mixto ? 'Mixto' : pedido.metodo_pago === 'Efectivo' ? 'Efectivo' : 'Transferencia', total, total, '', pedidoCodigo, pedido.estado,
     JSON.stringify(await lineas(c, pedido)),
   ];
   const cfg = modulos.ventas;

@@ -96,6 +96,13 @@ const crear = async (d, idCliente) => {
     const total = subtotal + costoDomicilio;
     // $150.000 o más: lo confirma El Parche y se abona el 50% por transferencia (con comprobante); el saldo al recibir
     const conAbono = total >= PEDIDO_MONTO_APROBACION;
+    // Mixto: lo transferido queda como «abono» (lo revisa el validador) y el resto se cobra en efectivo al recibir
+    const mixto = d.pago_mixto?.transferencia;
+    if (mixto && mixto >= total) throw AppError.badRequest('En el pago mixto, la transferencia debe ser menor que el total: el resto se paga en efectivo.');
+    if (mixto && conAbono && mixto < Math.ceil(total / 2)) {
+      throw AppError.badRequest(`En pedidos de $${PEDIDO_MONTO_APROBACION.toLocaleString('es-CO')} o más, la transferencia debe ser al menos la mitad ($${Math.ceil(total / 2).toLocaleString('es-CO')}).`);
+    }
+    const abono = mixto || (conAbono ? Math.ceil(total / 2) : null);
     if (conAbono && (d.pago === 'Efectivo' || !d.comprobante)) {
       throw AppError.badRequest('Los pedidos de $150.000 o más se confirman con un abono del 50% por transferencia: sube el comprobante.');
     }
@@ -105,7 +112,7 @@ const crear = async (d, idCliente) => {
     if (d.comprobante) {
       soporte = { referencia: d.referencia_pago, valor: d.valor_pago, hash: Soporte.huella(d.comprobante), dudoso: !!d.comprobante_dudoso };
       const error = Soporte.revisar({
-        pedido: { total, abono: conAbono ? Math.ceil(total / 2) : null, estado_pago: 'Pendiente de verificación' },
+        pedido: { total, abono, estado_pago: 'Pendiente de verificación' },
         ...soporte, otros: await Pedido.soportesDeOtros(c, 0),
       });
       if (error) throw AppError.badRequest(error);
@@ -121,7 +128,8 @@ const crear = async (d, idCliente) => {
       estado,
       estimacion_inicial: estimacionInicial,
       estado_pago: d.pago === 'Efectivo' ? 'Pendiente' : 'Pendiente de verificación',
-      abono: conAbono ? Math.ceil(total / 2) : null,
+      abono,
+      pago_mixto: !!mixto,
       soporte,
     });
     for (const l of lineas) await Pedido.crearDetalle(c, idPedido, l);

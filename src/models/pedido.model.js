@@ -13,7 +13,7 @@ const SELECT = `
               WHEN p.comprobante IS NULL THEN '[]'::jsonb ELSE jsonb_build_array(p.comprobante) END AS comprobantes,
          p.registros_produccion, p.id_barrio, p.estimacion_inicial,
          p.subtotal::float AS subtotal, p.costo_domicilio_cop::float AS costo_domicilio_cop,
-         p.total::float AS total, p.abono::float AS abono, p.creado_en, p.devolucion,
+         p.total::float AS total, p.abono::float AS abono, p.pago_mixto, p.creado_en, p.devolucion,
          b.nombre AS barrio,
          COALESCE((SELECT json_agg(json_build_object(
                      'producto', i.nombre, 'cantidad', d.cantidad::float, 'precio_unitario', d.precio_unitario::float,
@@ -52,15 +52,15 @@ const crear = async (c, d) =>
   (await c.query(
     `INSERT INTO pedidos (id_cliente, estado, nombre_contacto, telefono_contacto, tipo_entrega, direccion_entrega, observacion,
                           metodo_pago, estado_pago, comprobante, subtotal, costo_domicilio_cop, total,
-                          id_barrio, estimacion_inicial, abono, comprobantes)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16,
+                          id_barrio, estimacion_inicial, abono, pago_mixto, comprobantes)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $21,
              CASE WHEN $10::text IS NULL THEN '[]'::jsonb
                   ELSE jsonb_build_array(jsonb_build_object('imagen', $10::text, 'referencia', $17::text, 'valor', $18::numeric,
                                                             'hash', $19::text, 'dudoso', $20::boolean, 'subido_en', now())) END) RETURNING id_pedido`,
     [d.id_cliente, d.estado, d.nombre, d.telefono, d.tipo_entrega ?? 'domicilio', d.direccion, d.notas ?? null, d.pago, d.estado_pago,
      d.comprobante ?? null, d.subtotal, d.costo_domicilio_cop, d.total, d.id_barrio,
      JSON.stringify(d.estimacion_inicial), d.abono ?? null,
-     d.soporte?.referencia ?? null, d.soporte?.valor ?? null, d.soporte?.hash ?? null, !!d.soporte?.dudoso]
+     d.soporte?.referencia ?? null, d.soporte?.valor ?? null, d.soporte?.hash ?? null, !!d.soporte?.dudoso, !!d.pago_mixto]
   )).rows[0].id_pedido;
 
 const crearDetalle = (c, idPedido, it) =>

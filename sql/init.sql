@@ -777,6 +777,8 @@ ALTER TABLE detalle_compras ADD COLUMN IF NOT EXISTS empaque VARCHAR(80);
 ALTER TABLE insumos_productos ADD COLUMN IF NOT EXISTS porcion DECIMAL(12,3);
 -- Pedidos de $150.000 o más: abono del 50% por adelantado (el saldo se paga al recibir)
 ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS abono DECIMAL(12,2);
+-- Pago mixto: «abono» es lo transferido y el resto se paga en efectivo al recibir
+ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS pago_mixto BOOLEAN NOT NULL DEFAULT false;
 -- Todos los comprobantes que el cliente envió; «comprobante» sigue siendo el último
 ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS comprobantes JSONB NOT NULL DEFAULT '[]';
 -- Devolución que pide el cliente (hasta 24 h después de hacer el pedido): { motivo, solicitada_en }

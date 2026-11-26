@@ -41,6 +41,8 @@ const start = async () => {
   await pool.query('ALTER TABLE insumos_productos ADD COLUMN IF NOT EXISTS porcion DECIMAL(12,3)');
   // Pedidos de $150.000 o más: el 50% que se paga por adelantado
   await pool.query('ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS abono DECIMAL(12,2)');
+  // Pago mixto: «abono» es lo transferido y el resto se paga en efectivo al recibir
+  await pool.query('ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS pago_mixto BOOLEAN NOT NULL DEFAULT false');
   // Todos los comprobantes que el cliente envió (abono, saldo, uno que reemplaza a uno rechazado...)
   await pool.query("ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS comprobantes JSONB NOT NULL DEFAULT '[]'");
   await pool.query('ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS devolucion JSONB');

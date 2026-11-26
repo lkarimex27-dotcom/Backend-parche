@@ -25,6 +25,8 @@ const crearPedido = z.object({
   referencia_pago: texto(40).optional(),
   // La app no encontró datos de una transferencia en la imagen y el cliente la envió igual (el panel lo avisa)
   comprobante_dudoso: z.boolean().optional(),
+  // Parte por transferencia (con comprobante) y el resto en efectivo al recibir
+  pago_mixto: z.object({ transferencia: z.number().int().positive().max(10_000_000) }).optional(),
   valor_pago: z.number().int().positive().max(10_000_000).optional(),
   items: z
     .array(z.object({
@@ -39,6 +41,8 @@ const crearPedido = z.object({
   message: 'Selecciona un barrio válido',
 }).refine((d) => !d.comprobante || d.valor_pago, {
   message: 'Escribe el valor que transferiste',
+}).refine((d) => !d.pago_mixto || (d.pago !== 'Efectivo' && d.comprobante), {
+  message: 'El pago mixto necesita la transferencia con su comprobante',
 });
 
 const subirComprobante = z.object({
