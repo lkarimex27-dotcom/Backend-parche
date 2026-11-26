@@ -74,7 +74,9 @@ const revisarPedidoPanel = (anterior, nueva) => {
   }
   const pa = texto(anterior[8]) || 'Pendiente';
   const pb = texto(nueva[8]) || 'Pendiente';
-  if (pa !== pb && pa !== 'Rechazado' && FLUJO_PAGO.indexOf(pb) < FLUJO_PAGO.indexOf(pa) && pb !== 'Rechazado') {
+  // Pagado → Abonado solo si el panel le agregó productos (subió el total): falta cobrar la diferencia
+  const subioTotal = pa === 'Pagado' && pb === 'Abonado' && (Number(nueva[6]) || 0) > (Number(anterior[6]) || 0);
+  if (pa !== pb && pa !== 'Rechazado' && !subioTotal && FLUJO_PAGO.indexOf(pb) < FLUJO_PAGO.indexOf(pa) && pb !== 'Rechazado') {
     return `El pago no puede volver de «${pa}» a «${pb}».`;
   }
   return null;

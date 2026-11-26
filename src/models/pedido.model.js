@@ -70,6 +70,35 @@ const crearDetalle = (c, idPedido, it) =>
     [idPedido, it.id_insumo_producto, it.cantidad, it.precio_unitario, it.subtotal, JSON.stringify(it.detalle)]
   );
 
+// Cambian los productos del pedido (solo el panel): fuera las líneas anteriores, entran las nuevas
+const reemplazarDetalle = async (c, idPedido, lineas) => {
+  await c.query('DELETE FROM pedido_detalle WHERE id_pedido = $1', [idPedido]);
+  for (const l of lineas) await crearDetalle(c, idPedido, l);
+};
+
+// Lo que pide la ficha técnica de cada producto de cada insumo (por unidad, en la unidad del inventario), su stock y
+// lo que ya apartan los pedidos abiertos de la tienda: aún no pasan por cocina, que es donde se descuenta el stock
+const insumosParaPreparar = async (c, ids, excluirPedido = 0) => {
+  const { NECESITA } = require('./insumoProducto.model');
+  return (await c.query(
+    `WITH receta AS (
+       SELECT f.id_insumo_producto AS producto, i.id_insumo_producto AS insumo, i.nombre, i.stock::float AS stock,
+              (${NECESITA})::float AS necesita
+         FROM fichas_tecnicas f
+         JOIN ficha_tecnica_insumos fi ON fi.id_ficha_tecnica = f.id_ficha_tecnica
+         JOIN insumos_productos i ON i.id_insumo_producto = fi.id_insumo_producto)
+     SELECT r.*,
+            COALESCE((SELECT SUM(d.cantidad * a.necesita)
+                        FROM pedido_detalle d
+                        JOIN pedidos p ON p.id_pedido = d.id_pedido
+                        JOIN receta a ON a.producto = d.id_insumo_producto AND a.insumo = r.insumo
+                       WHERE p.estado IN ('Por confirmar', 'Recibido', 'Confirmado') AND p.id_pedido <> $2), 0)::float AS apartado
+       FROM receta r
+      WHERE r.producto = ANY($1::int[])`,
+    [ids, excluirPedido]
+  )).rows;
+};
+
 const crearOrdenProduccion = async (c, idPedido, items, observacion) => {
   const numeroOrden = `PED-${String(idPedido).padStart(4, '0')}`;
   const productos = items.map((item) => {
@@ -152,7 +181,8 @@ const actualizarEstadoProduccion = async (c, idPedido, estadoProduccion, idUsuar
 };
 
 // Solo cambia los campos enviados
-const CAMPOS = ['estado', 'estado_pago', 'motivo_rechazo_pago', 'produccion_autorizada', 'registros_produccion', 'comprobante'];
+const CAMPOS = ['estado', 'estado_pago', 'motivo_rechazo_pago', 'produccion_autorizada', 'registros_produccion', 'comprobante',
+  'subtotal', 'total', 'abono'];
 const actualizar = (c, id, d) => {
   const campos = CAMPOS.filter((k) => d[k] !== undefined);
   if (!campos.length) return null;
@@ -256,6 +286,6 @@ const soportesDeOtros = async (c, idPedido) =>
 
 module.exports = {
   agregarComprobante, quitarComprobante, soportesDeOtros,
-  listar, listarDeCliente, obtenerPorId, catalogoActivo, crear, crearDetalle, crearOrdenProduccion, registrarEstado, solicitarDevolucion,
+  listar, listarDeCliente, obtenerPorId, catalogoActivo, crear, crearDetalle, reemplazarDetalle, insumosParaPreparar, crearOrdenProduccion, registrarEstado, solicitarDevolucion,
   actualizarEstadoProduccion, actualizar, colaCocina, estadisticasDesplazamiento,
 };

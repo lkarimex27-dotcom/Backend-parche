@@ -75,10 +75,30 @@ const cotizar = (items, catalogo, gaseosas = []) => {
   });
 };
 
+// Con el inventario (menos lo que apartan los pedidos abiertos) se tienen que poder preparar todos los productos
+// con ficha técnica; si no, dice cuántos de ese producto se alcanzan a preparar
+const revisarStock = async (c, lineas, excluirPedido = 0) => {
+  const receta = await Pedido.insumosParaPreparar(c, [...new Set(lineas.map((l) => l.id_insumo_producto))], excluirPedido);
+  if (!receta?.length) return;
+  const cuantos = (producto) => lineas.filter((l) => l.id_insumo_producto === producto).reduce((s, l) => s + l.cantidad, 0);
+  for (const r of receta) {
+    const libre = r.stock - r.apartado;
+    const pide = receta.filter((x) => x.insumo === r.insumo).reduce((s, x) => s + x.necesita * cuantos(x.producto), 0);
+    if (r.necesita <= 0 || !cuantos(r.producto) || pide <= libre + 1e-9) continue;
+    const otros = pide - r.necesita * cuantos(r.producto);
+    const max = Math.max(0, Math.floor((libre - otros) / r.necesita + 1e-9));
+    const nombre = lineas.find((l) => l.id_insumo_producto === r.producto).producto;
+    throw AppError.badRequest(max > 0
+      ? `Por ahora solo podemos preparar ${max} de «${nombre}» (no alcanza el insumo «${r.nombre}»). Pide menos o elige otro producto.`
+      : `«${nombre}» se agotó por ahora: no alcanza el insumo «${r.nombre}». Quítalo del pedido o elige otro producto.`);
+  }
+};
+
 const crear = async (d, idCliente) => {
   const lineas = cotizar(d.items, await Pedido.catalogoActivo(), await InsumoProducto.gaseosas());
   const subtotal = lineas.reduce((s, l) => s + l.subtotal, 0);
   const id = await withTransaction(async (c) => {
+    await revisarStock(c, lineas);
     const tipoEntrega = d.tipo_entrega ?? 'domicilio';
     const esDomicilio = tipoEntrega === 'domicilio';
     const { idBarrio, estimacion: estimacionInicial } = await Estimador.calcular(
@@ -138,6 +158,36 @@ const crear = async (d, idCliente) => {
     return idPedido;
   });
   return obtener(id);
+};
+
+// Solo el panel: cambia los productos mientras la orden de producción no ha empezado. Recalcula el total y, si el
+// cliente ya había pagado, `abono` guarda lo recibido: el pago queda «Abonado» (falta cobrar la diferencia) o
+// «Pagado» (si sobra, `diferencia` < 0 = lo que hay que devolverle). La venta del pedido sigue el nuevo total.
+const fmtPesos = (n) => `$${Math.abs(n).toLocaleString('es-CO')}`;
+const cambiarProductos = async (id, items, idUsuario) => {
+  let pagado = 0;
+  let diferencia = 0;
+  await withTransaction(async (c) => {
+    const p = await obtener(id, c);
+    if (!['Por confirmar', 'Recibido', 'Confirmado'].includes(p.estado) || (p.estado_produccion && p.estado_produccion !== 'Recibido'))
+      throw AppError.conflict('Los productos solo se cambian mientras la orden de producción está «Recibido».');
+    const lineas = cotizar(items, await Pedido.catalogoActivo(), await InsumoProducto.gaseosas());
+    await revisarStock(c, lineas, p.id_pedido);
+    const subtotal = lineas.reduce((s, l) => s + l.subtotal, 0);
+    const total = subtotal + (Number(p.costo_domicilio_cop) || 0);
+    pagado = p.estado_pago === 'Pagado' ? Math.max(Number(p.total) || 0, Number(p.abono) || 0)
+      : p.estado_pago === 'Abonado' ? Number(p.abono) || Math.ceil((Number(p.total) || 0) / 2) : 0;
+    diferencia = pagado ? total - pagado : 0;
+    const estadoPago = pagado ? (total > pagado ? 'Abonado' : 'Pagado') : p.estado_pago;
+    await Pedido.reemplazarDetalle(c, p.id_pedido, lineas);
+    await Pedido.actualizar(c, p.id_pedido, { subtotal, total, ...(pagado ? { estado_pago: estadoPago, abono: pagado } : {}) });
+    const nota = diferencia > 0 ? `Productos: cobrar ${fmtPesos(diferencia)}` : diferencia < 0 ? `Productos: devolver ${fmtPesos(diferencia)}` : 'Productos cambiados';
+    await Pedido.registrarEstado(c, p.id_pedido, nota.slice(0, 30), idUsuario);
+    const nuevo = await obtener(id, c);
+    if (estadoPago === 'Pagado' && p.estado_pago !== 'Pagado') await VentaPedido.asegurarVenta(c, nuevo, idUsuario);
+    else await VentaPedido.actualizarVenta(c, nuevo);
+  });
+  return { ...(await obtener(id)), pagado, diferencia };
 };
 
 // El cliente envía otro comprobante (puede mandar varios: el abono y el saldo, o uno nuevo si le rechazaron el anterior).
@@ -226,4 +276,4 @@ const solicitarDevolucion = async (id, { motivo }, idCliente, ahora = Date.now()
   return obtener(id);
 };
 
-module.exports = { listar, listarMios, obtener, crear, subirComprobante, quitarComprobante, solicitarDevolucion, actualizar, cotizar };
+module.exports = { listar, listarMios, obtener, crear, cambiarProductos, subirComprobante, quitarComprobante, solicitarDevolucion, actualizar, cotizar };

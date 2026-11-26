@@ -22,5 +22,6 @@ router.post('/:id/devolucion', validate(v.idParam, 'params'), validate(v.solicit
 router.get('/', authorize(M, 'VER'), c.listar);
 router.get('/:id', authorize(M, 'VER'), validate(v.idParam, 'params'), c.obtener);
 router.patch('/:id', authorize(M, 'EDITAR'), validate(v.idParam, 'params'), validate(v.actualizarPedido), c.actualizar);
+router.put('/:id/productos', authorize(M, 'EDITAR'), validate(v.idParam, 'params'), validate(v.cambiarProductos), c.cambiarProductos);
 
 module.exports = router;

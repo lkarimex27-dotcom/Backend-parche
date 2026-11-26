@@ -72,4 +72,16 @@ const reflejarEstado = (c, idPedido, estado) =>
     [codigoPedido(idPedido), estado]
   );
 
-module.exports = { asegurarVenta, reflejarEstado, codigoPedido };
+// Cambiaron los productos del pedido: su venta (si ya la tiene) queda con el nuevo total y las nuevas líneas
+const actualizarVenta = async (c, pedido) => {
+  const total = Number(pedido.total) || 0;
+  return c.query(
+    `UPDATE ventas SET subtotal = $2, total = $2,
+            datos_panel = jsonb_set(jsonb_set(jsonb_set(datos_panel, '{6}', to_jsonb($2::numeric)), '{7}', to_jsonb($2::numeric)),
+                                    '{11}', to_jsonb($3::text))
+      WHERE pedido_asociado = $1 AND datos_panel IS NOT NULL AND NOT (${anulada})`,
+    [codigoPedido(pedido.id_pedido), total, JSON.stringify(await lineas(c, pedido))]
+  );
+};
+
+module.exports = { asegurarVenta, actualizarVenta, reflejarEstado, codigoPedido };
