@@ -57,7 +57,7 @@ const asegurarVenta = async (c, pedido, idUsuario) => {
   //  10 estado del pedido, 11 productos (JSON)] — las mismas columnas de una venta hecha en el panel
   const fila = [
     codigo, vendedor, pedido.cliente || pedido.nombre_contacto || '', hoy(), tipoVenta(pedido.direccion_entrega),
-    pedido.metodo_pago === 'Efectivo' ? 'Efectivo' : 'Transferencia', total, total, '', pedidoCodigo, pedido.estado,
+    pedido.pago_mixto ? 'Mixto' : pedido.metodo_pago === 'Efectivo' ? 'Efectivo' : 'Transferencia', total, total, '', pedidoCodigo, pedido.estado,
     JSON.stringify(await lineas(c, pedido)),
   ];
   const cfg = modulos.ventas;
@@ -65,11 +65,24 @@ const asegurarVenta = async (c, pedido, idUsuario) => {
 };
 
 // La venta muestra el estado del pedido: cuando el pedido avanza, su venta también
-const reflejarEstado = (c, idPedido, estado) =>
+// (un pedido del panel tiene su propio código, que puede no ser su id)
+const reflejarEstado = (c, idPedido, estado, codigo = codigoPedido(idPedido)) =>
   c.query(
     `UPDATE ventas SET datos_panel = jsonb_set(datos_panel, '{10}', to_jsonb($2::text), true)
       WHERE pedido_asociado = $1 AND datos_panel IS NOT NULL AND NOT (${anulada})`,
-    [codigoPedido(idPedido), estado]
+    [codigo || codigoPedido(idPedido), estado]
   );
 
-module.exports = { asegurarVenta, reflejarEstado, codigoPedido };
+// Cambiaron los productos del pedido: su venta (si ya la tiene) queda con el nuevo total y las nuevas líneas
+const actualizarVenta = async (c, pedido) => {
+  const total = Number(pedido.total) || 0;
+  return c.query(
+    `UPDATE ventas SET subtotal = $2, total = $2,
+            datos_panel = jsonb_set(jsonb_set(jsonb_set(datos_panel, '{6}', to_jsonb($2::numeric)), '{7}', to_jsonb($2::numeric)),
+                                    '{11}', to_jsonb($3::text))
+      WHERE pedido_asociado = $1 AND datos_panel IS NOT NULL AND NOT (${anulada})`,
+    [codigoPedido(pedido.id_pedido), total, JSON.stringify(await lineas(c, pedido))]
+  );
+};
+
+module.exports = { asegurarVenta, actualizarVenta, reflejarEstado, codigoPedido };

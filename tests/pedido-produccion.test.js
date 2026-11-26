@@ -13,6 +13,7 @@ jest.mock('../src/models/pedido.model', () => ({
     estado_produccion: estadoProduccion,
   })),
 }));
+jest.mock('../src/services/ventaPedido.service', () => ({ reflejarEstado: jest.fn(), asegurarVenta: jest.fn(), actualizarVenta: jest.fn() }));
 jest.mock('../src/services/pedidoEventos.service', () => ({
   publicarEstadoProduccion: jest.fn(),
   publicarCambioPanel: jest.fn(),
@@ -31,6 +32,7 @@ const request = require('supertest');
 const Panel = require('../src/models/panel.model');
 const Pedido = require('../src/models/pedido.model');
 const pedidoEventos = require('../src/services/pedidoEventos.service');
+const VentaPedido = require('../src/services/ventaPedido.service');
 const panelRoutes = require('../src/routes/panel.routes');
 const pedidoController = require('../src/controllers/pedido.controller');
 
@@ -59,7 +61,10 @@ describe('Cambios de estado de producción para pedidos de clientes', () => {
       { numero_orden: 'PED-0030', estado: 'Confirmado' },
       ['PED-0030', '', '', 1, '2026-11-03', '', '', '', 'Confirmado']
     );
-    expect(Pedido.actualizarEstadoProduccion).toHaveBeenCalledWith({}, 30, 'Confirmado', 5);
+    expect(Pedido.actualizarEstadoProduccion).toHaveBeenCalledWith({}, 30, 'Confirmado', 5, 'PED-0030');
+    // Su venta muestra el mismo estado y los paneles abiertos recargan
+    expect(VentaPedido.reflejarEstado).toHaveBeenCalledWith({}, 30, 'En cocina', undefined);
+    expect(pedidoEventos.publicarCambioPanel).toHaveBeenCalledWith('pedidos');
     expect(pedidoEventos.publicarEstadoProduccion).toHaveBeenCalledWith({
       idCliente: 7,
       idPedido: 30,

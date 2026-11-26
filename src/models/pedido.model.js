@@ -13,7 +13,7 @@ const SELECT = `
               WHEN p.comprobante IS NULL THEN '[]'::jsonb ELSE jsonb_build_array(p.comprobante) END AS comprobantes,
          p.registros_produccion, p.id_barrio, p.estimacion_inicial,
          p.subtotal::float AS subtotal, p.costo_domicilio_cop::float AS costo_domicilio_cop,
-         p.total::float AS total, p.abono::float AS abono, p.creado_en, p.devolucion,
+         p.total::float AS total, p.abono::float AS abono, p.pago_mixto, p.creado_en, p.devolucion,
          b.nombre AS barrio,
          COALESCE((SELECT json_agg(json_build_object(
                      'producto', i.nombre, 'cantidad', d.cantidad::float, 'precio_unitario', d.precio_unitario::float,
@@ -52,15 +52,15 @@ const crear = async (c, d) =>
   (await c.query(
     `INSERT INTO pedidos (id_cliente, estado, nombre_contacto, telefono_contacto, tipo_entrega, direccion_entrega, observacion,
                           metodo_pago, estado_pago, comprobante, subtotal, costo_domicilio_cop, total,
-                          id_barrio, estimacion_inicial, abono, comprobantes)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16,
+                          id_barrio, estimacion_inicial, abono, pago_mixto, comprobantes)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $21,
              CASE WHEN $10::text IS NULL THEN '[]'::jsonb
                   ELSE jsonb_build_array(jsonb_build_object('imagen', $10::text, 'referencia', $17::text, 'valor', $18::numeric,
-                                                            'hash', $19::text, 'subido_en', now())) END) RETURNING id_pedido`,
+                                                            'hash', $19::text, 'dudoso', $20::boolean, 'subido_en', now())) END) RETURNING id_pedido`,
     [d.id_cliente, d.estado, d.nombre, d.telefono, d.tipo_entrega ?? 'domicilio', d.direccion, d.notas ?? null, d.pago, d.estado_pago,
      d.comprobante ?? null, d.subtotal, d.costo_domicilio_cop, d.total, d.id_barrio,
      JSON.stringify(d.estimacion_inicial), d.abono ?? null,
-     d.soporte?.referencia ?? null, d.soporte?.valor ?? null, d.soporte?.hash ?? null]
+     d.soporte?.referencia ?? null, d.soporte?.valor ?? null, d.soporte?.hash ?? null, !!d.soporte?.dudoso, !!d.pago_mixto]
   )).rows[0].id_pedido;
 
 const crearDetalle = (c, idPedido, it) =>
@@ -69,6 +69,35 @@ const crearDetalle = (c, idPedido, it) =>
      VALUES ($1, $2, $3, $4, $5, $6)`,
     [idPedido, it.id_insumo_producto, it.cantidad, it.precio_unitario, it.subtotal, JSON.stringify(it.detalle)]
   );
+
+// Cambian los productos del pedido (solo el panel): fuera las líneas anteriores, entran las nuevas
+const reemplazarDetalle = async (c, idPedido, lineas) => {
+  await c.query('DELETE FROM pedido_detalle WHERE id_pedido = $1', [idPedido]);
+  for (const l of lineas) await crearDetalle(c, idPedido, l);
+};
+
+// Lo que pide la ficha técnica de cada producto de cada insumo (por unidad, en la unidad del inventario), su stock y
+// lo que ya apartan los pedidos abiertos de la tienda: aún no pasan por cocina, que es donde se descuenta el stock
+const insumosParaPreparar = async (c, ids, excluirPedido = 0) => {
+  const { NECESITA } = require('./insumoProducto.model');
+  return (await c.query(
+    `WITH receta AS (
+       SELECT f.id_insumo_producto AS producto, i.id_insumo_producto AS insumo, i.nombre, i.stock::float AS stock,
+              (${NECESITA})::float AS necesita
+         FROM fichas_tecnicas f
+         JOIN ficha_tecnica_insumos fi ON fi.id_ficha_tecnica = f.id_ficha_tecnica
+         JOIN insumos_productos i ON i.id_insumo_producto = fi.id_insumo_producto)
+     SELECT r.*,
+            COALESCE((SELECT SUM(d.cantidad * a.necesita)
+                        FROM pedido_detalle d
+                        JOIN pedidos p ON p.id_pedido = d.id_pedido
+                        JOIN receta a ON a.producto = d.id_insumo_producto AND a.insumo = r.insumo
+                       WHERE p.estado IN ('Por confirmar', 'Recibido', 'Confirmado') AND p.id_pedido <> $2), 0)::float AS apartado
+       FROM receta r
+      WHERE r.producto = ANY($1::int[])`,
+    [ids, excluirPedido]
+  )).rows;
+};
 
 const crearOrdenProduccion = async (c, idPedido, items, observacion) => {
   const numeroOrden = `PED-${String(idPedido).padStart(4, '0')}`;
@@ -123,36 +152,46 @@ const registrarEstado = (c, idPedido, estado, idUsuario) =>
   c.query('INSERT INTO historial_estados_pedido (id_pedido, estado, id_usuario) VALUES ($1, $2, $3)',
     [idPedido, estado, idUsuario]);
 
-const actualizarEstadoProduccion = async (c, idPedido, estadoProduccion, idUsuario) => {
+const FLUJO_PEDIDO = ['Por confirmar', 'Recibido', 'Confirmado', 'En cocina', 'En camino', 'Entregado'];
+// La orden de producción y su pedido tienen los mismos estados: el pedido pasa al de la orden (solo hacia adelante;
+// uno cancelado o entregado ya no se mueve). Un pedido del panel se busca por su código (puede no ser su id) y su fila
+// del panel (datos_panel[7]) también cambia. Devuelve también el estado anterior y el código.
+const actualizarEstadoProduccion = async (c, idPedido, estadoProduccion, idUsuario, codigo = null) => {
   const anterior = (await c.query(
-    'SELECT estado FROM pedidos WHERE id_pedido = $1 FOR UPDATE',
-    [idPedido]
+    `SELECT id_pedido, estado FROM pedidos
+      WHERE codigo = $2 OR (id_pedido = $1 AND codigo IS NULL)
+      ORDER BY (codigo = $2) DESC NULLS LAST LIMIT 1 FOR UPDATE`,
+    [idPedido, codigo]
   )).rows[0];
   if (!anterior) return null;
+  const id = anterior.id_pedido;
 
-  // La orden de producción usa los mismos pasos que ve el cliente; «Producto no conforme» no mueve el pedido
-  const estadoPedido = ['Confirmado', 'En cocina', 'En camino', 'Entregado'].includes(estadoProduccion)
+  const adelante = FLUJO_PEDIDO.indexOf(estadoProduccion) > FLUJO_PEDIDO.indexOf(anterior.estado || 'Recibido');
+  const estadoPedido = FLUJO_PEDIDO.includes(estadoProduccion) && adelante && !['Cancelado', 'Entregado'].includes(anterior.estado)
     ? estadoProduccion
     : null;
   const actualizado = (await c.query(
     `UPDATE pedidos
         SET estado_produccion = $2,
-            estado = COALESCE($3::text, estado)
+            estado = COALESCE($3::text, estado),
+            datos_panel = CASE WHEN datos_panel IS NULL OR $3::text IS NULL THEN datos_panel
+                               ELSE jsonb_set(datos_panel, '{7}', to_jsonb($3::text)) END
       WHERE id_pedido = $1
         AND (estado_produccion IS DISTINCT FROM $2 OR ($3::text IS NOT NULL AND estado IS DISTINCT FROM $3::text))
-      RETURNING id_pedido, id_cliente, estado, estado_produccion`,
-    [idPedido, estadoProduccion, estadoPedido]
+      RETURNING id_pedido, id_cliente, estado, estado_produccion, codigo`,
+    [id, estadoProduccion, estadoPedido]
   )).rows[0] || null;
 
   if (actualizado && estadoPedido && estadoPedido !== anterior.estado) {
-    await registrarEstado(c, idPedido, estadoPedido, idUsuario);
+    await registrarEstado(c, id, estadoPedido, idUsuario);
   }
 
-  return actualizado;
+  return actualizado && { ...actualizado, estado_anterior: anterior.estado };
 };
 
 // Solo cambia los campos enviados
-const CAMPOS = ['estado', 'estado_pago', 'motivo_rechazo_pago', 'produccion_autorizada', 'registros_produccion', 'comprobante'];
+const CAMPOS = ['estado', 'estado_pago', 'motivo_rechazo_pago', 'produccion_autorizada', 'registros_produccion', 'comprobante',
+  'subtotal', 'total', 'abono'];
 const actualizar = (c, id, d) => {
   const campos = CAMPOS.filter((k) => d[k] !== undefined);
   if (!campos.length) return null;
@@ -224,9 +263,9 @@ const agregarComprobante = async (c, id, s) =>
             comprobantes = (CASE WHEN jsonb_array_length(comprobantes) = 0 AND comprobante IS NOT NULL
                                  THEN jsonb_build_array(comprobante) ELSE comprobantes END)
                            || jsonb_build_array(jsonb_build_object('imagen', $2::text, 'referencia', $3::text, 'valor', $4::numeric,
-                                                                   'hash', $5::text, 'subido_en', now()))
+                                                                   'hash', $5::text, 'dudoso', $6::boolean, 'subido_en', now()))
       WHERE id_pedido = $1 RETURNING jsonb_array_length(comprobantes) AS n`,
-    [id, s.imagen, s.referencia, s.valor, s.hash]
+    [id, s.imagen, s.referencia, s.valor, s.hash, !!s.dudoso]
   )).rows[0]?.n ?? 0;
 
 // Quita el comprobante en la posición `indice`; el último que quede pasa a ser «el comprobante»
@@ -256,6 +295,6 @@ const soportesDeOtros = async (c, idPedido) =>
 
 module.exports = {
   agregarComprobante, quitarComprobante, soportesDeOtros,
-  listar, listarDeCliente, obtenerPorId, catalogoActivo, crear, crearDetalle, crearOrdenProduccion, registrarEstado, solicitarDevolucion,
+  listar, listarDeCliente, obtenerPorId, catalogoActivo, crear, crearDetalle, reemplazarDetalle, insumosParaPreparar, crearOrdenProduccion, registrarEstado, solicitarDevolucion,
   actualizarEstadoProduccion, actualizar, colaCocina, estadisticasDesplazamiento,
 };

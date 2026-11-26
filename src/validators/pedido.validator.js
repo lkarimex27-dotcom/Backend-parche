@@ -9,6 +9,16 @@ const ubicacion = z.object({
   lon: z.number().finite().min(-180).max(180),
 });
 
+const items = z
+  .array(z.object({
+    producto: texto(150).min(1),
+    cantidad: z.number().int().positive().max(999),
+    salsas: z.array(texto(100)).max(20).default([]),
+    nota: texto(200).optional(),
+    adiciones: z.array(z.object({ nombre: texto(150).min(1), cantidad: z.number().int().positive().max(999) })).max(30).default([]),
+  }))
+  .min(1, 'El pedido no tiene productos');
+
 const crearPedido = z.object({
   nombre: texto(150).min(2),
   telefono: texto(30).min(7),
@@ -23,25 +33,24 @@ const crearPedido = z.object({
   comprobante: comprobante.optional(),
   // Con comprobante: cuánto se transfirió (lo revisa el validador); la referencia del banco ya no se pide
   referencia_pago: texto(40).optional(),
+  // La app no encontró datos de una transferencia en la imagen y el cliente la envió igual (el panel lo avisa)
+  comprobante_dudoso: z.boolean().optional(),
+  // Parte por transferencia (con comprobante) y el resto en efectivo al recibir
+  pago_mixto: z.object({ transferencia: z.number().int().positive().max(10_000_000) }).optional(),
   valor_pago: z.number().int().positive().max(10_000_000).optional(),
-  items: z
-    .array(z.object({
-      producto: texto(150).min(1),
-      cantidad: z.number().int().positive().max(999),
-      salsas: z.array(texto(100)).max(20).default([]),
-      nota: texto(200).optional(),
-      adiciones: z.array(z.object({ nombre: texto(150).min(1), cantidad: z.number().int().positive().max(999) })).max(30).default([]),
-    }))
-    .min(1, 'El pedido no tiene productos'),
+  items,
 }).refine((d) => d.tipo_entrega !== 'domicilio' || d.id_barrio !== undefined || d.nombre_barrio !== undefined, {
   message: 'Selecciona un barrio válido',
 }).refine((d) => !d.comprobante || d.valor_pago, {
   message: 'Escribe el valor que transferiste',
+}).refine((d) => !d.pago_mixto || (d.pago !== 'Efectivo' && d.comprobante), {
+  message: 'El pago mixto necesita la transferencia con su comprobante',
 });
 
 const subirComprobante = z.object({
   comprobante,
   referencia: texto(40).optional(),
+  dudoso: z.boolean().optional(),
   valor: z.number().int().positive().max(10_000_000),
 });
 const quitarComprobante = z.object({ id: z.coerce.number().int().positive(), indice: z.coerce.number().int().min(0).max(20) });
@@ -59,4 +68,6 @@ const actualizarPedido = z
 
 const solicitarDevolucion = z.object({ motivo: texto(300).min(10, 'Cuéntanos qué pasó (mínimo 10 caracteres).') });
 
-module.exports = { idParam, crearPedido, subirComprobante, actualizarPedido, quitarComprobante, solicitarDevolucion };
+const cambiarProductos = z.object({ items });
+
+module.exports = { idParam, crearPedido, cambiarProductos, subirComprobante, actualizarPedido, quitarComprobante, solicitarDevolucion };

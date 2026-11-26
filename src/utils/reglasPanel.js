@@ -7,29 +7,30 @@ const texto = (v) => String(v ?? '').trim();
 const anulado = (v) => /^anulad/i.test(texto(v));
 
 // ── Órdenes de producción [8 estado, 14 «Sí» si ya descontó insumos, 15 pedido] ──
-const FLUJO_PRODUCCION = ['Recibido', 'Confirmado', 'En cocina', 'Finalizada'];
+// Los mismos estados del pedido: la orden y su pedido van siempre en el mismo paso
+const FLUJO_PRODUCCION = ['Recibido', 'Confirmado', 'En cocina', 'En camino', 'Entregado'];
 const PNC = 'Producto no conforme';
-// Las viejas terminaban en «En camino» / «Entregado»: equivalen a «Finalizada»
+// Las que quedaron «Finalizada» (cuando producción terminaba ahí) ya salieron de cocina: cuentan como «Entregado»
 const estadoProduccion = (v) => {
   const e = texto(v) || 'Recibido';
-  return ['En camino', 'Entregado'].includes(e) ? 'Finalizada' : e;
+  return e === 'Finalizada' ? 'Entregado' : e;
 };
 const rango = (e) => FLUJO_PRODUCCION.indexOf(e);
 
 // viaAvanzar: el cambio llega por POST /ordenes-produccion/:id/avanzar (descuenta insumos en la misma transacción).
-// Entrar a «En cocina» o «Finalizada» solo se permite por ahí, para que el stock y el estado no se separen.
+// Entrar a «En cocina» o pasarla solo se permite por ahí, para que el stock y el estado no se separen.
 const revisarProduccion = (anterior, nueva, { viaAvanzar = false } = {}) => {
   const b = estadoProduccion(nueva[8]);
   if (b !== PNC && rango(b) < 0) return `«${b}» no es un estado de producción.`;
   if (!anterior) return ['Recibido', 'Confirmado'].includes(b) ? null : 'Una orden nueva empieza en «Recibido» o «Confirmado».';
   const a = estadoProduccion(anterior[8]);
   if (a === b) return null;
-  if (a === PNC || a === 'Finalizada') {
-    return b === PNC && a === 'Finalizada' ? null : `La orden ya está «${a}»; no cambia de estado.`;
+  if (a === PNC || a === 'Entregado') {
+    return b === PNC && a === 'Entregado' ? null : `La orden ya está «${a}»; no cambia de estado.`;
   }
   if (b === PNC) return a === 'Recibido' ? 'Una orden que no ha empezado no puede ser producto no conforme.' : null;
   if (rango(b) < rango(a)) return `La orden no puede volver de «${a}» a «${b}».`;
-  if (!viaAvanzar && rango(b) >= rango('En cocina')) return 'Pasar a «En cocina» o «Finalizada» se hace con el cambio de estado de la orden (descuenta los insumos).';
+  if (!viaAvanzar && rango(b) >= rango('En cocina')) return 'Pasar a «En cocina» o más adelante se hace con el cambio de estado de la orden (descuenta los insumos).';
   return null;
 };
 
@@ -74,7 +75,9 @@ const revisarPedidoPanel = (anterior, nueva) => {
   }
   const pa = texto(anterior[8]) || 'Pendiente';
   const pb = texto(nueva[8]) || 'Pendiente';
-  if (pa !== pb && pa !== 'Rechazado' && FLUJO_PAGO.indexOf(pb) < FLUJO_PAGO.indexOf(pa) && pb !== 'Rechazado') {
+  // Pagado → Abonado solo si el panel le agregó productos (subió el total): falta cobrar la diferencia
+  const subioTotal = pa === 'Pagado' && pb === 'Abonado' && (Number(nueva[6]) || 0) > (Number(anterior[6]) || 0);
+  if (pa !== pb && pa !== 'Rechazado' && !subioTotal && FLUJO_PAGO.indexOf(pb) < FLUJO_PAGO.indexOf(pa) && pb !== 'Rechazado') {
     return `El pago no puede volver de «${pa}» a «${pb}».`;
   }
   return null;

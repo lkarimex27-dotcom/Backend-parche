@@ -14,10 +14,11 @@ describe('Validador de comprobantes de transferencia', () => {
     expect(revisar({ pedido, referencia: 'M1', valor: 80000, hash: 'a', otros: [] })).toBeNull();
   });
 
-  it('rechaza la misma imagen o la misma referencia usada en otro pedido', () => {
+  it('rechaza la misma imagen o la misma referencia usada en otro pedido, sin decir cuál', () => {
     const otros = [{ id_pedido: 12, hash: huella('img-vieja'), referencia: 'M 123-456' }];
-    expect(revisar({ pedido, referencia: 'X9', valor: 80000, hash: huella('img-vieja'), otros })).toMatch(/PED-0012/);
-    expect(revisar({ pedido, referencia: 'm123456', valor: 80000, hash: 'nueva', otros })).toMatch(/referencia/);
+    const usado = 'Este comprobante ya ha sido usado con anterioridad, verifícalo.';
+    expect(revisar({ pedido, referencia: 'X9', valor: 80000, hash: huella('img-vieja'), otros })).toBe(usado);
+    expect(revisar({ pedido, referencia: 'm123456', valor: 80000, hash: 'nueva', otros })).toBe(usado);
   });
 
   it('rechaza reenviar el mismo comprobante en el mismo pedido', () => {

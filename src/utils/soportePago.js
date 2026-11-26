@@ -21,16 +21,13 @@ const valorEsperado = (p) => {
 const comoSoporte = (x) => (typeof x === 'string' ? { imagen: x } : x || {});
 
 // Mensaje de error, o null si pasa el validador. `otros`: comprobantes de los demás pedidos ({ id_pedido, referencia, hash })
+// Sin decir en qué pedido se usó: ese pedido es de otro cliente
+const YA_USADO = 'Este comprobante ya ha sido usado con anterioridad, verifícalo.';
 const revisar = ({ pedido, referencia, valor, hash, otros, propios = [] }) => {
-  const codigo = (id) => `PED-${String(id).padStart(4, '0')}`;
   if (propios.some((s) => s.hash === hash)) return 'Ya enviaste este mismo comprobante en este pedido.';
-  const repetida = otros.find((o) => o.hash === hash);
-  if (repetida) return `Este comprobante ya se usó en el pedido ${codigo(repetida.id_pedido)}.`;
+  if (otros.some((o) => o.hash === hash)) return YA_USADO;
   const ref = normalizarReferencia(referencia);
-  if (ref) {
-    const misma = otros.find((o) => o.referencia && normalizarReferencia(o.referencia) === ref);
-    if (misma) return `La referencia ${referencia} ya se usó en el pedido ${codigo(misma.id_pedido)}.`;
-  }
+  if (ref && otros.some((o) => o.referencia && normalizarReferencia(o.referencia) === ref)) return YA_USADO;
   const esperado = valorEsperado(pedido);
   if (valor != null && esperado > 0 && Number(valor) < esperado) {
     return `El valor transferido ($${Number(valor).toLocaleString('es-CO')}) no cubre lo que debes pagar ($${esperado.toLocaleString('es-CO')}).`;

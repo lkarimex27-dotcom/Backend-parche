@@ -264,6 +264,7 @@ const SALSAS_CASA = `SELECT id_insumo_producto, nombre, COALESCE(precio, 0)::flo
 const salsasDeLaCasa = async () => (await query(SALSAS_CASA)).rows;
 
 module.exports = {
+  NECESITA,
   SALSAS_CASA,
   salsasDeLaCasa,
   listar, obtenerPorId, crear, actualizar, eliminar, guardarFicha, versionesFicha, reemplazarImagen, obtenerImagen,

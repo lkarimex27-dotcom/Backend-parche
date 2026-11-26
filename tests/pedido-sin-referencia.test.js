@@ -21,3 +21,13 @@ describe('Comprobante sin número de referencia', () => {
     expect(v.subirComprobante.safeParse({ comprobante: pedido.comprobante, valor: 13000 }).success).toBe(true);
   });
 });
+
+// La app avisa que la imagen no parece un comprobante; si el cliente la envía igual, el pedido lo guarda
+describe('Comprobante que no parece una transferencia', () => {
+  it('el validador acepta la marca al crear el pedido y al subir otro comprobante', () => {
+    const base = { nombre: 'Cliente', telefono: '3000000000', direccion: 'Calle 1', tipo_entrega: 'recoger', pago: 'Nequi',
+      comprobante: 'data:image/jpeg;base64,AAAA', valor_pago: 13000, items: [{ producto: 'Mini', cantidad: 1 }] };
+    expect(v.crearPedido.parse({ ...base, comprobante_dudoso: true }).comprobante_dudoso).toBe(true);
+    expect(v.subirComprobante.parse({ comprobante: base.comprobante, valor: 13000, dudoso: true }).dudoso).toBe(true);
+  });
+});

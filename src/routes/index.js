@@ -35,6 +35,10 @@ const avisarPanel = (modulo, omitir = []) => (req, res, next) => {
   next();
 };
 router.use('/pedidos', avisarPanel('pedidos', ['/estimacion']));
+// Producción, pedidos del panel y ventas también: cada panel abierto ve los estados al instante
+router.use('/ordenes-produccion', avisarPanel('produccion'));
+router.use('/pedidos-panel', avisarPanel('pedidos'));
+router.use('/ventas', avisarPanel('ventas'));
 router.use('/auth/me', avisarPanel('clientes'));
 router.use('/clientes', avisarPanel('clientes'));
 

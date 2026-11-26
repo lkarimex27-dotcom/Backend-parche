@@ -5,19 +5,24 @@ const fila = (cambios) => { const f = Array(17).fill(''); Object.entries(cambios
 describe('Órdenes de producción en el servidor', () => {
   it('una nueva empieza en Recibido o Confirmado', () => {
     expect(R.revisarProduccion(null, fila({ 8: 'Confirmado' }))).toBeNull();
-    expect(R.revisarProduccion(null, fila({ 8: 'Finalizada' }))).toMatch(/nueva/);
+    expect(R.revisarProduccion(null, fila({ 8: 'En camino' }))).toMatch(/nueva/);
   });
-  it('solo avanza; no vuelve atrás ni sale de Finalizada', () => {
+  it('los mismos pasos del pedido; solo avanza y no sale de Entregado', () => {
     expect(R.revisarProduccion(fila({ 8: 'En cocina' }), fila({ 8: 'Confirmado' }), { viaAvanzar: true })).toMatch(/no puede volver/);
-    expect(R.revisarProduccion(fila({ 8: 'Finalizada' }), fila({ 8: 'En cocina' }), { viaAvanzar: true })).toMatch(/ya está/);
+    expect(R.revisarProduccion(fila({ 8: 'Entregado' }), fila({ 8: 'En cocina' }), { viaAvanzar: true })).toMatch(/ya está/);
     expect(R.revisarProduccion(fila({ 8: 'Confirmado' }), fila({ 8: 'En cocina' }), { viaAvanzar: true })).toBeNull();
+    expect(R.revisarProduccion(fila({ 8: 'En cocina' }), fila({ 8: 'En camino' }), { viaAvanzar: true })).toBeNull();
+    expect(R.revisarProduccion(fila({ 8: 'En camino' }), fila({ 8: 'Entregado' }), { viaAvanzar: true })).toBeNull();
+    // Un panel con la versión anterior aún manda «Finalizada»: cuenta como «Entregado»
+    expect(R.revisarProduccion(fila({ 8: 'En cocina' }), fila({ 8: 'Finalizada' }), { viaAvanzar: true })).toBeNull();
+    expect(R.revisarProduccion(fila({ 8: 'En cocina' }), fila({ 8: 'Lista' }), { viaAvanzar: true })).toMatch(/no es un estado/);
   });
   it('entrar a cocina o finalizar solo por «avanzar» (con el descuento de insumos)', () => {
     expect(R.revisarProduccion(fila({ 8: 'Confirmado' }), fila({ 8: 'En cocina' }))).toMatch(/cambio de estado/);
     expect(R.revisarProduccion(fila({ 8: 'Recibido' }), fila({ 8: 'Confirmado' }))).toBeNull();
   });
-  it('las viejas «Entregado» cuentan como Finalizada; producto no conforme desde una que empezó', () => {
-    expect(R.revisarProduccion(fila({ 8: 'Entregado' }), fila({ 8: 'Finalizada' }))).toBeNull();
+  it('las viejas «Finalizada» cuentan como Entregado; producto no conforme desde una que empezó', () => {
+    expect(R.revisarProduccion(fila({ 8: 'Finalizada' }), fila({ 8: 'Entregado' }))).toBeNull();
     expect(R.revisarProduccion(fila({ 8: 'Finalizada' }), fila({ 8: 'Producto no conforme' }))).toBeNull();
     expect(R.revisarProduccion(fila({ 8: 'Recibido' }), fila({ 8: 'Producto no conforme' }))).toMatch(/no ha empezado/);
   });
