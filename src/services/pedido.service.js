@@ -203,4 +203,19 @@ const quitarComprobante = async (id, indice, idCliente) => {
   return obtener(id);
 };
 
-module.exports = { listar, listarMios, obtener, crear, subirComprobante, quitarComprobante, actualizar, cotizar };
+// El cliente pide la devolución de un pedido entregado, hasta 24 h después de hacerlo; el personal la registra en Devoluciones
+const PLAZO_DEVOLUCION_MS = 24 * 60 * 60 * 1000;
+const solicitarDevolucion = async (id, { motivo }, idCliente, ahora = Date.now()) => {
+  await withTransaction(async (c) => {
+    const p = await obtener(id, c);
+    if (p.id_cliente !== idCliente) throw AppError.notFound('Pedido no encontrado');
+    if (p.devolucion) throw AppError.conflict('Ya pediste la devolución de este pedido.');
+    if (p.estado !== 'Entregado') throw AppError.conflict('Puedes pedir la devolución cuando el pedido esté entregado.');
+    if (ahora - new Date(p.creado_en).getTime() > PLAZO_DEVOLUCION_MS)
+      throw AppError.conflict('Ya pasaron más de 24 horas desde que hiciste el pedido; no se puede pedir la devolución.');
+    await Pedido.solicitarDevolucion(c, id, motivo);
+  });
+  return obtener(id);
+};
+
+module.exports = { listar, listarMios, obtener, crear, subirComprobante, quitarComprobante, solicitarDevolucion, actualizar, cotizar };

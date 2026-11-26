@@ -21,8 +21,8 @@ const crearPedido = z.object({
   notas: texto(1000).optional(),
   pago: texto(30).min(1),   // Efectivo, Nequi, Daviplata...
   comprobante: comprobante.optional(),
-  // Con comprobante: la referencia que da el banco y cuánto se transfirió (los revisa el validador)
-  referencia_pago: texto(40).min(3, 'Escribe la referencia de la transferencia').optional(),
+  // Con comprobante: cuánto se transfirió (lo revisa el validador); la referencia del banco ya no se pide
+  referencia_pago: texto(40).optional(),
   valor_pago: z.number().int().positive().max(10_000_000).optional(),
   items: z
     .array(z.object({
@@ -35,13 +35,13 @@ const crearPedido = z.object({
     .min(1, 'El pedido no tiene productos'),
 }).refine((d) => d.tipo_entrega !== 'domicilio' || d.id_barrio !== undefined || d.nombre_barrio !== undefined, {
   message: 'Selecciona un barrio válido',
-}).refine((d) => !d.comprobante || (d.referencia_pago && d.valor_pago), {
-  message: 'Escribe la referencia y el valor de la transferencia',
+}).refine((d) => !d.comprobante || d.valor_pago, {
+  message: 'Escribe el valor que transferiste',
 });
 
 const subirComprobante = z.object({
   comprobante,
-  referencia: texto(40).min(3, 'Escribe la referencia de la transferencia'),
+  referencia: texto(40).optional(),
   valor: z.number().int().positive().max(10_000_000),
 });
 const quitarComprobante = z.object({ id: z.coerce.number().int().positive(), indice: z.coerce.number().int().min(0).max(20) });
@@ -57,4 +57,6 @@ const actualizarPedido = z
   .partial()
   .refine((o) => Object.keys(o).length > 0, { message: 'Envía al menos un campo' });
 
-module.exports = { idParam, crearPedido, subirComprobante, actualizarPedido, quitarComprobante };
+const solicitarDevolucion = z.object({ motivo: texto(300).min(10, 'Cuéntanos qué pasó (mínimo 10 caracteres).') });
+
+module.exports = { idParam, crearPedido, subirComprobante, actualizarPedido, quitarComprobante, solicitarDevolucion };

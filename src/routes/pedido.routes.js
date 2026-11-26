@@ -16,6 +16,7 @@ router.get('/mios', c.listarMios);
 router.get('/mios/eventos', c.eventosMios);
 router.patch('/:id/comprobante', validate(v.idParam, 'params'), validate(v.subirComprobante), c.subirComprobante);
 router.delete('/:id/comprobantes/:indice', validate(v.quitarComprobante, 'params'), c.quitarComprobante);
+router.post('/:id/devolucion', validate(v.idParam, 'params'), validate(v.solicitarDevolucion), c.solicitarDevolucion);
 
 // Panel
 router.get('/', authorize(M, 'VER'), c.listar);

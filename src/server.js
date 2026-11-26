@@ -43,6 +43,7 @@ const start = async () => {
   await pool.query('ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS abono DECIMAL(12,2)');
   // Todos los comprobantes que el cliente envió (abono, saldo, uno que reemplaza a uno rechazado...)
   await pool.query("ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS comprobantes JSONB NOT NULL DEFAULT '[]'");
+  await pool.query('ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS devolucion JSONB');
 
   const server = app.listen(env.port, () => {
     console.log(`Servidor listo en http://localhost:${env.port}/api/health`);

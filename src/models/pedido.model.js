@@ -13,7 +13,7 @@ const SELECT = `
               WHEN p.comprobante IS NULL THEN '[]'::jsonb ELSE jsonb_build_array(p.comprobante) END AS comprobantes,
          p.registros_produccion, p.id_barrio, p.estimacion_inicial,
          p.subtotal::float AS subtotal, p.costo_domicilio_cop::float AS costo_domicilio_cop,
-         p.total::float AS total, p.abono::float AS abono, p.creado_en,
+         p.total::float AS total, p.abono::float AS abono, p.creado_en, p.devolucion,
          b.nombre AS barrio,
          COALESCE((SELECT json_agg(json_build_object(
                      'producto', i.nombre, 'cantidad', d.cantidad::float, 'precio_unitario', d.precio_unitario::float,
@@ -111,6 +111,13 @@ const crearOrdenProduccion = async (c, idPedido, items, observacion) => {
     [idPedido, 'Recibido']
   );
 };
+
+const solicitarDevolucion = (c, id, motivo) =>
+  c.query(
+    `UPDATE pedidos SET devolucion = jsonb_build_object('motivo', $2::text, 'solicitada_en', now())
+      WHERE id_pedido = $1 AND devolucion IS NULL`,
+    [id, motivo]
+  );
 
 const registrarEstado = (c, idPedido, estado, idUsuario) =>
   c.query('INSERT INTO historial_estados_pedido (id_pedido, estado, id_usuario) VALUES ($1, $2, $3)',
@@ -249,6 +256,6 @@ const soportesDeOtros = async (c, idPedido) =>
 
 module.exports = {
   agregarComprobante, quitarComprobante, soportesDeOtros,
-  listar, listarDeCliente, obtenerPorId, catalogoActivo, crear, crearDetalle, crearOrdenProduccion, registrarEstado,
+  listar, listarDeCliente, obtenerPorId, catalogoActivo, crear, crearDetalle, crearOrdenProduccion, registrarEstado, solicitarDevolucion,
   actualizarEstadoProduccion, actualizar, colaCocina, estadisticasDesplazamiento,
 };
