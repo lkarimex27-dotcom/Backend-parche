@@ -160,7 +160,7 @@ const crear = async (d, idCliente) => {
   return obtener(id);
 };
 
-// Solo el panel: cambia los productos mientras la orden de producción no ha empezado. Recalcula el total y, si el
+// Solo el panel: cambia los productos mientras la orden de producción no entra a cocina (Recibido o Confirmado). Recalcula el total y, si el
 // cliente ya había pagado, `abono` guarda lo recibido: el pago queda «Abonado» (falta cobrar la diferencia) o
 // «Pagado» (si sobra, `diferencia` < 0 = lo que hay que devolverle). La venta del pedido sigue el nuevo total.
 const fmtPesos = (n) => `$${Math.abs(n).toLocaleString('es-CO')}`;
@@ -169,8 +169,8 @@ const cambiarProductos = async (id, items, idUsuario) => {
   let diferencia = 0;
   await withTransaction(async (c) => {
     const p = await obtener(id, c);
-    if (!['Por confirmar', 'Recibido', 'Confirmado'].includes(p.estado) || (p.estado_produccion && p.estado_produccion !== 'Recibido'))
-      throw AppError.conflict('Los productos solo se cambian mientras la orden de producción está «Recibido».');
+    if (!['Por confirmar', 'Recibido', 'Confirmado'].includes(p.estado) || (p.estado_produccion && !['Recibido', 'Confirmado'].includes(p.estado_produccion)))
+      throw AppError.conflict('Los productos solo se cambian antes de que la orden de producción entre a cocina.');
     const lineas = cotizar(items, await Pedido.catalogoActivo(), await InsumoProducto.gaseosas());
     await revisarStock(c, lineas, p.id_pedido);
     const subtotal = lineas.reduce((s, l) => s + l.subtotal, 0);
@@ -188,6 +188,26 @@ const cambiarProductos = async (id, items, idUsuario) => {
     else await VentaPedido.actualizarVenta(c, nuevo);
   });
   return { ...(await obtener(id)), pagado, diferencia };
+};
+
+// La orden de producción de un pedido cambió de estado (en la misma transacción): el pedido y su venta pasan al mismo
+const seguirProduccion = async (c, codigo, estado, idUsuario) => {
+  const n = /^PED-0*(\d+)$/i.exec(String(codigo || '').trim());
+  if (!n || typeof estado !== 'string') return null;
+  const r = await Pedido.actualizarEstadoProduccion(c, Number(n[1]), estado, idUsuario, String(codigo).trim());
+  if (r && r.estado !== r.estado_anterior) await VentaPedido.reflejarEstado(c, r.id_pedido, r.estado, r.codigo);
+  return r;
+};
+// Ya guardado: los paneles abiertos recargan pedidos y ventas, y el cliente ve el cambio (y su correo si aplica)
+const avisarSeguimiento = async (r) => {
+  if (!r) return;
+  Eventos.publicarCambioPanel('pedidos');
+  if (r.id_cliente == null) return;
+  Eventos.publicarEstadoProduccion({ idCliente: r.id_cliente, idPedido: r.id_pedido, estado: r.estado, estado_produccion: r.estado_produccion });
+  if (r.estado_anterior && r.estado !== r.estado_anterior) {
+    const pedido = await Pedido.obtenerPorId(r.id_pedido).catch(() => null);
+    if (pedido) Correos.avisarCambio(r.estado_anterior, pedido);
+  }
 };
 
 // El cliente envía otro comprobante (puede mandar varios: el abono y el saldo, o uno nuevo si le rechazaron el anterior).
@@ -276,4 +296,4 @@ const solicitarDevolucion = async (id, { motivo }, idCliente, ahora = Date.now()
   return obtener(id);
 };
 
-module.exports = { listar, listarMios, obtener, crear, cambiarProductos, subirComprobante, quitarComprobante, solicitarDevolucion, actualizar, cotizar };
+module.exports = { listar, listarMios, obtener, crear, cambiarProductos, seguirProduccion, avisarSeguimiento, subirComprobante, quitarComprobante, solicitarDevolucion, actualizar, cotizar };

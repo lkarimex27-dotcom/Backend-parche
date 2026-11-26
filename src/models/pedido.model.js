@@ -152,32 +152,41 @@ const registrarEstado = (c, idPedido, estado, idUsuario) =>
   c.query('INSERT INTO historial_estados_pedido (id_pedido, estado, id_usuario) VALUES ($1, $2, $3)',
     [idPedido, estado, idUsuario]);
 
-const actualizarEstadoProduccion = async (c, idPedido, estadoProduccion, idUsuario) => {
+const FLUJO_PEDIDO = ['Por confirmar', 'Recibido', 'Confirmado', 'En cocina', 'En camino', 'Entregado'];
+// La orden de producción y su pedido tienen los mismos estados: el pedido pasa al de la orden (solo hacia adelante;
+// uno cancelado o entregado ya no se mueve). Un pedido del panel se busca por su código (puede no ser su id) y su fila
+// del panel (datos_panel[7]) también cambia. Devuelve también el estado anterior y el código.
+const actualizarEstadoProduccion = async (c, idPedido, estadoProduccion, idUsuario, codigo = null) => {
   const anterior = (await c.query(
-    'SELECT estado FROM pedidos WHERE id_pedido = $1 FOR UPDATE',
-    [idPedido]
+    `SELECT id_pedido, estado FROM pedidos
+      WHERE codigo = $2 OR (id_pedido = $1 AND codigo IS NULL)
+      ORDER BY (codigo = $2) DESC NULLS LAST LIMIT 1 FOR UPDATE`,
+    [idPedido, codigo]
   )).rows[0];
   if (!anterior) return null;
+  const id = anterior.id_pedido;
 
-  // La orden de producción usa los mismos pasos que ve el cliente; «Producto no conforme» no mueve el pedido
-  const estadoPedido = ['Confirmado', 'En cocina', 'En camino', 'Entregado'].includes(estadoProduccion)
+  const adelante = FLUJO_PEDIDO.indexOf(estadoProduccion) > FLUJO_PEDIDO.indexOf(anterior.estado || 'Recibido');
+  const estadoPedido = FLUJO_PEDIDO.includes(estadoProduccion) && adelante && !['Cancelado', 'Entregado'].includes(anterior.estado)
     ? estadoProduccion
     : null;
   const actualizado = (await c.query(
     `UPDATE pedidos
         SET estado_produccion = $2,
-            estado = COALESCE($3::text, estado)
+            estado = COALESCE($3::text, estado),
+            datos_panel = CASE WHEN datos_panel IS NULL OR $3::text IS NULL THEN datos_panel
+                               ELSE jsonb_set(datos_panel, '{7}', to_jsonb($3::text)) END
       WHERE id_pedido = $1
         AND (estado_produccion IS DISTINCT FROM $2 OR ($3::text IS NOT NULL AND estado IS DISTINCT FROM $3::text))
-      RETURNING id_pedido, id_cliente, estado, estado_produccion`,
-    [idPedido, estadoProduccion, estadoPedido]
+      RETURNING id_pedido, id_cliente, estado, estado_produccion, codigo`,
+    [id, estadoProduccion, estadoPedido]
   )).rows[0] || null;
 
   if (actualizado && estadoPedido && estadoPedido !== anterior.estado) {
-    await registrarEstado(c, idPedido, estadoPedido, idUsuario);
+    await registrarEstado(c, id, estadoPedido, idUsuario);
   }
 
-  return actualizado;
+  return actualizado && { ...actualizado, estado_anterior: anterior.estado };
 };
 
 // Solo cambia los campos enviados

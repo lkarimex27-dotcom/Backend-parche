@@ -65,11 +65,12 @@ const asegurarVenta = async (c, pedido, idUsuario) => {
 };
 
 // La venta muestra el estado del pedido: cuando el pedido avanza, su venta también
-const reflejarEstado = (c, idPedido, estado) =>
+// (un pedido del panel tiene su propio código, que puede no ser su id)
+const reflejarEstado = (c, idPedido, estado, codigo = codigoPedido(idPedido)) =>
   c.query(
     `UPDATE ventas SET datos_panel = jsonb_set(datos_panel, '{10}', to_jsonb($2::text), true)
       WHERE pedido_asociado = $1 AND datos_panel IS NOT NULL AND NOT (${anulada})`,
-    [codigoPedido(idPedido), estado]
+    [codigo || codigoPedido(idPedido), estado]
   );
 
 // Cambiaron los productos del pedido: su venta (si ya la tiene) queda con el nuevo total y las nuevas líneas

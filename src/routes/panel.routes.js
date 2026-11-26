@@ -6,8 +6,7 @@ const validate = require('../middlewares/validate.middleware');
 const { authenticate, authorize } = require('../middlewares/auth.middleware');
 const AppError = require('../errors/AppError');
 const { withTransaction } = require('../../config/db');
-const Pedido = require('../models/pedido.model');
-const pedidoEventos = require('../services/pedidoEventos.service');
+const PedidoService = require('../services/pedido.service');
 const Consumo = require('../services/consumo.service');
 const Reglas = require('../utils/reglasPanel');
 
@@ -54,32 +53,17 @@ module.exports = (cfg) => {
       const columnas = cfg.usuarioEditable ? { id_usuario, ...resto } : resto;
       let pedidoActualizado = null;
       if (cfg.modulo === 'ORDENES_PRODUCCION') {
-        const codigoPedido = /^PED-(\d+)$/i.exec(String(fila[15] || fila[0] || '').trim());
         pedidoActualizado = await withTransaction(async (client) => {
           if (!(await Panel.actualizarConCliente(client, cfg, req.params.id, columnas, fila))) {
             throw AppError.notFound('Registro no encontrado');
           }
-          if (!codigoPedido || typeof columnas.estado !== 'string') return null;
-          return Pedido.actualizarEstadoProduccion(
-            client,
-            Number(codigoPedido[1]),
-            columnas.estado,
-            req.user.id
-          );
+          return PedidoService.seguirProduccion(client, fila[15] || fila[0], columnas.estado, req.user.id);
         });
       } else if (!(await Panel.actualizar(cfg, req.params.id, columnas, fila))) {
         throw AppError.notFound('Registro no encontrado');
       }
 
-      if (pedidoActualizado) pedidoEventos.publicarCambioPanel('pedidos');
-      if (pedidoActualizado?.id_cliente != null) {
-        pedidoEventos.publicarEstadoProduccion({
-          idCliente: pedidoActualizado.id_cliente,
-          idPedido: pedidoActualizado.id_pedido,
-          estado: pedidoActualizado.estado,
-          estado_produccion: pedidoActualizado.estado_produccion,
-        });
-      }
+      await PedidoService.avisarSeguimiento(pedidoActualizado);
       res.json({ ok: true, data: { id: req.params.id, datos_panel: fila } });
     }));
 
@@ -102,15 +86,9 @@ module.exports = (cfg) => {
           if (productos.length) await Consumo.ingresarCon(client, { numero_orden: numero, productos }, req.user.id);
           const { id_usuario, ...columnas } = await cfg.columnas(fila, req.user.id);
           await Panel.actualizarConCliente(client, cfg, req.params.id, columnas, fila);
-          const codigoPedido = /^PED-(\d+)$/i.exec(String(fila[15] || '').trim());
-          return codigoPedido ? Pedido.actualizarEstadoProduccion(client, Number(codigoPedido[1]), columnas.estado, req.user.id) : null;
+          return PedidoService.seguirProduccion(client, fila[15], columnas.estado, req.user.id);
         });
-        if (pedido) pedidoEventos.publicarCambioPanel('pedidos');
-        if (pedido?.id_cliente != null) {
-          pedidoEventos.publicarEstadoProduccion({
-            idCliente: pedido.id_cliente, idPedido: pedido.id_pedido, estado: pedido.estado, estado_produccion: pedido.estado_produccion,
-          });
-        }
+        await PedidoService.avisarSeguimiento(pedido);
         res.json({ ok: true, data: { id: req.params.id, datos_panel: fila } });
       }));
   }

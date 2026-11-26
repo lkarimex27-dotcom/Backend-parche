@@ -88,7 +88,7 @@ describe('El panel cambia los productos de un pedido ya pagado', () => {
     expect(Pedido.actualizar).toHaveBeenCalledWith({}, 30, { subtotal: 13000, total: 13000 });
     expect(r.diferencia).toBe(0);
     Pedido.obtenerPorId.mockResolvedValue(guardado({ estado: 'En cocina', estado_produccion: 'En cocina' }));
-    await expect(service.cambiarProductos(30, [item('Mini', 1)], 1)).rejects.toThrow(/Recibido/);
+    await expect(service.cambiarProductos(30, [item('Mini', 1)], 1)).rejects.toThrow(/antes de que la orden de producción entre a cocina/);
   });
 
   it('el stock no cuenta lo que este mismo pedido ya apartaba', async () => {
