@@ -23,6 +23,8 @@ const crearPedido = z.object({
   comprobante: comprobante.optional(),
   // Con comprobante: cuánto se transfirió (lo revisa el validador); la referencia del banco ya no se pide
   referencia_pago: texto(40).optional(),
+  // La app no encontró datos de una transferencia en la imagen y el cliente la envió igual (el panel lo avisa)
+  comprobante_dudoso: z.boolean().optional(),
   valor_pago: z.number().int().positive().max(10_000_000).optional(),
   items: z
     .array(z.object({
@@ -42,6 +44,7 @@ const crearPedido = z.object({
 const subirComprobante = z.object({
   comprobante,
   referencia: texto(40).optional(),
+  dudoso: z.boolean().optional(),
   valor: z.number().int().positive().max(10_000_000),
 });
 const quitarComprobante = z.object({ id: z.coerce.number().int().positive(), indice: z.coerce.number().int().min(0).max(20) });

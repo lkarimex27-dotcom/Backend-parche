@@ -56,11 +56,11 @@ const crear = async (c, d) =>
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16,
              CASE WHEN $10::text IS NULL THEN '[]'::jsonb
                   ELSE jsonb_build_array(jsonb_build_object('imagen', $10::text, 'referencia', $17::text, 'valor', $18::numeric,
-                                                            'hash', $19::text, 'subido_en', now())) END) RETURNING id_pedido`,
+                                                            'hash', $19::text, 'dudoso', $20::boolean, 'subido_en', now())) END) RETURNING id_pedido`,
     [d.id_cliente, d.estado, d.nombre, d.telefono, d.tipo_entrega ?? 'domicilio', d.direccion, d.notas ?? null, d.pago, d.estado_pago,
      d.comprobante ?? null, d.subtotal, d.costo_domicilio_cop, d.total, d.id_barrio,
      JSON.stringify(d.estimacion_inicial), d.abono ?? null,
-     d.soporte?.referencia ?? null, d.soporte?.valor ?? null, d.soporte?.hash ?? null]
+     d.soporte?.referencia ?? null, d.soporte?.valor ?? null, d.soporte?.hash ?? null, !!d.soporte?.dudoso]
   )).rows[0].id_pedido;
 
 const crearDetalle = (c, idPedido, it) =>
@@ -224,9 +224,9 @@ const agregarComprobante = async (c, id, s) =>
             comprobantes = (CASE WHEN jsonb_array_length(comprobantes) = 0 AND comprobante IS NOT NULL
                                  THEN jsonb_build_array(comprobante) ELSE comprobantes END)
                            || jsonb_build_array(jsonb_build_object('imagen', $2::text, 'referencia', $3::text, 'valor', $4::numeric,
-                                                                   'hash', $5::text, 'subido_en', now()))
+                                                                   'hash', $5::text, 'dudoso', $6::boolean, 'subido_en', now()))
       WHERE id_pedido = $1 RETURNING jsonb_array_length(comprobantes) AS n`,
-    [id, s.imagen, s.referencia, s.valor, s.hash]
+    [id, s.imagen, s.referencia, s.valor, s.hash, !!s.dudoso]
   )).rows[0]?.n ?? 0;
 
 // Quita el comprobante en la posición `indice`; el último que quede pasa a ser «el comprobante»

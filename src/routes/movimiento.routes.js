@@ -15,8 +15,9 @@ router.get('/descuadres', ...ver, asyncHandler(async (_req, res) => res.json({ o
 router.get('/proyeccion', ...ver, validate(z.object({ dias: z.coerce.number().int().min(1).max(90).default(15) }), 'query'),
   asyncHandler(async (req, res) => res.json({ ok: true, data: await Proyeccion.proyectar(req.query.dias) })));
 
-// GET /api/movimientos-stock/:id  historial de un insumo (los 50 más recientes)
+// GET /api/movimientos-stock/:id?limite=N  historial de un insumo (los 50 más recientes; hasta 10.000 para exportarlo)
 router.get('/:id', ...ver, validate(z.object({ id: z.coerce.number().int().positive() }), 'params'),
-  asyncHandler(async (req, res) => res.json({ ok: true, data: await Stock.movimientos(req.params.id) })));
+  validate(z.object({ limite: z.coerce.number().int().min(1).max(10000).default(50) }), 'query'),
+  asyncHandler(async (req, res) => res.json({ ok: true, data: await Stock.movimientos(req.params.id, req.query.limite) })));
 
 module.exports = router;

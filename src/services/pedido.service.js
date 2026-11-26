@@ -103,7 +103,7 @@ const crear = async (d, idCliente) => {
     // Validador del comprobante: cubre lo que se debe, su referencia y su imagen no se usaron en otro pedido
     let soporte = null;
     if (d.comprobante) {
-      soporte = { referencia: d.referencia_pago, valor: d.valor_pago, hash: Soporte.huella(d.comprobante) };
+      soporte = { referencia: d.referencia_pago, valor: d.valor_pago, hash: Soporte.huella(d.comprobante), dudoso: !!d.comprobante_dudoso };
       const error = Soporte.revisar({
         pedido: { total, abono: conAbono ? Math.ceil(total / 2) : null, estado_pago: 'Pendiente de verificación' },
         ...soporte, otros: await Pedido.soportesDeOtros(c, 0),
@@ -135,7 +135,7 @@ const crear = async (d, idCliente) => {
 // El cliente envía otro comprobante (puede mandar varios: el abono y el saldo, o uno nuevo si le rechazaron el anterior).
 // Se guardan todos; si se lo habían rechazado, vuelve a revisión.
 const MAX_COMPROBANTES = 5;
-const subirComprobante = async (id, { comprobante, referencia, valor }, idCliente) => {
+const subirComprobante = async (id, { comprobante, referencia, valor, dudoso }, idCliente) => {
   await withTransaction(async (c) => {
     const p = await obtener(id, c);
     if (p.id_cliente !== idCliente) throw AppError.notFound('Pedido no encontrado');
@@ -149,7 +149,7 @@ const subirComprobante = async (id, { comprobante, referencia, valor }, idClient
       propios: (p.comprobantes || []).map(Soporte.comoSoporte).map((s) => ({ hash: s.hash || Soporte.huella(s.imagen) })),
     });
     if (error) throw AppError.badRequest(error);
-    await Pedido.agregarComprobante(c, id, { imagen: comprobante, referencia, valor, hash });
+    await Pedido.agregarComprobante(c, id, { imagen: comprobante, referencia, valor, hash, dudoso: !!dudoso });
     if (p.estado_pago === 'Rechazado')
       await Pedido.actualizar(c, id, { estado_pago: 'Pendiente de verificación', motivo_rechazo_pago: null });
   });
