@@ -86,4 +86,4 @@ const revisarPedidoPanel = (anterior, nueva) => {
   return null;
 };
 
-module.exports = { PAGO_PENDIENTE_ENTREGA, revisarProduccion, revisarVenta, revisarDevolucion, revisarPedidoPanel, estadoProduccion };
+module.exports = { FLUJO_PEDIDO, FLUJO_PAGO, PAGO_PENDIENTE_ENTREGA, revisarProduccion, revisarVenta, revisarDevolucion, revisarPedidoPanel, estadoProduccion };

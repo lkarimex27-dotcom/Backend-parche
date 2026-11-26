@@ -25,7 +25,7 @@ const PAGO_EN_HISTORIAL = {
   Pendiente: 'Pago pendiente',
 };
 
-const { PAGO_PENDIENTE_ENTREGA } = require('../utils/reglasPanel');
+const { PAGO_PENDIENTE_ENTREGA, FLUJO_PEDIDO, FLUJO_PAGO } = require('../utils/reglasPanel');
 
 const obtener = async (id, c, bloquear = false) => {
   const p = bloquear ? await Pedido.obtenerPorId(id, c, true) : await Pedido.obtenerPorId(id, c);
@@ -260,6 +260,16 @@ const actualizar = async (id, { valor_recibido, ...d }, idUsuario) => {
     // Los pedidos antiguos ya entregados todavía pueden regularizar su estado de pago.
     if (d.estado && d.estado !== p.estado && ['Entregado', 'Cancelado'].includes(p.estado)) {
       throw AppError.conflict(`El pedido ya está ${p.estado}; no se puede cambiar su estado.`);
+    }
+    // Solo hacia adelante, igual que los pedidos del panel: un panel desactualizado (otra persona ya lo avanzó)
+    // no deshace el estado ni el pago. Rechazar un comprobante (y volver a revisarlo) sí se permite.
+    if (d.estado && d.estado !== p.estado && d.estado !== 'Cancelado' &&
+        FLUJO_PEDIDO.indexOf(d.estado) < FLUJO_PEDIDO.indexOf(p.estado)) {
+      throw AppError.conflict(`El pedido ya está «${p.estado}»; no puede volver a «${d.estado}». Recarga el panel.`);
+    }
+    if (d.estado_pago && d.estado_pago !== p.estado_pago && ![p.estado_pago, d.estado_pago].includes('Rechazado') &&
+        FLUJO_PAGO.indexOf(d.estado_pago) < FLUJO_PAGO.indexOf(p.estado_pago)) {
+      throw AppError.conflict(`El pago ya está «${p.estado_pago}»; no puede volver a «${d.estado_pago}». Recarga el panel.`);
     }
     await Pedido.actualizar(c, id, d);
     if (d.estado && d.estado !== p.estado) {

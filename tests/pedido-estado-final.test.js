@@ -22,6 +22,21 @@ describe('Estados finales del pedido', () => {
     expect(Pedido.actualizar).not.toHaveBeenCalled();
   });
 
+  it('un panel desactualizado no hace retroceder el estado ni el pago', async () => {
+    mockPedido = { id_pedido: 1, estado: 'En camino', estado_pago: 'Pagado' };
+    await expect(service.actualizar(1, { estado: 'Confirmado', estado_pago: 'Pagado' }, 9)).rejects.toThrow(/no puede volver a «Confirmado»/);
+    await expect(service.actualizar(1, { estado: 'En camino', estado_pago: 'Pendiente de verificación' }, 9)).rejects.toThrow(/no puede volver a «Pendiente de verificación»/);
+    expect(Pedido.actualizar).not.toHaveBeenCalled();
+  });
+
+  it('avanzar, cancelar y rechazar un comprobante sí se permiten', async () => {
+    mockPedido = { id_pedido: 1, estado: 'Confirmado', estado_pago: 'Pendiente de verificación' };
+    await service.actualizar(1, { estado: 'En cocina', estado_pago: 'Rechazado' }, 9);
+    mockPedido = { id_pedido: 1, estado: 'En cocina', estado_pago: 'Rechazado' };
+    await service.actualizar(1, { estado: 'Cancelado', estado_pago: 'Pendiente' }, 9);
+    expect(Pedido.actualizar).toHaveBeenCalledTimes(2);
+  });
+
   it('un pedido Entregado sí puede quedar Pagado (contraentrega) y genera la venta', async () => {
     mockPedido = { id_pedido: 1, estado: 'Entregado', estado_pago: 'Pendiente' };
     await service.actualizar(1, { estado: 'Entregado', estado_pago: 'Pagado' }, 9);
@@ -51,7 +66,7 @@ describe('Estados finales del pedido', () => {
 
   it('un pedido en curso sí cambia de estado', async () => {
     mockPedido = { id_pedido: 1, estado: 'Recibido', estado_pago: 'Pendiente' };
-    await service.actualizar(1, { estado: 'En preparación' }, 9);
-    expect(Pedido.registrarEstado).toHaveBeenCalledWith({}, 1, 'En preparación', 9);
+    await service.actualizar(1, { estado: 'Confirmado' }, 9);
+    expect(Pedido.registrarEstado).toHaveBeenCalledWith({}, 1, 'Confirmado', 9);
   });
 });

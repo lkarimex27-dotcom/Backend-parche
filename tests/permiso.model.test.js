@@ -38,14 +38,32 @@ describe('permisos efectivos', () => {
     expect(query.mock.calls[0][0]).toContain('u.es_administrador_principal = TRUE');
   });
 
-  it('habilita siempre la edición de órdenes de producción', async () => {
-    const req = { user: { id: 99 } };
+  it('un usuario sin permisos (un cliente) no edita órdenes de producción', async () => {
+    query.mockResolvedValue({ rowCount: 0 });
     const next = jest.fn();
 
-    await authorize('ORDENES_PRODUCCION', 'EDITAR')(req, {}, next);
+    await authorize('ORDENES_PRODUCCION', 'EDITAR')({ user: { id: 99 } }, {}, next);
 
-    expect(next).toHaveBeenCalledTimes(1);
+    expect(next).toHaveBeenCalledWith(expect.objectContaining({ statusCode: 403 }));
+    expect(query.mock.calls.map((c) => c[1])).toEqual([[99, 'ORDENES_PRODUCCION', 'EDITAR'], [99, 'PEDIDOS', 'EDITAR']]);
+  });
+
+  it('quien edita pedidos sí mueve su orden de producción (van en el mismo estado)', async () => {
+    query.mockResolvedValueOnce({ rowCount: 0 }).mockResolvedValueOnce({ rowCount: 1 });
+    const next = jest.fn();
+
+    await authorize('ORDENES_PRODUCCION', 'EDITAR')({ user: { id: 7 } }, {}, next);
+
     expect(next).toHaveBeenCalledWith();
-    expect(query).not.toHaveBeenCalled();
+  });
+
+  it('editar pedidos no da otros permisos de producción', async () => {
+    query.mockResolvedValue({ rowCount: 0 });
+    const next = jest.fn();
+
+    await authorize('ORDENES_PRODUCCION', 'ELIMINAR')({ user: { id: 7 } }, {}, next);
+
+    expect(query).toHaveBeenCalledTimes(1);
+    expect(next).toHaveBeenCalledWith(expect.objectContaining({ statusCode: 403 }));
   });
 });
