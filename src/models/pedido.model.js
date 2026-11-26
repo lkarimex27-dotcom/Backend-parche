@@ -36,8 +36,8 @@ const listar = async () => (await query(`${SELECT} ORDER BY p.creado_en DESC`)).
 const listarDeCliente = async (idCliente) =>
   (await query(`${SELECT} WHERE p.id_cliente = $1 ORDER BY p.creado_en DESC`, [idCliente])).rows;
 
-const obtenerPorId = async (id, c) =>
-  (await (c || { query }).query(`${SELECT} WHERE p.id_pedido = $1`, [id])).rows[0] || null;
+const obtenerPorId = async (id, c, bloquear = false) =>
+  (await (c || { query }).query(`${SELECT} WHERE p.id_pedido = $1${bloquear ? ' FOR UPDATE OF p' : ''}`, [id])).rows[0] || null;
 
 // Productos activos del menú (incluye adiciones, salsas y bebidas) para calcular precios en el servidor
 const catalogoActivo = async () =>
@@ -152,18 +152,24 @@ const registrarEstado = (c, idPedido, estado, idUsuario) =>
   c.query('INSERT INTO historial_estados_pedido (id_pedido, estado, id_usuario) VALUES ($1, $2, $3)',
     [idPedido, estado, idUsuario]);
 
+const { PAGO_PENDIENTE_ENTREGA, estadoProduccion: normalizarEstadoProduccion } = require('../utils/reglasPanel');
+const AppError = require('../errors/AppError');
+
 const FLUJO_PEDIDO = ['Por confirmar', 'Recibido', 'Confirmado', 'En cocina', 'En camino', 'Entregado'];
 // La orden de producción y su pedido tienen los mismos estados: el pedido pasa al de la orden (solo hacia adelante;
 // uno cancelado o entregado ya no se mueve). Un pedido del panel se busca por su código (puede no ser su id) y su fila
 // del panel (datos_panel[7]) también cambia. Devuelve también el estado anterior y el código.
 const actualizarEstadoProduccion = async (c, idPedido, estadoProduccion, idUsuario, codigo = null) => {
   const anterior = (await c.query(
-    `SELECT id_pedido, estado FROM pedidos
+    `SELECT id_pedido, estado, estado_pago, estado_produccion FROM pedidos
       WHERE codigo = $2 OR (id_pedido = $1 AND codigo IS NULL)
       ORDER BY (codigo = $2) DESC NULLS LAST LIMIT 1 FOR UPDATE`,
     [idPedido, codigo]
   )).rows[0];
   if (!anterior) return null;
+  if (normalizarEstadoProduccion(estadoProduccion) === 'Entregado' &&
+      normalizarEstadoProduccion(anterior.estado_produccion) !== 'Entregado' &&
+      anterior.estado_pago !== 'Pagado') throw AppError.conflict(PAGO_PENDIENTE_ENTREGA);
   const id = anterior.id_pedido;
 
   const adelante = FLUJO_PEDIDO.indexOf(estadoProduccion) > FLUJO_PEDIDO.indexOf(anterior.estado || 'Recibido');

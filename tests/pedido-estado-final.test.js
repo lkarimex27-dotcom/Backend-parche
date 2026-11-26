@@ -7,6 +7,7 @@ jest.mock('../src/models/pedido.model', () => ({
   registrarEstado: jest.fn(async () => undefined),
 }));
 jest.mock('../src/services/ventaPedido.service', () => ({ reflejarEstado: jest.fn(), asegurarVenta: jest.fn() }));
+jest.mock('../src/services/pedidoCorreos.service', () => ({ avisarCambio: jest.fn() }));
 jest.mock('../src/services/pedidoEventos.service', () => ({ publicarEstadoProduccion: jest.fn() }));
 const Pedido = require('../src/models/pedido.model');
 const VentaPedido = require('../src/services/ventaPedido.service');
@@ -26,6 +27,26 @@ describe('Estados finales del pedido', () => {
     await service.actualizar(1, { estado: 'Entregado', estado_pago: 'Pagado' }, 9);
     expect(Pedido.actualizar).toHaveBeenCalled();
     expect(VentaPedido.asegurarVenta).toHaveBeenCalled();
+  });
+
+  it('requiere registrar el pago en una operación anterior a la entrega', async () => {
+    mockPedido = { id_pedido: 1, estado: 'En camino', estado_pago: 'Abonado' };
+    await expect(service.actualizar(1, { estado: 'Entregado', estado_pago: 'Pagado' }, 9))
+      .rejects.toMatchObject({ statusCode: 409 });
+    expect(Pedido.actualizar).not.toHaveBeenCalled();
+
+    mockPedido.estado_pago = 'Pagado';
+    await service.actualizar(1, { estado: 'Entregado' }, 9);
+    expect(Pedido.actualizar).toHaveBeenCalledWith({}, 1, { estado: 'Entregado' });
+  });
+
+  it.each([[120000, 'Abonado'], [160000, 'Pagado']])('registra el valor confirmado de %i', async (valor_recibido, estado_pago) => {
+    mockPedido = {
+      id_pedido: 1, estado: 'Por confirmar', estado_pago: 'Pendiente de verificación',
+      total: 160000, abono: 80000, comprobantes: [{ valor: 100000 }],
+    };
+    await service.actualizar(1, { valor_recibido }, 9);
+    expect(Pedido.actualizar).toHaveBeenCalledWith({}, 1, { abono: valor_recibido, estado_pago });
   });
 
   it('un pedido en curso sí cambia de estado', async () => {

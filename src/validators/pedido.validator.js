@@ -60,6 +60,7 @@ const actualizarPedido = z
     estado: texto(30).min(1),
     estado_pago: z.enum(['Pendiente', 'Pendiente de verificación', 'Abonado', 'Pagado', 'Rechazado']),
     motivo_rechazo_pago: texto(500).nullable(),
+    valor_recibido: z.number().int().positive().max(10_000_000),
     produccion_autorizada: z.boolean(),
     registros_produccion: z.array(z.array(z.union([z.string(), z.number()]))).max(200),
   })

@@ -43,7 +43,7 @@ module.exports = (cfg) => {
     asyncHandler(async (req, res) => {
       const fila = req.body.datos_panel;
       // Reglas del negocio también aquí (no solo en la app): estados que solo avanzan, anulaciones con motivo...
-      if (cfg.revisar) {
+      if (cfg.revisar && cfg.tabla !== 'pedidos') {
         const anterior = await Panel.datos(cfg, req.params.id);
         if (!anterior) throw AppError.notFound('Registro no encontrado');
         const rechazo = cfg.revisar(anterior, fila);
@@ -58,6 +58,16 @@ module.exports = (cfg) => {
             throw AppError.notFound('Registro no encontrado');
           }
           return PedidoService.seguirProduccion(client, fila[15] || fila[0], columnas.estado, req.user.id);
+        });
+      } else if (cfg.tabla === 'pedidos') {
+        await withTransaction(async (client) => {
+          const anterior = await Panel.datos(cfg, req.params.id, client, true);
+          if (!anterior) throw AppError.notFound('Registro no encontrado');
+          const rechazo = cfg.revisar(anterior, fila);
+          if (rechazo) throw AppError.conflict(rechazo);
+          if (!(await Panel.actualizarConCliente(client, cfg, req.params.id, columnas, fila))) {
+            throw AppError.notFound('Registro no encontrado');
+          }
         });
       } else if (!(await Panel.actualizar(cfg, req.params.id, columnas, fila))) {
         throw AppError.notFound('Registro no encontrado');
@@ -86,7 +96,7 @@ module.exports = (cfg) => {
           if (productos.length) await Consumo.ingresarCon(client, { numero_orden: numero, productos }, req.user.id);
           const { id_usuario, ...columnas } = await cfg.columnas(fila, req.user.id);
           await Panel.actualizarConCliente(client, cfg, req.params.id, columnas, fila);
-          return PedidoService.seguirProduccion(client, fila[15], columnas.estado, req.user.id);
+          return PedidoService.seguirProduccion(client, anterior[15] || fila[15] || numero, columnas.estado, req.user.id);
         });
         await PedidoService.avisarSeguimiento(pedido);
         res.json({ ok: true, data: { id: req.params.id, datos_panel: fila } });

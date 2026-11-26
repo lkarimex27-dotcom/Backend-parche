@@ -49,7 +49,7 @@ describe('estado de producción en pedidos', () => {
   it('el pedido sigue a la orden en todos los pasos, solo hacia adelante; uno del panel se busca por su código', async () => {
     const paso = async (antes, nuevo, codigo = null) => {
       const client = { query: jest.fn()
-        .mockResolvedValueOnce({ rows: [{ id_pedido: 10, estado: antes }] })
+        .mockResolvedValueOnce({ rows: [{ id_pedido: 10, estado: antes, estado_pago: 'Pagado' }] })
         .mockResolvedValueOnce({ rows: [{ id_pedido: 10, estado: nuevo }] })
         .mockResolvedValueOnce({ rowCount: 1 }) };
       await Pedido.actualizarEstadoProduccion(client, 9, nuevo, 5, codigo);
@@ -63,6 +63,16 @@ describe('estado de producción en pedidos', () => {
     expect((await paso('Entregado', 'En cocina'))[1][1][2]).toBeNull();
     expect((await paso('Cancelado', 'Confirmado'))[1][1][2]).toBeNull();
     expect((await paso('En cocina', 'Producto no conforme'))[1][1][2]).toBeNull();
+  });
+
+  it('bloquea la entrega de producción cuando el pedido tiene saldo', async () => {
+    const client = {
+      query: jest.fn().mockResolvedValueOnce({
+        rows: [{ id_pedido: 10, estado: 'En camino', estado_produccion: 'En camino', estado_pago: 'Abonado' }],
+      }),
+    };
+    await expect(Pedido.actualizarEstadoProduccion(client, 10, 'Entregado', 5)).rejects.toMatchObject({ statusCode: 409 });
+    expect(client.query).toHaveBeenCalledTimes(1);
   });
 
   it('crea una orden de producción visible en el panel para el pedido del cliente', async () => {

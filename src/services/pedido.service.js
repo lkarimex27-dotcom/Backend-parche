@@ -25,8 +25,10 @@ const PAGO_EN_HISTORIAL = {
   Pendiente: 'Pago pendiente',
 };
 
-const obtener = async (id, c) => {
-  const p = await Pedido.obtenerPorId(id, c);
+const { PAGO_PENDIENTE_ENTREGA } = require('../utils/reglasPanel');
+
+const obtener = async (id, c, bloquear = false) => {
+  const p = bloquear ? await Pedido.obtenerPorId(id, c, true) : await Pedido.obtenerPorId(id, c);
   if (!p) throw AppError.notFound('Pedido no encontrado');
   return p;
 };
@@ -236,12 +238,26 @@ const subirComprobante = async (id, { comprobante, referencia, valor, dudoso }, 
 
 // Panel: cambia estado, pago y autorización de producción (deja historial si cambia el estado).
 // Al quedar «Pagado» se crea su venta (una sola), y la venta sigue el estado del pedido.
-const actualizar = async (id, d, idUsuario) => {
+const actualizar = async (id, { valor_recibido, ...d }, idUsuario) => {
   let antes;
   await withTransaction(async (c) => {
-    const p = await obtener(id, c);
+    const p = await obtener(id, c, true);
     antes = p.estado;
-    // Entregado y Cancelado son finales; el pago sí puede cambiar después (contraentrega)
+    if (d.estado === 'Entregado' && d.estado !== p.estado &&
+        (p.estado_pago !== 'Pagado' || (d.estado_pago && d.estado_pago !== 'Pagado'))) {
+      throw AppError.conflict(PAGO_PENDIENTE_ENTREGA);
+    }
+    if (valor_recibido != null) {
+      if (p.estado_pago !== 'Pendiente de verificación' || !p.comprobantes?.length) {
+        throw AppError.conflict('El comprobante ya no está pendiente de revisión.');
+      }
+      if (valor_recibido < Soporte.valorEsperado(p)) {
+        throw AppError.badRequest('El valor recibido no cubre el pago requerido.');
+      }
+      d.abono = valor_recibido;
+      d.estado_pago = valor_recibido >= Number(p.total) ? 'Pagado' : 'Abonado';
+    }
+    // Los pedidos antiguos ya entregados todavía pueden regularizar su estado de pago.
     if (d.estado && d.estado !== p.estado && ['Entregado', 'Cancelado'].includes(p.estado)) {
       throw AppError.conflict(`El pedido ya está ${p.estado}; no se puede cambiar su estado.`);
     }

@@ -58,8 +58,11 @@ const revisarDevolucion = (anterior, nueva) => {
 
 // ── Pedidos creados en el panel [3 tipo, 5 modalidad, 6 total, 7 estado, 8 estado de pago] ──
 const FLUJO_PEDIDO = ['Por confirmar', 'Recibido', 'Confirmado', 'En cocina', 'En camino', 'Entregado'];
+const PAGO_PENDIENTE_ENTREGA = 'El pedido no se ha cancelado del todo. Actualiza el estado del pago a «Pagado» antes de marcarlo como «Entregado».';
 const FLUJO_PAGO = ['Rechazado', 'Pendiente', 'Pendiente de verificación', 'Abonado', 'Pagado'];
 const revisarPedidoPanel = (anterior, nueva) => {
+  if (texto(nueva[7]) === 'Entregado' && texto(anterior?.[7]) !== 'Entregado' &&
+      (texto(nueva[8]) !== 'Pagado' || (anterior && texto(anterior[8]) !== 'Pagado'))) return PAGO_PENDIENTE_ENTREGA;
   // Al crearlo (los anteriores a esta regla se siguen pudiendo mover)
   if (!anterior) {
     const total = Number(nueva[6]) || 0;
@@ -83,4 +86,4 @@ const revisarPedidoPanel = (anterior, nueva) => {
   return null;
 };
 
-module.exports = { revisarProduccion, revisarVenta, revisarDevolucion, revisarPedidoPanel, estadoProduccion };
+module.exports = { PAGO_PENDIENTE_ENTREGA, revisarProduccion, revisarVenta, revisarDevolucion, revisarPedidoPanel, estadoProduccion };
