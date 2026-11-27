@@ -117,7 +117,6 @@ router.get('/catalogo/gaseosas', require('../controllers/insumoProducto.controll
 router.get('/imagenes/:id', require('../controllers/insumoProducto.controller').imagen); // público: fotos subidas
 router.use('/ordenes-produccion', panelRoutes(PANEL.ordenes_produccion));
 router.use('/productos-no-conformes', panelRoutes(PANEL.productos_no_conformes));
-router.use('/consumos-produccion', require('./consumo.routes'));      // baja el stock al pasar a 'En cocina'
 
 // Ventas
 router.use('/clientes', require('./cliente.routes'));

@@ -12,6 +12,16 @@ const Reglas = require('../utils/reglasPanel');
 const Permiso = require('../models/permiso.model');
 
 const idParam = z.object({ id: z.coerce.number().int().positive() });
+
+// Quien entra a producción solo por poder editar pedidos mueve la orden de un pedido (van en el mismo estado) y
+// nada más: no edita órdenes hechas a mano ni suma al inventario lo preparado
+const soloOrdenDePedido = (req, anterior, productos = []) => {
+  if (!req.permisoPorPedidos) return;
+  if (!/^PED-/i.test(String(anterior?.[15] ?? '').trim())) {
+    throw AppError.forbidden('Con el permiso de pedidos solo puedes mover la orden de producción de un pedido.');
+  }
+  if (productos.length) throw AppError.forbidden('Solo producción registra lo preparado en el inventario.');
+};
 // Fila del panel: textos (pueden ser JSON largos: historial, líneas), números o vacíos
 const cuerpo = z.object({
   datos_panel: z.array(z.union([z.string().max(100_000), z.number(), z.null()])).min(1).max(40),
@@ -47,6 +57,7 @@ module.exports = (cfg) => {
       if (cfg.revisar && cfg.tabla !== 'pedidos') {
         const anterior = await Panel.datos(cfg, req.params.id);
         if (!anterior) throw AppError.notFound('Registro no encontrado');
+        soloOrdenDePedido(req, anterior);
         const rechazo = cfg.revisar(anterior, fila);
         if (rechazo) throw AppError.conflict(rechazo);
       }
@@ -91,6 +102,7 @@ module.exports = (cfg) => {
           const anterior = await Panel.datos(cfg, req.params.id, client, true);
           if (!anterior) throw AppError.notFound('Orden de producción no encontrada');
           if (String(anterior[0] ?? '').trim() !== numero) throw AppError.badRequest('El código de la orden no coincide.');
+          soloOrdenDePedido(req, anterior, productos);
           const rechazo = Reglas.revisarProduccion(anterior, fila, { viaAvanzar: true });
           if (rechazo) throw AppError.conflict(rechazo);
           if (insumos.length) await Consumo.descontarCon(client, { numero_orden: numero, insumos }, req.user.id);

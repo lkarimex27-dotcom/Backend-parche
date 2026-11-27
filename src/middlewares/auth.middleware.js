@@ -30,9 +30,12 @@ const authorize = (modulo, privilegio) => async (req, _res, next) => {
   try {
     // Un pedido y su orden de producción van en el mismo estado: quien edita pedidos también mueve su orden.
     // (Antes se dejaba pasar a cualquiera con sesión, incluso a un cliente, y podía descontar el inventario.)
-    const ok = (await Permiso.tienePermiso(req.user.id, modulo, privilegio)) ||
-      (modulo === 'ORDENES_PRODUCCION' && privilegio === 'EDITAR' && (await Permiso.tienePermiso(req.user.id, 'PEDIDOS', 'EDITAR')));
-    if (!ok) throw AppError.forbidden(`No tienes permiso para ${privilegio} en ${modulo}`);
+    const propio = await Permiso.tienePermiso(req.user.id, modulo, privilegio);
+    const porPedidos = !propio && modulo === 'ORDENES_PRODUCCION' && privilegio === 'EDITAR' &&
+      (await Permiso.tienePermiso(req.user.id, 'PEDIDOS', 'EDITAR'));
+    if (!propio && !porPedidos) throw AppError.forbidden(`No tienes permiso para ${privilegio} en ${modulo}`);
+    // Entró solo por editar pedidos: las rutas de producción lo limitan a mover la orden de un pedido
+    req.permisoPorPedidos = porPedidos;
     return next();
   } catch (err) {
     return next(err);

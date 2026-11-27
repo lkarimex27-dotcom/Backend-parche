@@ -61,7 +61,7 @@ describe('El descuento de stock no cambia con el versionado', () => {
 
   it('la producción descuenta exactamente lo que recibe y nunca lee el historial', async () => {
     mockQuery.mockResolvedValue({ rowCount: 1, rows: [{ stock: 10 }] });
-    await Consumo.descontar({ numero_orden: 'OP-1', insumos: [{ insumo: 'Carne', cantidad: 120 }, { insumo: 'Pan', cantidad: 1 }] }, 1);
+    await Consumo.descontarCon({ query: mockQuery }, { numero_orden: 'OP-1', insumos: [{ insumo: 'Carne', cantidad: 120 }, { insumo: 'Pan', cantidad: 1 }] }, 1);
     const updates = mockQuery.mock.calls.filter(([q]) => q.includes('UPDATE insumos_productos SET stock = stock -'));
     expect(updates.map(([, p]) => p)).toEqual([['Carne', 120], ['Pan', 1]]);
     expect(mockQuery.mock.calls.some(([q]) => q.includes('historial'))).toBe(false);

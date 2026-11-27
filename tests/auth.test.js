@@ -14,9 +14,13 @@ describe('Seguridad', () => {
     }
   );
 
-  it('POST /api/consumos-produccion sin token devuelve 401 (no descuenta stock)', async () => {
-    const res = await request(app).post('/api/consumos-produccion').send({ numero_orden: 'OP-1', insumos: [] });
-    expect(res.status).toBe(401);
+  it('las rutas sueltas de stock ya no existen (ni con un token válido): 404', async () => {
+    const token = require('jsonwebtoken').sign({ correo: 'domiciliario@x.co' }, process.env.JWT_SECRET, { subject: '5' });
+    for (const ruta of ['/api/consumos-produccion', '/api/consumos-produccion/entrada']) {
+      const res = await request(app).post(ruta).set('Authorization', `Bearer ${token}`)
+        .send({ numero_orden: 'X', productos: [{ insumo: 'Salsa de la casa', cantidad: 1000 }] });
+      expect(res.status).toBe(404);
+    }
   });
 
   it('POST /api/pedidos/estimacion sin token devuelve 401', async () => {

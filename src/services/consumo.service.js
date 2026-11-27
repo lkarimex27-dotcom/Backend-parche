@@ -1,4 +1,3 @@
-const { withTransaction } = require('../../config/db');
 const AppError = require('../errors/AppError');
 const Stock = require('../models/stock.model');
 
@@ -52,7 +51,7 @@ const ingresarCon = async (c, { numero_orden, productos }, idUsuario) => {
     return true;
 };
 
-const descontar = (d, idUsuario) => withTransaction((c) => descontarCon(c, d, idUsuario));
-const ingresar = (d, idUsuario) => withTransaction((c) => ingresarCon(c, d, idUsuario));
-
-module.exports = { descontar, ingresar, descontarCon, ingresarCon };
+// Solo dentro de la transacción del cambio de estado de la orden (POST /ordenes-produccion/:id/avanzar). Las rutas
+// sueltas que descontaban o sumaban stock (/consumos-produccion) se quitaron: nadie las usaba y cualquiera que
+// pudiera editar pedidos podía mover el inventario con ellas.
+module.exports = { descontarCon, ingresarCon };
