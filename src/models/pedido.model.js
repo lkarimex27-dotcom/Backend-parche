@@ -1,16 +1,28 @@
 const { query } = require('../../config/db');
 const { ESTIMADOR } = require('../../config/constants');
 
-const SELECT = `
+// Todos los comprobantes del pedido (los viejos guardaban solo «comprobante», sin la lista)
+const LISTA_COMPROBANTES = `CASE WHEN jsonb_array_length(p.comprobantes) > 0 THEN p.comprobantes
+              WHEN p.comprobante IS NULL THEN '[]'::jsonb ELSE jsonb_build_array(p.comprobante) END`;
+// Completos (con la imagen): un solo pedido, y lo que usa el servidor por dentro (comprobantes repetidos, quitar uno...)
+const COMPROBANTES_COMPLETOS = `p.comprobante, ${LISTA_COMPROBANTES} AS comprobantes`;
+// Sin la imagen (en las listas): cada uno con su posición, para pedirla aparte (GET /pedidos/:id/comprobantes/:indice).
+// Con las imágenes, 25 pedidos pesaban 1 MB y llenaban el almacenamiento del navegador.
+const COMPROBANTES_LIVIANOS = `NULL::text AS comprobante,
+         COALESCE((SELECT jsonb_agg(CASE WHEN jsonb_typeof(x.c) = 'object'
+                                         THEN (x.c - 'imagen') || jsonb_build_object('indice', x.i - 1)
+                                         ELSE jsonb_build_object('indice', x.i - 1) END ORDER BY x.i)
+                     FROM jsonb_array_elements(${LISTA_COMPROBANTES}) WITH ORDINALITY AS x(c, i)), '[]'::jsonb) AS comprobantes`;
+
+const seleccionar = (comprobantes) => `
   SELECT p.id_pedido, p.id_cliente, u.correo, COALESCE(pe.nombre, p.nombre_contacto) AS cliente,
          p.nombre_contacto, p.telefono_contacto, p.tipo_entrega, p.direccion_entrega, p.observacion, p.metodo_pago,
          json_build_object(
            'nombre', COALESCE(p.nombre_contacto, pe.nombre),
            'telefono', p.telefono_contacto
          ) AS destinatario,
-         p.estado, p.estado_produccion, p.estado_pago, p.motivo_rechazo_pago, p.comprobante, p.produccion_autorizada,
-         CASE WHEN jsonb_array_length(p.comprobantes) > 0 THEN p.comprobantes
-              WHEN p.comprobante IS NULL THEN '[]'::jsonb ELSE jsonb_build_array(p.comprobante) END AS comprobantes,
+         p.estado, p.estado_produccion, p.estado_pago, p.motivo_rechazo_pago, p.produccion_autorizada,
+         ${comprobantes},
          p.registros_produccion, p.id_barrio, p.estimacion_inicial,
          p.subtotal::float AS subtotal, p.costo_domicilio_cop::float AS costo_domicilio_cop,
          p.total::float AS total, p.abono::float AS abono, p.pago_mixto, p.creado_en, p.devolucion,
@@ -30,14 +42,26 @@ const SELECT = `
     JOIN usuarios u ON u.id_usuario = p.id_cliente
     LEFT JOIN barrios b ON b.id_barrio = p.id_barrio
     LEFT JOIN personas pe ON pe.id_usuario = p.id_cliente`;
+const SELECT = seleccionar(COMPROBANTES_COMPLETOS);
+const SELECT_LISTA = seleccionar(COMPROBANTES_LIVIANOS);
 
-const listar = async () => (await query(`${SELECT} ORDER BY p.creado_en DESC`)).rows;
+const listar = async () => (await query(`${SELECT_LISTA} ORDER BY p.creado_en DESC`)).rows;
 
 const listarDeCliente = async (idCliente) =>
-  (await query(`${SELECT} WHERE p.id_cliente = $1 ORDER BY p.creado_en DESC`, [idCliente])).rows;
+  (await query(`${SELECT_LISTA} WHERE p.id_cliente = $1 ORDER BY p.creado_en DESC`, [idCliente])).rows;
 
 const obtenerPorId = async (id, c, bloquear = false) =>
   (await (c || { query }).query(`${SELECT} WHERE p.id_pedido = $1${bloquear ? ' FOR UPDATE OF p' : ''}`, [id])).rows[0] || null;
+
+// La imagen de un comprobante (posición `indice` de la lista) y de quién es el pedido; null si no existe
+const imagenComprobante = async (id, indice) =>
+  (await query(
+    `SELECT p.id_cliente,
+            CASE WHEN jsonb_typeof(l.v -> $2::int) = 'object' THEN l.v -> $2::int ->> 'imagen' ELSE l.v ->> $2::int END AS imagen
+       FROM pedidos p, LATERAL (SELECT ${LISTA_COMPROBANTES} AS v) l
+      WHERE p.id_pedido = $1`,
+    [id, indice]
+  )).rows[0] || null;
 
 // Productos activos del menú (incluye adiciones, salsas y bebidas) para calcular precios en el servidor
 const catalogoActivo = async () =>
@@ -328,6 +352,6 @@ const soportesDeOtros = async (c, idPedido) =>
 
 module.exports = {
   agregarComprobante, quitarComprobante, soportesDeOtros,
-  listar, listarDeCliente, obtenerPorId, catalogoActivo, crear, crearDetalle, paraEntrega, marcarEntregado, entregarOrdenProduccion, reemplazarDetalle, insumosParaPreparar, crearOrdenProduccion, registrarEstado, solicitarDevolucion,
+  listar, listarDeCliente, obtenerPorId, imagenComprobante, catalogoActivo, crear, crearDetalle, paraEntrega, marcarEntregado, entregarOrdenProduccion, reemplazarDetalle, insumosParaPreparar, crearOrdenProduccion, registrarEstado, solicitarDevolucion,
   actualizarEstadoProduccion, actualizar, colaCocina, estadisticasDesplazamiento,
 };

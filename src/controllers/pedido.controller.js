@@ -39,6 +39,10 @@ const quitarComprobante = asyncHandler(async (req, res) =>
 const actualizar = asyncHandler(async (req, res) =>
   res.json({ ok: true, data: await service.actualizar(req.params.id, req.body, req.user.id) }));
 
+const imagenComprobante = asyncHandler(async (req, res) =>
+  res.set('Cache-Control', 'private, max-age=3600')
+    .json({ ok: true, data: await service.imagenComprobante(req.params.id, req.params.indice, req.user.id) }));
+
 const entregar = asyncHandler(async (req, res) =>
   res.json({ ok: true, data: await service.entregar(req.params.id, req.body, req.user.id) }));
 
@@ -48,4 +52,4 @@ const cambiarProductos = asyncHandler(async (req, res) =>
 const solicitarDevolucion = asyncHandler(async (req, res) =>
   res.json({ ok: true, data: await service.solicitarDevolucion(req.params.id, req.body, req.user.id) }));
 
-module.exports = { listar, listarMios, eventosMios, obtener, crear, subirComprobante, quitarComprobante, solicitarDevolucion, actualizar, cambiarProductos, entregar };
+module.exports = { listar, listarMios, eventosMios, obtener, crear, subirComprobante, quitarComprobante, solicitarDevolucion, actualizar, cambiarProductos, entregar, imagenComprobante };

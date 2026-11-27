@@ -16,6 +16,8 @@ router.get('/mios', c.listarMios);
 router.get('/mios/eventos', c.eventosMios);
 router.patch('/:id/comprobante', validate(v.idParam, 'params'), validate(v.subirComprobante), c.subirComprobante);
 router.delete('/:id/comprobantes/:indice', validate(v.quitarComprobante, 'params'), c.quitarComprobante);
+// La imagen de un comprobante (las listas no la traen): el cliente dueño o el personal que ve pedidos
+router.get('/:id/comprobantes/:indice', validate(v.quitarComprobante, 'params'), c.imagenComprobante);
 router.post('/:id/devolucion', validate(v.idParam, 'params'), validate(v.solicitarDevolucion), c.solicitarDevolucion);
 
 // Panel

@@ -270,6 +270,15 @@ const entregar = async (id, { efectivo, foto }, idUsuario) => {
   return { id_pedido: r.id_pedido, estado: 'Entregado', estado_pago: 'Pagado', cobrado: debe };
 };
 
+// La imagen de un comprobante (las listas no la traen): la ve el cliente dueño del pedido o quien puede ver pedidos
+const imagenComprobante = async (id, indice, idUsuario) => {
+  const r = await Pedido.imagenComprobante(id, indice);
+  if (!r) throw AppError.notFound('Pedido no encontrado');
+  if (r.id_cliente !== idUsuario && !(await Permiso.tienePermiso(idUsuario, 'PEDIDOS', 'VER'))) throw AppError.notFound('Pedido no encontrado');
+  if (!r.imagen) throw AppError.notFound('Comprobante no encontrado');
+  return { imagen: r.imagen };
+};
+
 // El cliente envía otro comprobante (puede mandar varios: el abono y el saldo, o uno nuevo si le rechazaron el anterior).
 // Se guardan todos; si se lo habían rechazado, vuelve a revisión.
 const MAX_COMPROBANTES = 5;
@@ -385,4 +394,4 @@ const solicitarDevolucion = async (id, { motivo }, idCliente, ahora = Date.now()
   return obtener(id);
 };
 
-module.exports = { listar, listarMios, obtener, crear, cambiarProductos, entregar, seguirProduccion, avisarSeguimiento, subirComprobante, quitarComprobante, solicitarDevolucion, actualizar, cotizar };
+module.exports = { listar, listarMios, obtener, imagenComprobante, crear, cambiarProductos, entregar, seguirProduccion, avisarSeguimiento, subirComprobante, quitarComprobante, solicitarDevolucion, actualizar, cotizar };
