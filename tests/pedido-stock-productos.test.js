@@ -51,9 +51,9 @@ describe('Sin insumos suficientes según la ficha técnica no se puede pedir', (
   });
 });
 
-describe('El panel cambia los productos de un pedido ya pagado', () => {
+describe('El panel cambia los productos de un pedido ya pagado (solo mientras está «Recibido»)', () => {
   const guardado = (extra) => ({
-    id_pedido: 30, estado: 'Confirmado', estado_produccion: 'Recibido', estado_pago: 'Pagado',
+    id_pedido: 30, estado: 'Recibido', estado_produccion: null, produccion_autorizada: false, estado_pago: 'Pagado',
     total: 26000, abono: null, costo_domicilio_cop: 0, ...extra,
   });
 
@@ -88,7 +88,13 @@ describe('El panel cambia los productos de un pedido ya pagado', () => {
     expect(Pedido.actualizar).toHaveBeenCalledWith({}, 30, { subtotal: 13000, total: 13000 });
     expect(r.diferencia).toBe(0);
     Pedido.obtenerPorId.mockResolvedValue(guardado({ estado: 'En cocina', estado_produccion: 'En cocina' }));
-    await expect(service.cambiarProductos(30, [item('Mini', 1)], 1)).rejects.toThrow(/antes de que la orden de producción entre a cocina/);
+    await expect(service.cambiarProductos(30, [item('Mini', 1)], 1)).rejects.toThrow(/sus productos no se pueden cambiar/);
+  });
+
+  it('confirmado (con su orden de producción) ya no cambia sus productos', async () => {
+    Pedido.obtenerPorId.mockResolvedValue(guardado({ estado: 'Confirmado', estado_produccion: 'Confirmado', produccion_autorizada: true }));
+    await expect(service.cambiarProductos(30, [item('Mini', 1)], 1)).rejects.toThrow('El pedido ya está «Confirmado»: sus productos no se pueden cambiar');
+    expect(Pedido.reemplazarDetalle).not.toHaveBeenCalled();
   });
 
   it('el stock no cuenta lo que este mismo pedido ya apartaba', async () => {

@@ -63,4 +63,14 @@ const permisosDeUsuario = async (idUsuario) =>
     [idUsuario]
   )).rows;
 
-module.exports = { tienePermiso, permisosDeUsuario };
+// ¿Tiene este rol (activo) un usuario activo? Ej. solo el DOMICILIARIO cobra el efectivo de un domicilio
+const tieneRol = async (idUsuario, rol) =>
+  (await query(
+    `SELECT 1 FROM roles_usuario ru
+       JOIN roles r ON r.id_rol = ru.id_rol AND r.estado = 'ACTIVO'
+       JOIN usuarios u ON u.id_usuario = ru.id_usuario AND u.estado = 'ACTIVO'
+      WHERE ru.id_usuario = $1 AND r.nombre_rol = $2 LIMIT 1`,
+    [idUsuario, rol]
+  )).rowCount > 0;
+
+module.exports = { tienePermiso, permisosDeUsuario, tieneRol };

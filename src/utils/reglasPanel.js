@@ -24,6 +24,8 @@ const revisarProduccion = (anterior, nueva, { viaAvanzar = false } = {}) => {
   if (b !== PNC && rango(b) < 0) return `«${b}» no es un estado de producción.`;
   if (!anterior) return ['Recibido', 'Confirmado'].includes(b) ? null : 'Una orden nueva empieza en «Recibido» o «Confirmado».';
   const a = estadoProduccion(anterior[8]);
+  if (/^PED-/i.test(texto(anterior[15])) && b !== PNC && texto(anterior[13]) !== texto(nueva[13]))
+    return 'Los productos de la orden de un pedido no se cambian: el pedido ya está confirmado.';
   if (a === b) return null;
   if (a === PNC || a === 'Entregado') {
     return b === PNC && a === 'Entregado' ? null : `La orden ya está «${a}»; no cambia de estado.`;
@@ -60,7 +62,18 @@ const revisarDevolucion = (anterior, nueva) => {
 const FLUJO_PEDIDO = ['Por confirmar', 'Recibido', 'Confirmado', 'En cocina', 'En camino', 'Entregado'];
 const PAGO_PENDIENTE_ENTREGA = 'El pedido no se ha cancelado del todo. Actualiza el estado del pago a «Pagado» antes de marcarlo como «Entregado».';
 const FLUJO_PAGO = ['Rechazado', 'Pendiente', 'Pendiente de verificación', 'Abonado', 'Pagado'];
-const revisarPedidoPanel = (anterior, nueva) => {
+// Un pedido solo cambia sus productos mientras no se ha confirmado (ni tiene orden de producción)
+const EDITABLES = ['Por confirmar', 'Pendiente', 'Recibido'];
+const PRODUCTOS_BLOQUEADOS = (estado) => `El pedido ya está «${estado}»: sus productos no se pueden cambiar (solo mientras está «Recibido»).`;
+// Contraentrega a domicilio (efectivo, o la parte en efectivo de un pago mixto): el dinero lo recibe el
+// domiciliario al entregar. Solo él lo marca «Pagado», salvo que el cliente ya haya pagado en el local.
+const cobraDomiciliario = ({ tipo, metodo, mixto }) => /^domicilio$/i.test(texto(tipo)) && (texto(metodo) === 'Efectivo' || !!mixto);
+const COBRO_DOMICILIARIO = 'Este pedido se paga al recibirlo: lo marca «Pagado» el domiciliario cuando lo entrega. Si el cliente ya pagó en el local, márcalo «Pagó en el local».';
+
+const revisarPedidoPanel = (anterior, nueva, { domiciliario = false } = {}) => {
+  // [15] «Sí» = el cliente pagó en el local
+  if (texto(nueva[8]) === 'Pagado' && texto(anterior?.[8]) !== 'Pagado' && !domiciliario && texto(nueva[15]) !== 'Sí' &&
+      cobraDomiciliario({ tipo: nueva[3], metodo: nueva[4], mixto: texto(nueva[5]) === 'Mixto' })) return COBRO_DOMICILIARIO;
   if (texto(nueva[7]) === 'Entregado' && texto(anterior?.[7]) !== 'Entregado' &&
       (texto(nueva[8]) !== 'Pagado' || (anterior && texto(anterior[8]) !== 'Pagado'))) return PAGO_PENDIENTE_ENTREGA;
   // Al crearlo (los anteriores a esta regla se siguen pudiendo mover)
@@ -72,6 +85,9 @@ const revisarPedidoPanel = (anterior, nueva) => {
   }
   const a = texto(anterior[7]) || 'Recibido';
   const b = texto(nueva[7]) || 'Recibido';
+  // [2] productos (texto), [6] total, [10] líneas: no cambian una vez confirmado o enviado a producción
+  const editable = EDITABLES.includes(a) && !['Autorizada', 'Enviada a producción'].includes(texto(anterior[9]));
+  if (!editable && [2, 6, 10].some((i) => texto(anterior[i]) !== texto(nueva[i]))) return PRODUCTOS_BLOQUEADOS(a);
   if (a !== b) {
     if (['Entregado', 'Cancelado'].includes(a)) return `El pedido ya está «${a}»; no cambia de estado.`;
     if (b !== 'Cancelado' && FLUJO_PEDIDO.indexOf(b) < FLUJO_PEDIDO.indexOf(a)) return `El pedido no puede volver de «${a}» a «${b}».`;
@@ -86,4 +102,4 @@ const revisarPedidoPanel = (anterior, nueva) => {
   return null;
 };
 
-module.exports = { FLUJO_PEDIDO, FLUJO_PAGO, PAGO_PENDIENTE_ENTREGA, revisarProduccion, revisarVenta, revisarDevolucion, revisarPedidoPanel, estadoProduccion };
+module.exports = { FLUJO_PEDIDO, FLUJO_PAGO, PAGO_PENDIENTE_ENTREGA, EDITABLES, PRODUCTOS_BLOQUEADOS, cobraDomiciliario, COBRO_DOMICILIARIO, revisarProduccion, revisarVenta, revisarDevolucion, revisarPedidoPanel, estadoProduccion };

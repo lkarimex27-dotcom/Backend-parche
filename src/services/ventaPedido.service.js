@@ -40,8 +40,9 @@ const lineas = async (c, pedido) => {
 };
 
 // Crea la venta del pedido si no tiene una vigente. Devuelve su id, o null si ya existía.
-const asegurarVenta = async (c, pedido, idUsuario) => {
-  const pedidoCodigo = codigoPedido(pedido.id_pedido);
+// Un pedido del panel trae su código y sus líneas ya en el formato del panel
+const asegurarVenta = async (c, pedido, idUsuario, { codigo: codigoDelPedido, lineas: lineasPanel } = {}) => {
+  const pedidoCodigo = codigoDelPedido || codigoPedido(pedido.id_pedido);
   // Dos pagos marcados a la vez esperan uno al otro: así nunca salen dos ventas
   await c.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`venta:${pedidoCodigo}`]);
   const yaTiene = await c.query(`SELECT 1 FROM ventas WHERE pedido_asociado = $1 AND NOT (${anulada}) LIMIT 1`, [pedidoCodigo]);
@@ -58,7 +59,7 @@ const asegurarVenta = async (c, pedido, idUsuario) => {
   const fila = [
     codigo, vendedor, pedido.cliente || pedido.nombre_contacto || '', hoy(), tipoVenta(pedido.direccion_entrega),
     pedido.pago_mixto ? 'Mixto' : pedido.metodo_pago === 'Efectivo' ? 'Efectivo' : 'Transferencia', total, total, '', pedidoCodigo, pedido.estado,
-    JSON.stringify(await lineas(c, pedido)),
+    lineasPanel ?? JSON.stringify(await lineas(c, pedido)),
   ];
   const cfg = modulos.ventas;
   return Panel.crearConCliente(c, cfg, await cfg.columnas(fila, idUsuario), fila);

@@ -262,6 +262,33 @@ const estadisticasDesplazamiento = async (idBarrio, c) =>
   )).rows[0];
 
 // Un comprobante más ({ imagen, referencia, valor, hash }): queda en la lista y como el último (el que revisa el panel)
+// Lo que se necesita para entregarlo (también un pedido del panel, que no tiene cliente de la tienda)
+const paraEntrega = async (c, id) =>
+  (await c.query(
+    `SELECT id_pedido, id_cliente, codigo, estado, estado_pago, total::float AS total, abono::float AS abono,
+            tipo_entrega, metodo_pago, pago_mixto, datos_panel
+       FROM pedidos WHERE id_pedido = $1 FOR UPDATE`,
+    [id]
+  )).rows[0] || null;
+
+// Entregado y pagado (y, si es del panel, también su fila)
+const marcarEntregado = (c, id) =>
+  c.query(
+    `UPDATE pedidos SET estado = 'Entregado', estado_pago = 'Pagado', estado_produccion = 'Entregado',
+            datos_panel = CASE WHEN datos_panel IS NULL THEN NULL
+                               ELSE jsonb_set(jsonb_set(datos_panel, '{7}', '"Entregado"'), '{8}', '"Pagado"') END
+      WHERE id_pedido = $1`,
+    [id]
+  );
+
+// Su orden de producción (ya «En camino») pasa a «Entregado» con él
+const entregarOrdenProduccion = (c, codigo) =>
+  c.query(
+    `UPDATE ordenes_produccion SET estado = 'Entregado', datos_panel = jsonb_set(datos_panel, '{8}', '"Entregado"')
+      WHERE datos_panel->>15 = $1 AND estado = 'En camino'`,
+    [codigo]
+  );
+
 const agregarComprobante = async (c, id, s) =>
   (await c.query(
     `UPDATE pedidos
@@ -301,6 +328,6 @@ const soportesDeOtros = async (c, idPedido) =>
 
 module.exports = {
   agregarComprobante, quitarComprobante, soportesDeOtros,
-  listar, listarDeCliente, obtenerPorId, catalogoActivo, crear, crearDetalle, reemplazarDetalle, insumosParaPreparar, crearOrdenProduccion, registrarEstado, solicitarDevolucion,
+  listar, listarDeCliente, obtenerPorId, catalogoActivo, crear, crearDetalle, paraEntrega, marcarEntregado, entregarOrdenProduccion, reemplazarDetalle, insumosParaPreparar, crearOrdenProduccion, registrarEstado, solicitarDevolucion,
   actualizarEstadoProduccion, actualizar, colaCocina, estadisticasDesplazamiento,
 };

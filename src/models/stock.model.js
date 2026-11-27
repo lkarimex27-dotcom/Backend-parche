@@ -4,7 +4,7 @@ const { query } = require('../../config/db');
 // Movimientos de stock. Siempre dentro de la transacción (`c`) de la compra, pérdida o producción.
 // Llevan stock los insumos, las gaseosas de reventa (productos "Gaseosa <sabor> (<tamaño>)" de «Bebidas») y las
 // adiciones (productos de «Adiciones»), que se compran y se venden tal cual. Devuelve false si el id no lleva stock (el service revierte).
-const CON_STOCK = `(tipo = 'INSUMO' OR (tipo = 'PRODUCTO' AND (nombre ILIKE 'Gaseosa %' OR id_categoria IN (SELECT id_categoria FROM categorias WHERE nombre_categoria = 'Adiciones'))))`;
+const CON_STOCK = `(tipo = 'INSUMO' OR (tipo = 'PRODUCTO' AND (nombre ILIKE 'Gaseosa %' OR id_categoria IN (SELECT id_categoria FROM categorias WHERE nombre_categoria IN ('Adiciones', 'Bebidas')))))`;
 // shortcut: el stock no baja de 0 (igual que el panel); validar existencias cuando todo el stock se registre por compras.
 const ajustar = async (c, idInsumo, delta) =>
   (await c.query(

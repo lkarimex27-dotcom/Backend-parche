@@ -251,7 +251,7 @@ const gaseosas = async () =>
   (await query(
     `SELECT nombre, stock <= 0 AS agotada, GREATEST(FLOOR(stock), 0)::int AS stock
         FROM insumos_productos
-       WHERE tipo = 'PRODUCTO' AND (nombre ILIKE 'Gaseosa %' OR id_categoria IN (SELECT id_categoria FROM categorias WHERE nombre_categoria = 'Adiciones'))`
+       WHERE tipo = 'PRODUCTO' AND (nombre ILIKE 'Gaseosa %' OR id_categoria IN (SELECT id_categoria FROM categorias WHERE nombre_categoria IN ('Adiciones', 'Bebidas')))`
   )).rows;
 
 // Productos de insumo (ej. salsas de la casa) que hoy tienen stock: el cliente los elige como salsa (sin costo)

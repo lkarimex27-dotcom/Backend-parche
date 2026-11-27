@@ -9,6 +9,7 @@ const { withTransaction } = require('../../config/db');
 const PedidoService = require('../services/pedido.service');
 const Consumo = require('../services/consumo.service');
 const Reglas = require('../utils/reglasPanel');
+const Permiso = require('../models/permiso.model');
 
 const idParam = z.object({ id: z.coerce.number().int().positive() });
 // Fila del panel: textos (pueden ser JSON largos: historial, líneas), números o vacíos
@@ -63,7 +64,7 @@ module.exports = (cfg) => {
         await withTransaction(async (client) => {
           const anterior = await Panel.datos(cfg, req.params.id, client, true);
           if (!anterior) throw AppError.notFound('Registro no encontrado');
-          const rechazo = cfg.revisar(anterior, fila);
+          const rechazo = cfg.revisar(anterior, fila, { domiciliario: await Permiso.tieneRol(req.user.id, 'DOMICILIARIO') });
           if (rechazo) throw AppError.conflict(rechazo);
           if (!(await Panel.actualizarConCliente(client, cfg, req.params.id, columnas, fila))) {
             throw AppError.notFound('Registro no encontrado');

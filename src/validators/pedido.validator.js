@@ -63,6 +63,8 @@ const actualizarPedido = z
     valor_recibido: z.number().int().positive().max(10_000_000),
     produccion_autorizada: z.boolean(),
     registros_produccion: z.array(z.array(z.union([z.string(), z.number()]))).max(200),
+    // El cliente pagó en el local un pedido de contraentrega a domicilio (el admin lo deja «Pagado»)
+    pagado_en_local: z.boolean(),
   })
   .partial()
   .refine((o) => Object.keys(o).length > 0, { message: 'Envía al menos un campo' });
@@ -70,5 +72,7 @@ const actualizarPedido = z
 const solicitarDevolucion = z.object({ motivo: texto(300).min(10, 'Cuéntanos qué pasó (mínimo 10 caracteres).') });
 
 const cambiarProductos = z.object({ items });
+// El domiciliario: cuánto efectivo recibió o la foto del comprobante
+const entregar = z.object({ efectivo: z.number().int().min(0).max(10_000_000).optional(), foto: comprobante.optional() });
 
-module.exports = { idParam, crearPedido, cambiarProductos, subirComprobante, actualizarPedido, quitarComprobante, solicitarDevolucion };
+module.exports = { idParam, crearPedido, cambiarProductos, entregar, subirComprobante, actualizarPedido, quitarComprobante, solicitarDevolucion };

@@ -36,8 +36,11 @@ describe('cotizar (precios del pedido calculados en el servidor)', () => {
     expect(() => cotizar([linea(1, 1)], CATALOGO, [{ nombre: 'Queso', agotada: true, stock: 0 }])).toThrow('no está disponible');
   });
 
-  it('una gaseosa no se puede pedir como producto principal', () => {
-    expect(() => cotizar([{ producto: 'Gaseosa Coca-Cola (Personal)', cantidad: 1, salsas: [], adiciones: [] }], CATALOGO)).toThrow('no está disponible');
+  it('una bebida se pide sola mientras tenga stock (la tienda la ofrece así); agotada o sin suficiente, no', () => {
+    const sola = (cantidad, gaseosas) => cotizar([{ producto: 'Gaseosa Coca-Cola (Personal)', cantidad, salsas: [], adiciones: [] }], CATALOGO, gaseosas);
+    expect(sola(2, [{ nombre: 'Gaseosa Coca-Cola (Personal)', agotada: false, stock: 5 }])[0]).toMatchObject({ producto: 'Gaseosa Coca-Cola (Personal)', subtotal: 6000 });
+    expect(() => sola(1, [{ nombre: 'Gaseosa Coca-Cola (Personal)', agotada: true, stock: 0 }])).toThrow('se agotó por ahora');
+    expect(() => sola(6, [{ nombre: 'Gaseosa Coca-Cola (Personal)', agotada: false, stock: 5 }])).toThrow('Solo quedan 5');
   });
 
   it('suma producto, adiciones y bebidas con los precios de la base', () => {

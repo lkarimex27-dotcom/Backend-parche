@@ -25,7 +25,8 @@ const PAGO_EN_HISTORIAL = {
   Pendiente: 'Pago pendiente',
 };
 
-const { PAGO_PENDIENTE_ENTREGA, FLUJO_PEDIDO, FLUJO_PAGO } = require('../utils/reglasPanel');
+const { PAGO_PENDIENTE_ENTREGA, FLUJO_PEDIDO, FLUJO_PAGO, EDITABLES, PRODUCTOS_BLOQUEADOS, cobraDomiciliario, COBRO_DOMICILIARIO } = require('../utils/reglasPanel');
+const Permiso = require('../models/permiso.model');
 
 const obtener = async (id, c, bloquear = false) => {
   const p = bloquear ? await Pedido.obtenerPorId(id, c, true) : await Pedido.obtenerPorId(id, c);
@@ -42,9 +43,21 @@ const cotizar = (items, catalogo, gaseosas = []) => {
   const EXTRAS = ['Adiciones', 'Salsas', 'Bebidas'];
 
   return items.map((it) => {
-    // Las hamburguesas antes se llamaban solo "Sencilla", "Doble"...: un carrito viejo aún puede traer ese nombre
-    const producto = buscar(it.producto, EXTRAS, false) || buscar(`Hamburguesa ${it.producto}`, ['Hamburguesas']);
+    // Las hamburguesas antes se llamaban solo "Sencilla", "Doble"...: un carrito viejo aún puede traer ese nombre.
+    // Una bebida (Hit, Mr. Tea, una gaseosa) también se pide sola, mientras tenga stock comprado
+    const producto = buscar(it.producto, EXTRAS, false) || buscar(it.producto, ['Bebidas']) || buscar(`Hamburguesa ${it.producto}`, ['Hamburguesas']);
     if (!producto) throw AppError.badRequest(`El producto «${it.producto}» no está disponible`);
+    const comprado = gaseosas.find((g) => normalizar(g.nombre) === normalizar(producto.nombre));
+    if (comprado) {
+      // Sola y como adición en todo el pedido
+      const pedidas = items.reduce((s, o) => s + (normalizar(o.producto) === normalizar(producto.nombre) ? o.cantidad : 0) +
+        o.cantidad * o.adiciones.filter((x) => normalizar(x.nombre) === normalizar(producto.nombre)).reduce((t, x) => t + x.cantidad, 0), 0);
+      if (comprado.agotada || (comprado.stock != null && pedidas > comprado.stock)) {
+        throw AppError.badRequest(comprado.agotada || !comprado.stock
+          ? `«${producto.nombre}» se agotó por ahora. Quítalo del carrito o elige otro producto.`
+          : `Solo quedan ${comprado.stock} de «${producto.nombre}». Pediste ${pedidas}.`);
+      }
+    }
     for (const s of it.salsas) {
       if (!buscar(s, ['Salsas'])) throw AppError.badRequest(`La salsa «${s}» no está disponible`);
     }
@@ -162,7 +175,7 @@ const crear = async (d, idCliente) => {
   return obtener(id);
 };
 
-// Solo el panel: cambia los productos mientras la orden de producción no entra a cocina (Recibido o Confirmado). Recalcula el total y, si el
+// Solo el panel: cambia los productos mientras el pedido está «Recibido» (antes de confirmarlo y de su orden de producción). Recalcula el total y, si el
 // cliente ya había pagado, `abono` guarda lo recibido: el pago queda «Abonado» (falta cobrar la diferencia) o
 // «Pagado» (si sobra, `diferencia` < 0 = lo que hay que devolverle). La venta del pedido sigue el nuevo total.
 const fmtPesos = (n) => `$${Math.abs(n).toLocaleString('es-CO')}`;
@@ -171,8 +184,7 @@ const cambiarProductos = async (id, items, idUsuario) => {
   let diferencia = 0;
   await withTransaction(async (c) => {
     const p = await obtener(id, c);
-    if (!['Por confirmar', 'Recibido', 'Confirmado'].includes(p.estado) || (p.estado_produccion && !['Recibido', 'Confirmado'].includes(p.estado_produccion)))
-      throw AppError.conflict('Los productos solo se cambian antes de que la orden de producción entre a cocina.');
+    if (!EDITABLES.includes(p.estado) || p.estado_produccion || p.produccion_autorizada) throw AppError.conflict(PRODUCTOS_BLOQUEADOS(p.estado));
     const lineas = cotizar(items, await Pedido.catalogoActivo(), await InsumoProducto.gaseosas());
     await revisarStock(c, lineas, p.id_pedido);
     const subtotal = lineas.reduce((s, l) => s + l.subtotal, 0);
@@ -212,6 +224,52 @@ const avisarSeguimiento = async (r) => {
   }
 };
 
+// El domiciliario entrega un pedido a domicilio que va «En camino» y recibe lo que faltaba: el efectivo (cuánto) o
+// la foto del comprobante. En una sola transacción queda «Pagado» y «Entregado», con su orden de producción y su
+// venta. Sirve igual para la app móvil y para el panel (un pedido de la tienda o uno hecho en el panel).
+const entregar = async (id, { efectivo, foto }, idUsuario) => {
+  if (!(await Permiso.tieneRol(idUsuario, 'DOMICILIARIO'))) throw AppError.forbidden('Solo el domiciliario confirma la entrega y el cobro.');
+  let r;
+  let debe = 0;
+  await withTransaction(async (c) => {
+    r = await Pedido.paraEntrega(c, id);
+    if (!r) throw AppError.notFound('Pedido no encontrado');
+    const panel = r.datos_panel;
+    const tipo = panel ? panel[3] : r.tipo_entrega;
+    const estado = (panel ? panel[7] : r.estado) || 'Recibido';
+    const pago = (panel ? panel[8] : r.estado_pago) || 'Pendiente';
+    const total = Number(panel ? panel[6] : r.total) || 0;
+    const abono = Number(panel ? panel[14] : r.abono) || 0;
+    if (!/^domicilio$/i.test(String(tipo ?? ''))) throw AppError.conflict('Solo los pedidos a domicilio se entregan así.');
+    if (estado !== 'En camino') throw AppError.conflict(`El pedido está «${estado}»: se entrega cuando va «En camino».`);
+    debe = pago === 'Pagado' ? 0 : pago === 'Abonado' ? Math.max(0, total - (abono || Math.ceil(total / 2))) : total;
+    if (debe > 0 && !foto && !(Number(efectivo) >= debe)) {
+      throw AppError.badRequest(`Falta cobrar ${fmtPesos(debe)}: escribe el efectivo recibido o sube la foto del comprobante.`);
+    }
+    if (foto) await Pedido.agregarComprobante(c, r.id_pedido, { imagen: foto, referencia: 'Entrega', valor: debe, hash: Soporte.huella(foto), dudoso: false });
+    await Pedido.marcarEntregado(c, r.id_pedido);
+    if (debe > 0) await Pedido.registrarEstado(c, r.id_pedido, foto ? 'Pago recibido (comprobante)' : 'Pago recibido (efectivo)', idUsuario);
+    await Pedido.registrarEstado(c, r.id_pedido, 'Entregado', idUsuario);
+    // Su orden de producción va en el mismo estado (ya salió de cocina: no descuenta nada)
+    const codigo = r.codigo || VentaPedido.codigoPedido(r.id_pedido);
+    await Pedido.entregarOrdenProduccion(c, codigo);
+    // La venta: la de un pedido de la tienda con sus productos; la de uno del panel con sus líneas
+    if (pago !== 'Pagado') {
+      await VentaPedido.asegurarVenta(c, panel
+        ? { id_pedido: r.id_pedido, total, cliente: panel[1], metodo_pago: panel[4], pago_mixto: panel[5] === 'Mixto', estado: 'Entregado', items: [] }
+        : await obtener(r.id_pedido, c), idUsuario, panel ? { codigo, lineas: String(panel[10] ?? '[]') } : {});
+    }
+    await VentaPedido.reflejarEstado(c, r.id_pedido, 'Entregado', codigo);
+  });
+  Eventos.publicarCambioPanel('pedidos');
+  if (r.id_cliente != null) {
+    Eventos.publicarEstadoProduccion({ idCliente: r.id_cliente, idPedido: r.id_pedido, estado: 'Entregado', estado_produccion: 'Entregado' });
+    const pedido = await Pedido.obtenerPorId(r.id_pedido).catch(() => null);
+    if (pedido) Correos.avisarCambio(r.estado, pedido);
+  }
+  return { id_pedido: r.id_pedido, estado: 'Entregado', estado_pago: 'Pagado', cobrado: debe };
+};
+
 // El cliente envía otro comprobante (puede mandar varios: el abono y el saldo, o uno nuevo si le rechazaron el anterior).
 // Se guardan todos; si se lo habían rechazado, vuelve a revisión.
 const MAX_COMPROBANTES = 5;
@@ -238,7 +296,7 @@ const subirComprobante = async (id, { comprobante, referencia, valor, dudoso }, 
 
 // Panel: cambia estado, pago y autorización de producción (deja historial si cambia el estado).
 // Al quedar «Pagado» se crea su venta (una sola), y la venta sigue el estado del pedido.
-const actualizar = async (id, { valor_recibido, ...d }, idUsuario) => {
+const actualizar = async (id, { valor_recibido, pagado_en_local, ...d }, idUsuario) => {
   let antes;
   await withTransaction(async (c) => {
     const p = await obtener(id, c, true);
@@ -257,6 +315,11 @@ const actualizar = async (id, { valor_recibido, ...d }, idUsuario) => {
       d.abono = valor_recibido;
       d.estado_pago = valor_recibido >= Number(p.total) ? 'Pagado' : 'Abonado';
     }
+    // Contraentrega a domicilio: «Pagado» lo marca el domiciliario al entregar (o «Pagó en el local»)
+    const cobroEnPuerta = d.estado_pago === 'Pagado' && p.estado_pago !== 'Pagado' && valor_recibido == null &&
+      cobraDomiciliario({ tipo: p.tipo_entrega, metodo: p.metodo_pago, mixto: p.pago_mixto });
+    if (cobroEnPuerta && !pagado_en_local && !(await Permiso.tieneRol(idUsuario, 'DOMICILIARIO'))) throw AppError.conflict(COBRO_DOMICILIARIO);
+    if (cobroEnPuerta && pagado_en_local) await Pedido.registrarEstado(c, id, 'Pagó en el local', idUsuario);
     // Los pedidos antiguos ya entregados todavía pueden regularizar su estado de pago.
     if (d.estado && d.estado !== p.estado && ['Entregado', 'Cancelado'].includes(p.estado)) {
       throw AppError.conflict(`El pedido ya está ${p.estado}; no se puede cambiar su estado.`);
@@ -322,4 +385,4 @@ const solicitarDevolucion = async (id, { motivo }, idCliente, ahora = Date.now()
   return obtener(id);
 };
 
-module.exports = { listar, listarMios, obtener, crear, cambiarProductos, seguirProduccion, avisarSeguimiento, subirComprobante, quitarComprobante, solicitarDevolucion, actualizar, cotizar };
+module.exports = { listar, listarMios, obtener, crear, cambiarProductos, entregar, seguirProduccion, avisarSeguimiento, subirComprobante, quitarComprobante, solicitarDevolucion, actualizar, cotizar };
