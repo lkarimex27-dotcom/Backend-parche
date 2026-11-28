@@ -4,6 +4,7 @@ const Usuario = require('../models/usuario.model');
 const { withTransaction } = require('../../config/db');
 const AppError = require('../errors/AppError');
 const Auditoria = require('../models/auditoria.model');
+const Permiso = require('../models/permiso.model');
 const { contrasenaProvisional, enviarProvisional } = require('../utils/provisional');
 
 const ROUNDS = 10;
@@ -25,7 +26,16 @@ const esSuperAdmin = (correo) => String(correo || '').trim().toLowerCase() === e
 const normalizarRol = (rol) =>
   rol.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9]+/g, '_').toUpperCase();
 
-const crear = async (d) => {
+// Dar o quitar el rol Administrador es dar todos los permisos: exige poder editar roles, no solo usuarios (B2)
+const tieneAdmin = (roles) => (roles || []).some((rol) => normalizarRol(rol) === 'ADMINISTRADOR');
+const exigirPermisoDeRoles = async (idQuienEdita) => {
+  if (!(await Permiso.tienePermiso(idQuienEdita, 'ROLES_PERMISOS', 'EDITAR'))) {
+    throw AppError.forbidden('Solo quien puede editar roles y permisos puede dar o quitar el rol Administrador.');
+  }
+};
+
+const crear = async (d, idQuienCrea) => {
+  if (tieneAdmin(d.roles)) await exigirPermisoDeRoles(idQuienCrea);
   const esCliente = d.roles.every((rol) => normalizarRol(rol) === 'CLIENTE');
   if (!esCliente && normalizarRol(d.tipo_documento || '') === 'TARJETA_DE_IDENTIDAD') {
     throw AppError.badRequest('La tarjeta de identidad solo está permitida para clientes.');
@@ -75,6 +85,7 @@ const actualizar = async (id, d, idQuienEdita) => {
       throw AppError.badRequest(`El correo del superadministrador siempre es ${env.superAdminEmail}.`);
     }
   }
+  if (d.roles && tieneAdmin(d.roles) !== tieneAdmin(usuario.roles)) await exigirPermisoDeRoles(idQuienEdita);
 
   await withTransaction(async (c) => {
     await Usuario.actualizarUsuario(c, id, { correo: d.correo, estado: d.estado });
