@@ -39,6 +39,8 @@ const actualizar = async (id, d) => {
   await withTransaction(async (c) => {
     const anterior = await obtener(id, c);
     if (anterior.estado === 'DEVUELTA') throw AppError.conflict('Esta pérdida ya se devolvió a la compra: no se puede editar.');
+    // El historial del insumo dice «Pérdida editada» (sin marcar quedaba como «Ajuste manual»)
+    await Stock.marcar(c, 'EDICION_PERDIDA', `Pérdida #${id}`);
     await Stock.ajustar(c, anterior.id_insumo_producto, anterior.cantidad);
     await Perdida.actualizar(c, id, d);
     await descontar(c, d.id_insumo_producto, d.cantidad);
@@ -59,6 +61,7 @@ const devolver = async (id, { cantidad, motivo }) => {
     if (devuelta > p.cantidad) {
       throw AppError.badRequest(`No puedes devolver más de lo perdido: máximo ${p.cantidad} ${p.medida || ''}`.trim());
     }
+    await Stock.marcar(c, 'DEVOLUCION_PERDIDA', `Pérdida #${id}`);
     await Stock.ajustar(c, p.id_insumo_producto, devuelta);
     await Perdida.devolver(c, id, {
       cantidad: devuelta,
