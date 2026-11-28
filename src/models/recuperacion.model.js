@@ -24,8 +24,15 @@ const obtener = async (idUsuario) =>
     [idUsuario]
   )).rows[0] || null;
 
-const sumarIntento = (idUsuario) =>
-  query('UPDATE recuperaciones_contrasena SET intentos = intentos + 1 WHERE id_usuario = $1', [idUsuario]);
+// Gasta un intento y devuelve el código a comparar, en UNA consulta: leer los intentos y sumar después dejaba que
+// 1.000 peticiones a la vez leyeran «0 intentos» y probaran 1.000 códigos. null = vencido o sin intentos
+const gastarIntento = async (idUsuario, maximo) =>
+  (await query(
+    `UPDATE recuperaciones_contrasena SET intentos = intentos + 1
+      WHERE id_usuario = $1 AND expira > now() AND intentos < $2
+      RETURNING codigo_hash`,
+    [idUsuario, maximo]
+  )).rows[0]?.codigo_hash ?? null;
 
 const marcarVerificado = (idUsuario, tokenHash, minutos) =>
   query(
@@ -38,4 +45,4 @@ const marcarVerificado = (idUsuario, tokenHash, minutos) =>
 
 const borrar = (idUsuario) => query('DELETE FROM recuperaciones_contrasena WHERE id_usuario = $1', [idUsuario]);
 
-module.exports = { guardar, obtener, sumarIntento, marcarVerificado, borrar };
+module.exports = { guardar, obtener, gastarIntento, marcarVerificado, borrar };

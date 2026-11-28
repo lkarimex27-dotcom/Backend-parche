@@ -35,17 +35,23 @@ const obtener = async (correo) =>
     [correo]
   )).rows[0] || null;
 
-const sumarIntento = (correo) =>
-  query('UPDATE codigos_registro SET intentos = intentos + 1 WHERE correo = $1', [correo]);
+// Igual que en la recuperación: gastar el intento y leer el código en una sola consulta (null = vencido o sin intentos)
+const gastarIntento = async (correo, maximo) =>
+  (await query(
+    `UPDATE codigos_registro SET intentos = intentos + 1
+      WHERE correo = $1 AND expira > now() AND intentos < $2
+      RETURNING codigo_hash`,
+    [correo, maximo]
+  )).rows[0]?.codigo_hash ?? null;
 
 const consumir = async (correo, codigoHash) =>
   (await query(
     `DELETE FROM codigos_registro
-      WHERE correo = $1 AND codigo_hash = $2 AND expira > now() AND intentos < 5
+      WHERE correo = $1 AND codigo_hash = $2 AND expira > now()
       RETURNING correo, contrasena_hash, nombre, tipo_documento, documento, telefono`,
     [correo, codigoHash]
   )).rows[0] || null;
 
 const borrar = (correo) => query('DELETE FROM codigos_registro WHERE correo = $1', [correo]);
 
-module.exports = { guardar, obtener, sumarIntento, consumir, borrar };
+module.exports = { guardar, obtener, gastarIntento, consumir, borrar };

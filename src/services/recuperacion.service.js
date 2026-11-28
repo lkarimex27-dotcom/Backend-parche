@@ -43,13 +43,8 @@ const solicitar = async ({ correo }) => {
 const verificar = async ({ correo: correoEntrada, codigo }) => {
   const correo = correoEntrada.trim().toLowerCase();
   const u = await Usuario.obtenerParaLogin(correo);
-  const r = u && (await Recuperacion.obtener(u.id_usuario));
-  const invalido = AppError.badRequest('El código es incorrecto o ya venció. Pide uno nuevo.');
-  if (!r || !r.vigente || r.intentos >= MAX_INTENTOS) throw invalido;
-  if (!iguales(hash(codigo), r.codigo_hash)) {
-    await Recuperacion.sumarIntento(u.id_usuario);
-    throw invalido;
-  }
+  const codigoHash = u && (await Recuperacion.gastarIntento(u.id_usuario, MAX_INTENTOS));
+  if (!codigoHash || !iguales(hash(codigo), codigoHash)) throw AppError.badRequest('El código es incorrecto o ya venció. Pide uno nuevo.');
 
   const token = crypto.randomBytes(32).toString('hex');
   await Recuperacion.marcarVerificado(u.id_usuario, hash(token), MINUTOS_VERIFICACION);
@@ -62,7 +57,8 @@ const restablecer = async ({ correo: correoEntrada, token, nueva }) => {
   const invalido = AppError.badRequest('El código es incorrecto o ya venció. Pide uno nuevo.');
   const u = await Usuario.obtenerParaLogin(correo);
   const r = u && (await Recuperacion.obtener(u.id_usuario));
-  if (!r || !r.vigente || r.intentos >= MAX_INTENTOS) throw invalido;
+  // El token ya prueba el código (pudo acertarse en el último intento, con intentos = MAX)
+  if (!r) throw invalido;
   if (!r.verificacion_vigente || !r.verificacion_hash || !iguales(hash(token), r.verificacion_hash)) throw invalido;
   await Usuario.cambiarContrasena(u.id_usuario, await bcrypt.hash(nueva, 10));
   await Recuperacion.borrar(u.id_usuario);

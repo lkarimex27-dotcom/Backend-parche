@@ -57,15 +57,11 @@ const solicitar = async (datos) => {
 
 const verificar = async ({ correo: correoEntrada, codigo }) => {
   const correo = correoEntrada.trim().toLowerCase();
-  const pendiente = await Registro.obtener(correo);
   const invalido = AppError.badRequest('El código es incorrecto o ya venció. Solicita uno nuevo.');
-  if (!pendiente || !pendiente.vigente || pendiente.intentos >= MAX_INTENTOS) throw invalido;
-  if (!iguales(hash(codigo), pendiente.codigo_hash)) {
-    await Registro.sumarIntento(correo);
-    throw invalido;
-  }
+  const codigoHash = await Registro.gastarIntento(correo, MAX_INTENTOS);
+  if (!codigoHash || !iguales(hash(codigo), codigoHash)) throw invalido;
 
-  const cuenta = await Registro.consumir(correo, pendiente.codigo_hash);
+  const cuenta = await Registro.consumir(correo, codigoHash);
   if (!cuenta) throw invalido;
 
   return Auth.registrarVerificado({

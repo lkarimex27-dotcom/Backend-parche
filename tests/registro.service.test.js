@@ -10,7 +10,7 @@ jest.mock('../src/models/usuario.model', () => ({
 jest.mock('../src/models/registro.model', () => ({
   obtener: jest.fn(),
   guardar: jest.fn(),
-  sumarIntento: jest.fn(),
+  gastarIntento: jest.fn(),
   consumir: jest.fn(),
   borrar: jest.fn(),
 }));
@@ -32,7 +32,7 @@ describe('Registro con verificación de correo', () => {
     jest.clearAllMocks();
     Registro.obtener.mockResolvedValue(null);
     Registro.guardar.mockResolvedValue(undefined);
-    Registro.sumarIntento.mockResolvedValue(undefined);
+    Registro.gastarIntento.mockResolvedValue(null);
     Registro.consumir.mockResolvedValue(null);
     Registro.borrar.mockResolvedValue(undefined);
     enviarCorreo.mockResolvedValue(undefined);
@@ -69,25 +69,17 @@ describe('Registro con verificación de correo', () => {
   });
 
   it('rechaza un PIN incorrecto y registra el intento', async () => {
-    Registro.obtener.mockResolvedValue({
-      vigente: true,
-      intentos: 0,
-      codigo_hash: hash('123456'),
-    });
+    Registro.gastarIntento.mockResolvedValue(hash('123456'));
 
     await expect(service.verificar({ correo: 'ana@correo.com', codigo: '000000' }))
       .rejects.toThrow(/incorrecto|venció/i);
 
-    expect(Registro.sumarIntento).toHaveBeenCalledWith('ana@correo.com');
+    expect(Registro.gastarIntento).toHaveBeenCalledWith('ana@correo.com', 5);
     expect(Registro.consumir).not.toHaveBeenCalled();
   });
 
   it('crea la cuenta únicamente después de consumir el PIN correcto', async () => {
-    Registro.obtener.mockResolvedValue({
-      vigente: true,
-      intentos: 0,
-      codigo_hash: hash('123456'),
-    });
+    Registro.gastarIntento.mockResolvedValue(hash('123456'));
     Registro.consumir.mockResolvedValue({
       correo: 'ana@correo.com',
       contrasena_hash: 'bcrypt-hash',
