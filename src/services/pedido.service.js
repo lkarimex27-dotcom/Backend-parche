@@ -93,6 +93,7 @@ const cotizar = (items, catalogo, gaseosas = []) => {
 // Con el inventario (menos lo que apartan los pedidos abiertos) se tienen que poder preparar todos los productos
 // con ficha técnica; si no, dice cuántos de ese producto se alcanzan a preparar
 const revisarStock = async (c, lineas, excluirPedido = 0) => {
+  await Pedido.bloquearStock(c);
   const receta = await Pedido.insumosParaPreparar(c, [...new Set(lineas.map((l) => l.id_insumo_producto))], excluirPedido);
   if (!receta?.length) return;
   const cuantos = (producto) => lineas.filter((l) => l.id_insumo_producto === producto).reduce((s, l) => s + l.cantidad, 0);

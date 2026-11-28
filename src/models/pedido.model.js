@@ -100,6 +100,10 @@ const reemplazarDetalle = async (c, idPedido, lineas) => {
   for (const l of lineas) await crearDetalle(c, idPedido, l);
 };
 
+// Un pedido nuevo (o que cambia sus productos) revisa el stock y lo aparta de a uno: el segundo espera a que el
+// primero termine su transacción y ya ve lo que este apartó (antes dos pedidos simultáneos se llevaban el último)
+const bloquearStock = (c) => c.query("SELECT pg_advisory_xact_lock(hashtext('stock-pedidos'))");
+
 // Lo que pide la ficha técnica de cada producto de cada insumo (por unidad, en la unidad del inventario), su stock y
 // lo que ya apartan los pedidos abiertos de la tienda: aún no pasan por cocina, que es donde se descuenta el stock
 const insumosParaPreparar = async (c, ids, excluirPedido = 0) => {
@@ -352,6 +356,6 @@ const soportesDeOtros = async (c, idPedido) =>
 
 module.exports = {
   agregarComprobante, quitarComprobante, soportesDeOtros,
-  listar, listarDeCliente, obtenerPorId, imagenComprobante, catalogoActivo, crear, crearDetalle, paraEntrega, marcarEntregado, entregarOrdenProduccion, reemplazarDetalle, insumosParaPreparar, crearOrdenProduccion, registrarEstado, solicitarDevolucion,
+  listar, listarDeCliente, obtenerPorId, imagenComprobante, catalogoActivo, crear, crearDetalle, paraEntrega, marcarEntregado, entregarOrdenProduccion, reemplazarDetalle, bloquearStock, insumosParaPreparar, crearOrdenProduccion, registrarEstado, solicitarDevolucion,
   actualizarEstadoProduccion, actualizar, colaCocina, estadisticasDesplazamiento,
 };
