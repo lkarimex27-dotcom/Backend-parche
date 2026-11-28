@@ -11,7 +11,9 @@ types.setTypeParser(1700, (v) => parseFloat(v));
 const esLocal = /@(localhost|127\.0\.0\.1)(:|\/)/.test(env.databaseUrl || '');
 const pool = new Pool({
   connectionString: env.databaseUrl,
-  ssl: esLocal ? false : { rejectUnauthorized: false },
+  // El certificado de Neon se verifica (con false, alguien en medio de la red podía hacerse pasar por la base cuando
+  // la DATABASE_URL no trae sslmode; con sslmode=require pg ya lo verificaba)
+  ssl: esLocal ? false : { rejectUnauthorized: true },
   max: 10,
   idleTimeoutMillis: 30000,
   // Neon a veces responde lento (red o arranque en frío): 30 s antes de rendirse, en vez de un 500 a los 10 s
