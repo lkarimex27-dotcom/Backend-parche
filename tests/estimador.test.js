@@ -20,16 +20,16 @@ const barrio = (overrides = {}) => ({
 describe('estimador de pedidos', () => {
   beforeEach(() => jest.clearAllMocks());
 
-  it('calcula el tiempo de domicilio por distancia en línea recta', () => {
-    // Barrio sin tarifa: se cobra por tramos de distancia
+  it('calcula el tiempo de domicilio por distancia en línea recta; sin tarifa del barrio el costo queda por confirmar', () => {
+    // La distancia la manda el navegador: solo da el tiempo, nunca el precio (A2)
     const result = estimar(barrio({ costo_domicilio_cop: null }), [], { observaciones: 0 }, 1.5);
 
     expect(result.estimatedMinutes).toBe(21);
-    expect(result.deliveryCost).toBe(4000);
+    expect(result.deliveryCost).toBeNull();
     expect(result.minimumMinutes).toBeNull();
     expect(result.maximumMinutes).toBeNull();
     expect(result.source).toBe('distance');
-    expect(result.costConfigured).toBe(true);
+    expect(result.costConfigured).toBe(false);
     expect(result.isApproximate).toBe(true);
     expect(result.distanceKm).toBe(1.5);
     expect(result.distanceMethod).toBe('straight_line_estimate');
@@ -94,6 +94,14 @@ describe('estimador de pedidos', () => {
     expect(result.components.travelMinutes).toBe(8);
   });
 
+  it('un barrio sin tarifa no se cobra por la distancia que manda el cliente (0,1 km no da la tarifa mínima)', () => {
+    for (const distancia of [0.1, 0, 6]) {
+      const result = estimar(barrio({ costo_domicilio_cop: null }), [], { observaciones: 0 }, distancia);
+      expect(result.deliveryCost).toBeNull();
+      expect(result.costConfigured).toBe(false);
+    }
+  });
+
   it('sin distancia usa la tarifa configurada del barrio', () => {
     const result = estimar(barrio(), [], { observaciones: 0 });
 
@@ -125,7 +133,7 @@ describe('estimador de pedidos', () => {
     expect(calcularEsperaCocina(pedidos(4))).toBe(30);
     expect(estimar(barrio({ costo_domicilio_cop: null }), pedidos(4), { observaciones: 0 }, 3)).toMatchObject({
       estimatedMinutes: 57,
-      deliveryCost: 6000,
+      deliveryCost: null,
       source: 'distance',
       components: {
         kitchenWaitMinutes: 30,
@@ -200,7 +208,7 @@ describe('estimador de pedidos', () => {
 
     expect(result.estimatedMinutes).toBe(25);
     expect(result.source).toBe('history');
-    expect(result.deliveryCost).toBe(6000);
+    expect(result.deliveryCost).toBeNull();
     expect(result.distanceKm).toBe(3);
   });
 

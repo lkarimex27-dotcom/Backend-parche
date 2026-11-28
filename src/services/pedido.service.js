@@ -126,7 +126,7 @@ const crear = async (d, idCliente) => {
     );
     const costoDomicilio = esDomicilio ? estimacionInicial.deliveryCost : 0;
     if (esDomicilio && costoDomicilio === null) {
-      throw AppError.conflict('No se pudo calcular el domicilio. Costo de domicilio por confirmar para este barrio.');
+      throw AppError.conflict('Todavía no tenemos la tarifa de domicilio para tu barrio: el costo está por confirmar. Escríbenos por WhatsApp o elige recoger en el local.');
     }
     const total = subtotal + costoDomicilio;
     // $150.000 o más: lo confirma El Parche y se abona el 50% por transferencia (con comprobante); el saldo al recibir

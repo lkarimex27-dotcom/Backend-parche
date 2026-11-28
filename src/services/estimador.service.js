@@ -115,9 +115,10 @@ const estimar = (barrio, pedidosActivos, estadisticas, distanciaKm, items) => {
   const esperaCocinaMinutos = calcularEsperaCocina(pedidosActivos);
   const preparacionMinutos = calcularTiempoPreparacion(items);
   const zona = barrio.nombre;
-  // Costo: la tarifa configurada del barrio; si no tiene, por tramos según la distancia
+  // Costo: solo la tarifa configurada del barrio. Sin tarifa queda «por confirmar»: la distancia la manda el navegador
+  // (distancia_km o ubicacion) y con 0,1 km cualquiera pagaba la tarifa mínima
   const tarifaBarrio = barrio.costo_domicilio_cop == null ? null : Number(barrio.costo_domicilio_cop);
-  const deliveryCost = Number.isFinite(tarifaBarrio) ? tarifaBarrio : calcularCostoDomicilio(distanciaKm);
+  const deliveryCost = Number.isFinite(tarifaBarrio) ? tarifaBarrio : null;
   const costConfigured = deliveryCost !== null;
   const distanceKm = distanciaValida(distanciaKm) ? distanciaKm : null;
 

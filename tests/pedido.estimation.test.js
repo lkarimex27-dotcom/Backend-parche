@@ -33,6 +33,7 @@ describe('integración de la estimación inicial al crear un pedido', () => {
       activo: true,
       es_cercano: true,
       tiempo_desplazamiento_minutos: null,
+      costo_domicilio_cop: 4000,
     });
     Pedido.colaCocina.mockResolvedValue([]);
     Pedido.estadisticasDesplazamiento.mockResolvedValue({
@@ -47,8 +48,8 @@ describe('integración de la estimación inicial al crear un pedido', () => {
   });
 
   it('almacena el snapshot en la misma transacción sin cambiar los precios del pedido', async () => {
-    // Barrio sin tarifa configurada: se cobra por tramos de distancia
-    Barrio.obtenerActivo.mockResolvedValueOnce({ id_barrio: 2, nombre: 'Santa Ana', activo: true, es_cercano: true, tiempo_desplazamiento_minutos: null, costo_domicilio_cop: null });
+    // Con la ubicación se estima el tiempo; el costo es la tarifa del barrio
+    Barrio.obtenerActivo.mockResolvedValueOnce({ id_barrio: 2, nombre: 'Santa Ana', activo: true, es_cercano: true, tiempo_desplazamiento_minutos: null, costo_domicilio_cop: 4000 });
     await service.crear({
       nombre: 'Cliente',
       telefono: '3000000000',
@@ -97,27 +98,20 @@ describe('integración de la estimación inicial al crear un pedido', () => {
     expect(payload.total).toBe(17000);
   });
 
-  it('crea pedidos a más de 5 km con la tarifa máxima de domicilio', async () => {
-    // Barrio sin tarifa configurada: se cobra por tramos de distancia
-    Barrio.obtenerActivo.mockResolvedValueOnce({ id_barrio: 2, nombre: 'Santa Ana', activo: true, es_cercano: true, tiempo_desplazamiento_minutos: null, costo_domicilio_cop: null });
-    await service.crear({
-      nombre: 'Cliente',
-      telefono: '3000000000',
-      direccion: 'Calle 1',
-      id_barrio: 2,
-      distancia_km: 5.1,
-      pago: 'Efectivo',
-      items: [{ producto: 'Mini', cantidad: 1, salsas: [], adiciones: [] }],
-    }, 7);
-
-    const [, payload] = Pedido.crear.mock.calls[0];
-    expect(payload.costo_domicilio_cop).toBe(8000);
-    expect(payload.total).toBe(21000);
+  it('un barrio sin tarifa no se cobra por la distancia que manda el navegador: el pedido queda por confirmar (A2)', async () => {
+    // Antes: 0,1 km daba la tarifa mínima aunque el cliente viviera lejos
+    for (const distancia_km of [0.1, 5.1]) {
+      Barrio.obtenerActivo.mockResolvedValueOnce({ id_barrio: 2, nombre: 'Santa Ana', activo: true, es_cercano: true, tiempo_desplazamiento_minutos: null, costo_domicilio_cop: null });
+      await expect(service.crear({
+        nombre: 'Cliente', telefono: '3000000000', direccion: 'Calle 1', id_barrio: 2, distancia_km,
+        pago: 'Efectivo', items: [{ producto: 'Mini', cantidad: 1, salsas: [], adiciones: [] }],
+      }, 7)).rejects.toMatchObject({ statusCode: 409 });
+    }
+    expect(Pedido.crear).not.toHaveBeenCalled();
   });
 
-  it('aplica la tarifa incremental por distancia y conserva las unidades en la estimación guardada', async () => {
-    // Barrio sin tarifa configurada: se cobra por tramos de distancia
-    Barrio.obtenerActivo.mockResolvedValueOnce({ id_barrio: 2, nombre: 'Santa Ana', activo: true, es_cercano: true, tiempo_desplazamiento_minutos: null, costo_domicilio_cop: null });
+  it('cobra la tarifa del barrio (no la que mande el navegador) y conserva las unidades en la estimación guardada', async () => {
+    Barrio.obtenerActivo.mockResolvedValueOnce({ id_barrio: 2, nombre: 'Santa Ana', activo: true, es_cercano: true, tiempo_desplazamiento_minutos: null, costo_domicilio_cop: 10000 });
     await service.crear({
       nombre: 'Cliente',
       telefono: '3000000000',
@@ -173,7 +167,7 @@ describe('integración de la estimación inicial al crear un pedido', () => {
       id_barrio: 2,
       pago: 'Efectivo',
       items: [{ producto: 'Mini', cantidad: 1, salsas: [], adiciones: [] }],
-    }, 7)).rejects.toThrow('Costo de domicilio por confirmar');
+    }, 7)).rejects.toThrow('el costo está por confirmar');
 
     expect(Pedido.crear).not.toHaveBeenCalled();
   });
