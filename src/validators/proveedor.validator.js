@@ -2,10 +2,12 @@ const { z } = require('zod');
 const { correo } = require('./common.validator');
 
 const idParam = z.object({ id: z.coerce.number().int().positive() });
+// "" borra el correo (sin enviarlo, el servidor conservaba el anterior)
+const correoOVacio = correo.or(z.literal(''));
 
 const crearProveedor = z.object({
   nombre: z.string().trim().min(2).max(150),
-  correo: correo.optional(),
+  correo: correoOVacio.optional(),
   telefono: z.string().trim().max(30).optional(),
   contacto: z.string().trim().max(150).optional(),
   tipo: z.string().trim().max(50).optional(),
@@ -16,7 +18,7 @@ const crearProveedor = z.object({
   contacto_tipo_documento: z.string().trim().max(30).optional(),
   contacto_documento: z.string().trim().max(50).optional(),
   contacto_telefono: z.string().trim().max(30).optional(),
-  contacto_correo: correo.optional(),
+  contacto_correo: correoOVacio.optional(),
   contacto_cargo: z.string().trim().max(100).optional(),
 });
 
