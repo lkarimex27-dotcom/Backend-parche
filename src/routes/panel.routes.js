@@ -105,6 +105,7 @@ module.exports = (cfg) => {
           soloOrdenDePedido(req, anterior, productos);
           const rechazo = Reglas.revisarProduccion(anterior, fila, { viaAvanzar: true });
           if (rechazo) throw AppError.conflict(rechazo);
+          await Consumo.revisarInsumos(client, anterior, insumos);
           if (insumos.length) await Consumo.descontarCon(client, { numero_orden: numero, insumos }, req.user.id);
           if (productos.length) await Consumo.ingresarCon(client, { numero_orden: numero, productos }, req.user.id);
           const { id_usuario, ...columnas } = await cfg.columnas(fila, req.user.id);

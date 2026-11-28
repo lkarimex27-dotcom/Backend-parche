@@ -4,7 +4,7 @@ process.env.JWT_SECRET = 'secreto_de_pruebas_secreto_de_pruebas_123';
 jest.mock('../config/db', () => ({ query: jest.fn(), withTransaction: jest.fn((fn) => fn({})) }));
 jest.mock('../src/models/permiso.model', () => ({ tienePermiso: jest.fn(), tieneRol: jest.fn() }));
 jest.mock('../src/models/panel.model', () => ({ datos: jest.fn(), actualizarConCliente: jest.fn(async () => true) }));
-jest.mock('../src/services/consumo.service', () => ({ descontarCon: jest.fn(), ingresarCon: jest.fn() }));
+jest.mock('../src/services/consumo.service', () => ({ descontarCon: jest.fn(), ingresarCon: jest.fn(), revisarInsumos: jest.fn() }));
 jest.mock('../src/services/pedido.service', () => ({ seguirProduccion: jest.fn(async () => null), avisarSeguimiento: jest.fn() }));
 
 const express = require('express');
